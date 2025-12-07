@@ -425,13 +425,19 @@ class LLMSearchManager:
             messages = session.get_messages_for_llm(SYSTEM_PROMPT)
             
             # Call LLM
-            response = client.chat.completions.create(
-                model=self._settings.LLM_ENDPOINT,
-                messages=messages,
-                tools=TOOL_DEFINITIONS,
-                tool_choice="auto",
-                max_tokens=4096
-            )
+            try:
+                logger.debug(f"Calling LLM (iteration {iteration + 1}/{max_iterations})")
+                response = client.chat.completions.create(
+                    model=self._settings.LLM_ENDPOINT,
+                    messages=messages,
+                    tools=TOOL_DEFINITIONS,
+                    tool_choice="auto",
+                    max_tokens=4096
+                )
+                logger.debug(f"LLM response received successfully")
+            except Exception as llm_error:
+                logger.error(f"LLM API call failed: {llm_error}", exc_info=True)
+                raise RuntimeError(f"Failed to connect to LLM endpoint: {llm_error}")
             
             assistant_message = response.choices[0].message
             
@@ -484,26 +490,73 @@ class LLMSearchManager:
         return "I apologize, but I wasn't able to complete your request. Please try rephrasing your question.", total_tool_calls, sources
     
     def _get_openai_client(self, user_token: Optional[str] = None):
-        """Get OpenAI client for Databricks."""
+        """Get OpenAI client for Databricks.
+        
+        Authentication priority:
+        1. Explicit user_token parameter
+        2. Databricks SDK default config (for Databricks Apps with OAuth)
+        3. Workspace client's authentication
+        4. DATABRICKS_TOKEN setting/env var (for local development)
+        """
         try:
             from openai import OpenAI
             
-            token = user_token or self._settings.DATABRICKS_TOKEN or os.environ.get('DATABRICKS_TOKEN')
-            if not token:
-                raise RuntimeError("No authentication token available")
+            token = user_token
             
+            # Try to get token from Databricks SDK default config (Databricks Apps)
+            if not token:
+                try:
+                    from databricks.sdk.core import Config
+                    config = Config()  # Gets default config (uses OAuth in Databricks Apps)
+                    headers = config.authenticate()
+                    if headers and 'Authorization' in headers:
+                        auth_header = headers['Authorization']
+                        if auth_header.startswith('Bearer '):
+                            token = auth_header[7:]
+                            logger.debug("Using token from Databricks SDK default config")
+                except Exception as sdk_err:
+                    logger.debug(f"Could not get token from SDK default config: {sdk_err}")
+            
+            # Try workspace client's authentication
+            if not token and self._ws_client:
+                try:
+                    ws_config = self._ws_client.config
+                    headers = ws_config.authenticate()
+                    if headers and 'Authorization' in headers:
+                        auth_header = headers['Authorization']
+                        if auth_header.startswith('Bearer '):
+                            token = auth_header[7:]
+                            logger.debug("Using token from workspace client authentication")
+                except Exception as ws_err:
+                    logger.debug(f"Could not get token from workspace client: {ws_err}")
+            
+            # Fall back to settings/env var
+            if not token:
+                token = self._settings.DATABRICKS_TOKEN or os.environ.get('DATABRICKS_TOKEN')
+                if token:
+                    logger.debug("Using token from settings/environment")
+            
+            if not token:
+                raise RuntimeError("No authentication token available. Ensure the app has access to a serving endpoint or set DATABRICKS_TOKEN.")
+            
+            # Determine base URL
             base_url = self._settings.LLM_BASE_URL
             if not base_url and self._settings.DATABRICKS_HOST:
-                base_url = f"{self._settings.DATABRICKS_HOST.rstrip('/')}/serving-endpoints"
+                host = self._settings.DATABRICKS_HOST.rstrip('/')
+                # Ensure the URL has a protocol
+                if not host.startswith('http://') and not host.startswith('https://'):
+                    host = f"https://{host}"
+                base_url = f"{host}/serving-endpoints"
             
             if not base_url:
-                raise RuntimeError("LLM_BASE_URL not configured")
+                raise RuntimeError("LLM_BASE_URL not configured. Set LLM_BASE_URL or DATABRICKS_HOST.")
             
+            logger.info(f"Creating OpenAI client for base_url={base_url}, endpoint={self._settings.LLM_ENDPOINT}")
             return OpenAI(api_key=token, base_url=base_url)
             
         except Exception as e:
-            logger.error(f"Failed to create OpenAI client: {e}")
-            raise RuntimeError(f"OpenAI client initialization failed: {e}")
+            logger.error(f"Failed to create OpenAI client: {e}", exc_info=True)
+            raise RuntimeError(f"LLM connection failed: {e}")
     
     # ========================================================================
     # Tool Execution
