@@ -494,35 +494,36 @@ class LLMSearchManager:
         
         Authentication priority:
         1. Explicit user_token parameter
-        2. DATABRICKS_TOKEN setting/env var (explicit PAT - works everywhere)
-        3. Workspace client's authentication (service principal in Databricks Apps)
+        2. Databricks SDK default config (OBO token in Databricks Apps, PAT/OAuth locally)
+        3. DATABRICKS_TOKEN setting/env var (fallback for local development)
         
-        Note: In Databricks Apps, the workspace client uses the app's service
-        principal token, which has "Can query" permission on the serving endpoint.
+        Note: We prefer user credentials (OBO) for audit trail and permission consistency.
+        In Databricks Apps, this requires the 'serving.serving-endpoints' user scope.
         """
         try:
             from openai import OpenAI
             
             token = user_token
             
-            # Try explicit token from settings/env first (works for local dev with PAT)
+            # Try Databricks SDK default config (OBO in Apps, PAT/OAuth locally)
             if not token:
-                token = self._settings.DATABRICKS_TOKEN or os.environ.get('DATABRICKS_TOKEN')
-                if token:
-                    logger.info("Using token from settings/environment (PAT)")
-            
-            # Fall back to workspace client's authentication (service principal in Apps)
-            if not token and self._ws_client:
                 try:
-                    ws_config = self._ws_client.config
-                    headers = ws_config.authenticate()
+                    from databricks.sdk.core import Config
+                    config = Config()
+                    headers = config.authenticate()
                     if headers and 'Authorization' in headers:
                         auth_header = headers['Authorization']
                         if auth_header.startswith('Bearer '):
                             token = auth_header[7:]
-                            logger.info("Using token from workspace client (service principal)")
-                except Exception as ws_err:
-                    logger.debug(f"Could not get token from workspace client: {ws_err}")
+                            logger.info("Using token from Databricks SDK (user credentials)")
+                except Exception as sdk_err:
+                    logger.debug(f"Could not get token from SDK config: {sdk_err}")
+            
+            # Fallback to explicit token from settings/env (local development)
+            if not token:
+                token = self._settings.DATABRICKS_TOKEN or os.environ.get('DATABRICKS_TOKEN')
+                if token:
+                    logger.info("Using token from settings/environment (PAT)")
             
             if not token:
                 raise RuntimeError("No authentication token available. Ensure the app has access to a serving endpoint or set DATABRICKS_TOKEN.")
