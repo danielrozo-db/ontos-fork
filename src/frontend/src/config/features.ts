@@ -135,7 +135,7 @@ import {
       description: 'Build a golden record of your data.',
       icon: Users,
       group: 'Operations',
-      maturity: 'alpha', // Requires external setup
+      maturity: 'beta',
       showInLanding: true,
     },
     {

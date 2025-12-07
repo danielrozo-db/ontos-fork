@@ -198,11 +198,29 @@ export default function MdmConfigDialog({ isOpen, onClose, onSuccess }: MdmConfi
       };
 
       const response = await post('/api/mdm/configs', data);
+      if (response.error) {
+        console.error('[MDM Config] Creation failed:', response.error);
+        toast({
+          title: 'Error',
+          description: response.error,
+          variant: 'destructive',
+        });
+        return;
+      }
       if (response.data) {
-        toast({ title: 'Success', description: 'MDM configuration created successfully' });
+        console.log('[MDM Config] Created successfully:', response.data);
+        toast({ title: 'Success', description: `MDM configuration "${response.data.name}" created successfully` });
         onSuccess();
+      } else {
+        console.warn('[MDM Config] No data in response:', response);
+        toast({
+          title: 'Warning',
+          description: 'Configuration may not have been created. Please refresh.',
+          variant: 'destructive',
+        });
       }
     } catch (err: any) {
+      console.error('[MDM Config] Exception creating config:', err);
       toast({
         title: 'Error',
         description: err.message || 'Failed to create configuration',

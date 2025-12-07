@@ -76,10 +76,12 @@ async def list_mdm_configs(
 ):
     """List all MDM configurations"""
     try:
-        return manager.list_configs(project_id=project_id, status=status, skip=skip, limit=limit)
+        configs = manager.list_configs(project_id=project_id, status=status, skip=skip, limit=limit)
+        logger.info(f"Listed {len(configs)} MDM configs (project_id={project_id}, status={status})")
+        return configs
     except Exception as e:
         logger.exception("Error listing MDM configs")
-        raise HTTPException(status_code=500, detail="Failed to list MDM configurations")
+        raise HTTPException(status_code=500, detail=f"Failed to list MDM configurations: {str(e)}")
 
 
 @router.get("/configs/{config_id}", response_model=MdmConfigApi)
@@ -122,9 +124,11 @@ async def create_mdm_config(
     }
     
     try:
+        logger.info(f"Creating MDM config: name={data.name}, master_contract_id={data.master_contract_id}")
         result = manager.create_config(data, created_by=current_user.username)
         success = True
         details["config_id"] = result.id
+        logger.info(f"Created MDM config successfully: id={result.id}, name={result.name}")
         return result
     except ValueError as e:
         logger.warning(f"Validation error creating MDM config: {e}")

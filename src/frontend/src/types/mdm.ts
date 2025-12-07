@@ -52,6 +52,7 @@ export enum MatchRuleType {
 export enum SurvivorshipStrategy {
   MOST_RECENT = 'most_recent',
   MOST_COMPLETE = 'most_complete',
+  MOST_TRUSTED = 'most_trusted',
   SOURCE_PRIORITY = 'source_priority',
   MASTER_WINS = 'master_wins',
   SOURCE_WINS = 'source_wins',
