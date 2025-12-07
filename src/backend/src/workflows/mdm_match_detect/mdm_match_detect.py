@@ -24,16 +24,114 @@ from pyspark.sql import functions as F
 from pyspark.sql.types import FloatType
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.engine import Engine
+
+from databricks.sdk import WorkspaceClient
 
 
-def get_db_session(host: str, db: str, port: str, schema: str, user: str = None, password: str = None):
-    """Create database session"""
-    # In production, credentials would come from secrets
-    url = f"postgresql://{host}:{port}/{db}"
-    if user and password:
-        url = f"postgresql://{user}:{password}@{host}:{port}/{db}"
+# ============================================================================
+# OAuth Token Generation & Database Connection (for Lakebase Postgres)
+# ============================================================================
+
+def get_oauth_token(ws_client: WorkspaceClient, instance_name: str) -> Tuple[str, str]:
+    """Generate OAuth token for the service principal to access Lakebase Postgres."""
+    if not instance_name or instance_name == 'None' or instance_name == '':
+        raise RuntimeError(
+            "Lakebase instance name is required but was not provided.\n"
+            "This is auto-detected from the Databricks App resources.\n"
+            "Ensure your app has a Lakebase database resource configured."
+        )
     
-    engine = create_engine(url)
+    print(f"  Generating OAuth token for instance: {instance_name}")
+    
+    # Get current service principal
+    current_user = ws_client.current_user.me().user_name
+    print(f"  Service Principal: {current_user}")
+    
+    # Generate token
+    try:
+        cred = ws_client.database.generate_database_credential(
+            request_id=str(uuid.uuid4()),
+            instance_names=[instance_name],
+        )
+    except AttributeError as e:
+        raise RuntimeError(
+            f"Failed to generate OAuth token: {e}\n"
+            "This may indicate that the Databricks SDK version doesn't support database OAuth,\n"
+            "or that the workspace client is not properly initialized.\n"
+            "Please ensure you're using a recent version of the databricks-sdk package."
+        )
+    
+    print(f"  ✓ Successfully generated OAuth token")
+    return current_user, cred.token
+
+
+def build_db_url(
+    host: str,
+    db: str, 
+    port: str, 
+    schema: str,
+    instance_name: str,
+    ws_client: WorkspaceClient
+) -> Tuple[str, str]:
+    """Build PostgreSQL connection URL using OAuth authentication.
+    
+    Returns: (connection_url, auth_user)
+    """
+    
+    print(f"  POSTGRES_HOST: {host}")
+    print(f"  POSTGRES_DB: {db}")
+    print(f"  POSTGRES_PORT: {port}")
+    print(f"  POSTGRES_DB_SCHEMA: {schema}")
+    print(f"  LAKEBASE_INSTANCE_NAME: {instance_name}")
+    print(f"  Authentication: OAuth (Lakebase Postgres)")
+    
+    # Generate OAuth token
+    oauth_user, oauth_token = get_oauth_token(ws_client, instance_name)
+    print(f"  Using OAuth user: {oauth_user}")
+    
+    if not all([host, oauth_user, oauth_token, db]):
+        missing = []
+        if not host: missing.append("host")
+        if not oauth_user: missing.append("oauth_user")
+        if not oauth_token: missing.append("oauth_token")
+        if not db: missing.append("db")
+        raise RuntimeError(f"Missing required Postgres parameters: {', '.join(missing)}")
+    
+    query = f"?options=-csearch_path%3D{schema}" if schema else ""
+    connection_url = f"postgresql+psycopg2://{oauth_user}:****@{host}:{port}/{db}{query}"
+    print(f"  Connection URL (token redacted): {connection_url}")
+    
+    actual_url = f"postgresql+psycopg2://{oauth_user}:{oauth_token}@{host}:{port}/{db}{query}"
+    return actual_url, oauth_user
+
+
+def create_engine_from_params(
+    ws_client: WorkspaceClient,
+    host: str,
+    db: str,
+    port: str,
+    schema: str,
+    instance_name: str
+) -> Engine:
+    """Create SQLAlchemy engine using OAuth authentication."""
+    if not instance_name:
+        raise RuntimeError("lakebase_instance_name parameter is required")
+    
+    url, auth_user = build_db_url(host, db, port, schema, instance_name, ws_client)
+    return create_engine(url, pool_pre_ping=True)
+
+
+def get_db_session(
+    ws_client: WorkspaceClient,
+    host: str,
+    db: str,
+    port: str,
+    schema: str,
+    instance_name: str
+):
+    """Create database session using OAuth authentication."""
+    engine = create_engine_from_params(ws_client, host, db, port, schema, instance_name)
     Session = sessionmaker(bind=engine)
     return Session(), engine
 
@@ -402,24 +500,45 @@ def main():
     parser.add_argument("--run_id", required=True, help="Match run ID")
     parser.add_argument("--config_id", required=True, help="MDM configuration ID")
     parser.add_argument("--source_link_id", default="", help="Specific source link to process")
+    parser.add_argument("--lakebase_instance_name", required=True, help="Lakebase instance name for OAuth")
     parser.add_argument("--postgres_host", required=True, help="PostgreSQL host")
     parser.add_argument("--postgres_db", required=True, help="PostgreSQL database")
     parser.add_argument("--postgres_port", default="5432", help="PostgreSQL port")
     parser.add_argument("--postgres_schema", default="public", help="PostgreSQL schema")
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
+
+    print("=" * 80)
+    print("MDM Match Detection Workflow")
+    print("=" * 80)
+    print(f"\nJob Parameters:")
+    print(f"  Run ID: {args.run_id}")
+    print(f"  Config ID: {args.config_id}")
+    print(f"  Source Link ID: {args.source_link_id or '(all sources)'}")
+    print(f"  Lakebase instance: {args.lakebase_instance_name}")
 
     # Initialize Spark
+    print("\nInitializing Spark Session...")
     spark = SparkSession.builder \
         .appName(f"MDM Match Detection - {args.run_id}") \
         .getOrCreate()
+    print("✓ Spark session initialized")
 
-    # Connect to app database
+    # Initialize Workspace Client (needed for OAuth authentication)
+    print("\nInitializing Databricks Workspace Client...")
+    ws_client = WorkspaceClient()
+    print("✓ Workspace client initialized")
+
+    # Connect to app database using OAuth
+    print("\nConnecting to database...")
     session, engine = get_db_session(
-        args.postgres_host,
-        args.postgres_db,
-        args.postgres_port,
-        args.postgres_schema
+        ws_client=ws_client,
+        host=args.postgres_host,
+        db=args.postgres_db,
+        port=args.postgres_port,
+        schema=args.postgres_schema,
+        instance_name=args.lakebase_instance_name
     )
+    print("✓ Database connection established successfully")
 
     try:
         # Load configuration
