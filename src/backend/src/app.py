@@ -35,6 +35,7 @@ from src.routes import (
     estate_manager_routes,
     jobs_routes,
     master_data_management_routes,
+    mdm_routes,
     metadata_routes,
     notifications_routes,
     search_routes,
@@ -185,6 +186,7 @@ data_product_routes.register_routes(app)
 data_contracts_routes.register_routes(app)
 semantic_models_routes.register_routes(app)
 master_data_management_routes.register_routes(app)
+mdm_routes.register_routes(app)  # New MDM integration with contracts/reviews
 compliance_routes.register_routes(app)
 estate_manager_routes.register_routes(app)
 # Security features

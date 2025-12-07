@@ -29,6 +29,7 @@ class AssetType(str, Enum):
     NOTEBOOK = "notebook"
     DATA_CONTRACT = "data_contract"  # For data contract reviews
     DATA_PRODUCT = "data_product"  # For data product reviews
+    MDM_MATCH = "mdm_match"  # For MDM match candidate reviews
     # Add others as needed, e.g., DASHBOARD, JOB
 
 # --- Pydantic Models --- #

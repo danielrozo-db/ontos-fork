@@ -66,6 +66,10 @@ class DataAssetReviewManager(SearchableAsset): # Inherit from SearchableAsset
 
     def _determine_asset_type(self, fqn: str) -> AssetType:
         """Tries to determine the asset type using the Databricks SDK."""
+        # Handle special protocol-based FQNs
+        if fqn.startswith('mdm://'):
+            return AssetType.MDM_MATCH
+        
         if not self._ws_client:
             logger.warning(f"Cannot determine asset type for {fqn}: WorkspaceClient not available.")
             # Default or raise error? For now, default to TABLE as a fallback.

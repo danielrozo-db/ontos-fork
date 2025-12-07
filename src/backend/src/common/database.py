@@ -61,6 +61,7 @@ try:
     from src.db_models import compliance
     from src.db_models import projects
     from src.db_models import teams
+    from src.db_models import mdm  # MDM models for master data management
     # from src.db_models.data_products import DataProductDb, InfoDb, InputPortDb, OutputPortDb  # Already imported via module import above
     from src.db_models.settings import AppRoleDb
     # from src.db_models.users import UserActivityDb, UserSearchHistoryDb # Commented out due to missing file

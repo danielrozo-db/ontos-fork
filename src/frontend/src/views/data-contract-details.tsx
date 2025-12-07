@@ -38,6 +38,7 @@ import AuthoritativeDefinitionFormDialog from '@/components/data-contracts/autho
 import ImportTeamMembersDialog from '@/components/data-contracts/import-team-members-dialog'
 import LinkProductToContractDialog from '@/components/data-contracts/link-product-to-contract-dialog'
 import VersioningRecommendationDialog from '@/components/common/versioning-recommendation-dialog'
+import CustomPropertyFormDialog from '@/components/data-contracts/custom-property-form-dialog'
 import type { DataProduct } from '@/types/data-product'
 import type { DataProfilingRun } from '@/types/data-contract'
 
@@ -198,8 +199,14 @@ export default function DataContractDetails() {
   // Link product dialog state
   const [isLinkProductDialogOpen, setIsLinkProductDialogOpen] = useState(false)
 
-  // View mode state for filtering sections
-  const [viewMode, setViewMode] = useState<ViewMode>('minimal')
+  // View mode state for filtering sections - initialize from localStorage
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const stored = localStorage.getItem(VIEW_MODE_STORAGE_KEY)
+    if (stored && ['minimal', 'medium', 'large'].includes(stored)) {
+      return stored as ViewMode
+    }
+    return 'minimal' // Default, will be updated by getDefaultViewMode effect if needed
+  })
 
   // Authoritative Definitions state (contract-level)
   type AuthoritativeDefinition = { id: string; url: string; type: string }
@@ -227,6 +234,8 @@ export default function DataContractDetails() {
   const [isServerConfigFormOpen, setIsServerConfigFormOpen] = useState(false)
   const [isSLAFormOpen, setIsSLAFormOpen] = useState(false)
   const [isContractAuthDefFormOpen, setIsContractAuthDefFormOpen] = useState(false)
+  const [isCustomPropertyFormOpen, setIsCustomPropertyFormOpen] = useState(false)
+  const [editingCustomPropertyKey, setEditingCustomPropertyKey] = useState<string | null>(null)
 
   // DQX Profiling states
   const [isDqxSchemaSelectOpen, setIsDqxSchemaSelectOpen] = useState(false)
@@ -502,12 +511,11 @@ export default function DataContractDetails() {
     }
   }, [userInfo, fetchUserInfo])
 
-  // Load view mode from localStorage or use default
+  // Set default view mode only if no stored preference exists
   useEffect(() => {
     const stored = localStorage.getItem(VIEW_MODE_STORAGE_KEY)
-    if (stored && ['minimal', 'medium', 'large'].includes(stored)) {
-      setViewMode(stored as ViewMode)
-    } else {
+    if (!stored) {
+      // No stored preference - set based on user's role/permissions
       setViewMode(getDefaultViewMode())
     }
   }, [getDefaultViewMode])
@@ -884,6 +892,35 @@ export default function DataContractDetails() {
     } catch (e) {
       toast({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to delete', variant: 'destructive' })
     }
+  }
+
+  // Custom Property CRUD handlers
+  const handleAddCustomProperty = async (data: { property: string; value: string }) => {
+    if (!contract) return
+    const updatedProps = { ...(contract.customProperties || {}), [data.property]: data.value }
+    await updateContract({ customProperties: updatedProps })
+    setIsCustomPropertyFormOpen(false)
+  }
+
+  const handleUpdateCustomProperty = async (data: { property: string; value: string }) => {
+    if (!contract || !editingCustomPropertyKey) return
+    const updatedProps = { ...(contract.customProperties || {}) }
+    // If key changed, remove old key
+    if (editingCustomPropertyKey !== data.property) {
+      delete updatedProps[editingCustomPropertyKey]
+    }
+    updatedProps[data.property] = data.value
+    await updateContract({ customProperties: updatedProps })
+    setEditingCustomPropertyKey(null)
+    setIsCustomPropertyFormOpen(false)
+  }
+
+  const handleDeleteCustomProperty = async (key: string) => {
+    if (!contract) return
+    if (!confirm(`Delete custom property "${key}"?`)) return
+    const updatedProps = { ...(contract.customProperties || {}) }
+    delete updatedProps[key]
+    await updateContract({ customProperties: updatedProps })
   }
 
   // Schema-level Authoritative Definition handlers
@@ -2309,21 +2346,88 @@ export default function DataContractDetails() {
         </Card>
       )}
 
-      {/* Custom Properties (read-only for now) */}
-      {shouldShowSection('custom-properties') && contract.customProperties && Object.keys(contract.customProperties).length > 0 && (
+      {/* Custom Properties */}
+      {shouldShowSection('custom-properties') && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-xl">Custom Properties</CardTitle>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-xl">Custom Properties ({Object.keys(contract.customProperties || {}).length})</CardTitle>
+                <CardDescription>Additional metadata and configuration</CardDescription>
+              </div>
+              <Button size="sm" onClick={() => { setEditingCustomPropertyKey(null); setIsCustomPropertyFormOpen(true); }}>
+                <Plus className="h-4 w-4 mr-1.5" />
+                Add Property
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {Object.entries(contract.customProperties).map(([key, value]) => (
-                <div key={key} className="flex items-center gap-3">
-                  <Label className="min-w-24">{key}:</Label>
-                  <span className="text-sm text-muted-foreground">{String(value)}</span>
-                </div>
-              ))}
-            </div>
+            {!contract.customProperties || Object.keys(contract.customProperties).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">No custom properties defined. Click "Add Property" to create one.</p>
+            ) : (
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left p-3 font-medium w-48">Property</th>
+                      <th className="text-left p-3 font-medium">Value</th>
+                      <th className="text-right p-3 font-medium w-24">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(contract.customProperties).map(([key, value]) => {
+                      const valueStr = String(value)
+                      const isJson = valueStr.startsWith('[') || valueStr.startsWith('{')
+                      return (
+                        <tr key={key} className="border-t hover:bg-muted/30">
+                          <td className="p-3 align-top">
+                            <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-medium">{key}</code>
+                          </td>
+                          <td className="p-3 align-top">
+                            {isJson ? (
+                              <pre className="text-xs bg-muted/50 p-2 rounded overflow-x-auto max-h-32 whitespace-pre-wrap break-all font-mono">
+                                {(() => {
+                                  try {
+                                    return JSON.stringify(JSON.parse(valueStr), null, 2)
+                                  } catch {
+                                    return valueStr
+                                  }
+                                })()}
+                              </pre>
+                            ) : (
+                              <span className="text-muted-foreground break-all">{valueStr}</span>
+                            )}
+                          </td>
+                          <td className="p-3 align-top text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setEditingCustomPropertyKey(key)
+                                  setIsCustomPropertyFormOpen(true)
+                                }}
+                                className="h-7 w-7 p-0"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleDeleteCustomProperty(key)}
+                                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -2605,6 +2709,17 @@ export default function DataContractDetails() {
         userCanOverride={versioningUserCanOverride}
         onUpdateInPlace={handleVersioningUpdateInPlace}
         onCreateNewVersion={handleVersioningCreateNewVersion}
+      />
+
+      <CustomPropertyFormDialog
+        isOpen={isCustomPropertyFormOpen}
+        onOpenChange={setIsCustomPropertyFormOpen}
+        initial={editingCustomPropertyKey && contract?.customProperties ? {
+          property: editingCustomPropertyKey,
+          value: String(contract.customProperties[editingCustomPropertyKey] || '')
+        } : undefined}
+        existingKeys={Object.keys(contract?.customProperties || {})}
+        onSubmit={editingCustomPropertyKey ? handleUpdateCustomProperty : handleAddCustomProperty}
       />
     </div>
   )

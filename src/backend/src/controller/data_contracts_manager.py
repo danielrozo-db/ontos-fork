@@ -1855,16 +1855,46 @@ class DataContractsManager(SearchableAsset):
         )
         db.add(pricing_db)
     
-    def _create_custom_properties_from_dict(self, db, contract_id: str, custom_props: dict):
-        """Create custom properties from ODCS customProperties dict."""
-        for key, value in custom_props.items():
-            if value is not None:
-                custom_prop_db = DataContractCustomPropertyDb(
-                    contract_id=contract_id,
-                    property=key,
-                    value=str(value)
-                )
-                db.add(custom_prop_db)
+    def _create_custom_properties(self, db, contract_id: str, custom_props):
+        """Create custom properties from ODCS customProperties (handles both array and dict formats).
+        
+        ODCS v3.0.2 uses array format: [{"property": "key", "value": "val"}, ...]
+        Legacy format uses dict: {"key": "val", ...}
+        """
+        if isinstance(custom_props, list):
+            # ODCS v3.0.2 array format
+            for prop_data in custom_props:
+                if not isinstance(prop_data, dict):
+                    continue
+                prop_name = prop_data.get('property')
+                prop_value = prop_data.get('value')
+                if prop_name and prop_value is not None:
+                    # Serialize complex values (dicts/lists) to JSON
+                    if isinstance(prop_value, (dict, list)):
+                        value_str = json.dumps(prop_value)
+                    else:
+                        value_str = str(prop_value)
+                    custom_prop_db = DataContractCustomPropertyDb(
+                        contract_id=contract_id,
+                        property=prop_name,
+                        value=value_str
+                    )
+                    db.add(custom_prop_db)
+        elif isinstance(custom_props, dict):
+            # Legacy dict format
+            for key, value in custom_props.items():
+                if value is not None:
+                    # Serialize complex values (dicts/lists) to JSON
+                    if isinstance(value, (dict, list)):
+                        value_str = json.dumps(value)
+                    else:
+                        value_str = str(value)
+                    custom_prop_db = DataContractCustomPropertyDb(
+                        contract_id=contract_id,
+                        property=key,
+                        value=value_str
+                    )
+                    db.add(custom_prop_db)
     
     def _create_sla_properties(self, db, contract_id: str, sla_properties_data: List[dict]):
         """Create SLA properties from ODCS slaProperties array."""
@@ -1876,10 +1906,11 @@ class DataContractsManager(SearchableAsset):
             sla_prop = DataContractSlaPropertyDb(
                 contract_id=contract_id,
                 property=sla_prop_data.get('property'),
-                value=sla_prop_data.get('value'),
+                value=str(sla_prop_data.get('value')) if sla_prop_data.get('value') is not None else None,
                 value_ext=json.dumps(sla_prop_data.get('valueExt')) if sla_prop_data.get('valueExt') else None,
                 unit=sla_prop_data.get('unit'),
-                column=sla_prop_data.get('column')
+                element=sla_prop_data.get('element'),
+                driver=sla_prop_data.get('driver')
             )
             db.add(sla_prop)
     
@@ -1942,7 +1973,7 @@ class DataContractsManager(SearchableAsset):
             if tag:
                 tag_db = DataContractTagDb(
                     contract_id=contract_id,
-                    tag=tag
+                    name=tag
                 )
                 db.add(tag_db)
     
@@ -2276,9 +2307,9 @@ class DataContractsManager(SearchableAsset):
                     DataContractCustomPropertyDb.contract_id == contract_id
                 ).delete()
                 
-                # Add new custom properties
+                # Add new custom properties (handles both ODCS array and legacy dict formats)
                 if data_dict['customProperties']:
-                    self._create_custom_properties_from_dict(db, contract_id, data_dict['customProperties'])
+                    self._create_custom_properties(db, contract_id, data_dict['customProperties'])
             
             # Handle contract-level semantic links if provided
             if data_dict.get('authoritativeDefinitions') is not None:
@@ -2378,7 +2409,7 @@ class DataContractsManager(SearchableAsset):
         warnings = []
         
         try:
-            from src.utils.odcs_validator import validate_odcs_contract, ODCSValidationError
+            from src.common.odcs_validation import validate_odcs_contract, ODCSValidationError
             
             try:
                 validate_odcs_contract(parsed, strict=False)
@@ -2511,10 +2542,10 @@ class DataContractsManager(SearchableAsset):
             if isinstance(price_data, dict) and price_data:
                 self._create_pricing(db, created.id, price_data)
             
-            # Create custom properties if present
-            custom_props = parsed_odcs.get('customProperties') or parsed_odcs.get('custom_properties', {})
-            if isinstance(custom_props, dict) and custom_props:
-                self._create_custom_properties_from_dict(db, created.id, custom_props)
+            # Create custom properties if present (handles both ODCS array and legacy dict formats)
+            custom_props = parsed_odcs.get('customProperties') or parsed_odcs.get('custom_properties')
+            if custom_props:
+                self._create_custom_properties(db, created.id, custom_props)
             
             # Create SLA properties if present
             sla_properties_data = parsed_odcs.get('slaProperties', [])

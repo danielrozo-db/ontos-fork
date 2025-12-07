@@ -1,493 +1,839 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
-import { AlertCircle, GitCompare, Plus } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
+import { useApi } from '@/hooks/use-api';
+import { useToast } from '@/hooks/use-toast';
 import useBreadcrumbStore from '@/stores/breadcrumb-store';
+import { RelativeDate } from '@/components/common/relative-date';
+import { 
+  GitCompare, Plus, Play, FileCheck, Link2, 
+  Database, AlertCircle, Loader2, CheckCircle2, 
+  Clock, Trash2, Settings2, RefreshCw, Users,
+  Merge, Eye
+} from 'lucide-react';
 
-interface Dataset {
-  id: string;
-  name: string;
-  catalog: string;
-  schema: string;
-  table: string;
-  entityColumn: string;
-  type: 'customer' | 'product' | 'supplier' | 'location';
-  totalRecords: number;
-}
-
-interface ComparisonResult {
-  datasetA: string;
-  datasetB: string;
-  matchingEntities: number;
-  uniqueToA: number;
-  uniqueToB: number;
-  matchScore: number;
-  commonColumns: string[];
-  sampleMatches: Array<{
-    entityA: string;
-    entityB: string;
-    confidence: number;
-  }>;
-  columnStats: Array<{
-    column: string;
-    matchRate: number;
-    nullRate: number;
-  }>;
-}
+import MdmConfigDialog from '@/components/mdm/mdm-config-dialog';
+import LinkSourceDialog from '@/components/mdm/link-source-dialog';
+import CreateReviewDialog from '@/components/mdm/create-review-dialog';
+import {
+  MdmConfig,
+  MdmSourceLink,
+  MdmMatchRun,
+  MdmMatchCandidate,
+  MdmConfigStatus,
+  MdmMatchRunStatus,
+  MdmMatchCandidateStatus,
+  MdmMatchType,
+} from '@/types/mdm';
 
 export default function MasterDataManagement() {
-  const [selectedDatasets, setSelectedDatasets] = useState<string[]>([]);
-  const [entityType, setEntityType] = useState<string>('');
-  const [analyzing, setAnalyzing] = useState(false);
-  const [results, setResults] = useState<ComparisonResult[]>([]);
-  const [detailedResults, setDetailedResults] = useState<ComparisonResult[]>([]);
-  const [selectedComparison, setSelectedComparison] = useState<string | null>(null);
+  const [configs, setConfigs] = useState<MdmConfig[]>([]);
+  const [selectedConfig, setSelectedConfig] = useState<MdmConfig | null>(null);
+  const [sourceLinks, setSourceLinks] = useState<MdmSourceLink[]>([]);
+  const [matchRuns, setMatchRuns] = useState<MdmMatchRun[]>([]);
+  const [candidates, setCandidates] = useState<MdmMatchCandidate[]>([]);
+  const [selectedRun, setSelectedRun] = useState<MdmMatchRun | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
+
+  const { get, post, delete: deleteApi } = useApi();
+  const { toast } = useToast();
+  const navigate = useNavigate();
   const setStaticSegments = useBreadcrumbStore((state) => state.setStaticSegments);
   const setDynamicTitle = useBreadcrumbStore((state) => state.setDynamicTitle);
-  const [datasets] = useState<Dataset[]>([
-    {
-      id: '1',
-      name: 'CRM Customers',
-      catalog: 'sales',
-      schema: 'crm',
-      table: 'customers',
-      entityColumn: 'customer_id',
-      type: 'customer',
-      totalRecords: 50000
-    },
-    {
-      id: '2',
-      name: 'ERP Customers',
-      catalog: 'finance',
-      schema: 'erp',
-      table: 'customers',
-      entityColumn: 'cust_id',
-      type: 'customer',
-      totalRecords: 45000
-    },
-    {
-      id: '3',
-      name: 'Marketing Contacts',
-      catalog: 'marketing',
-      schema: 'campaigns',
-      table: 'contacts',
-      entityColumn: 'contact_id',
-      type: 'customer',
-      totalRecords: 75000
-    },
-    {
-      id: '4',
-      name: 'Product Catalog',
-      catalog: 'products',
-      schema: 'master',
-      table: 'products',
-      entityColumn: 'product_id',
-      type: 'product',
-      totalRecords: 25000
-    },
-    {
-      id: '5',
-      name: 'ERP Products',
-      catalog: 'finance',
-      schema: 'erp',
-      table: 'products',
-      entityColumn: 'sku',
-      type: 'product',
-      totalRecords: 22000
-    },
-    {
-      id: '6',
-      name: 'Supplier Directory',
-      catalog: 'procurement',
-      schema: 'master',
-      table: 'suppliers',
-      entityColumn: 'supplier_id',
-      type: 'supplier',
-      totalRecords: 5000
-    },
-    {
-      id: '7',
-      name: 'Store Locations',
-      catalog: 'retail',
-      schema: 'master',
-      table: 'locations',
-      entityColumn: 'location_id',
-      type: 'location',
-      totalRecords: 1200
-    },
-    {
-      id: '8',
-      name: 'Warehouse Locations',
-      catalog: 'logistics',
-      schema: 'master',
-      table: 'warehouses',
-      entityColumn: 'warehouse_id',
-      type: 'location',
-      totalRecords: 150
-    }
-  ]);
 
   useEffect(() => {
-    // Set breadcrumbs
     setStaticSegments([]);
     setDynamicTitle('Master Data Management');
-
-    // Cleanup breadcrumbs on unmount
     return () => {
-        setStaticSegments([]);
-        setDynamicTitle(null);
+      setStaticSegments([]);
+      setDynamicTitle(null);
     };
   }, [setStaticSegments, setDynamicTitle]);
 
-  const handleAnalyze = async () => {
-    if (selectedDatasets.length < 2) {
-      setError('Please select at least two datasets to compare');
-      return;
-    }
+  useEffect(() => {
+    fetchConfigs();
+  }, []);
 
-    setAnalyzing(true);
+  const fetchConfigs = async () => {
+    setLoading(true);
     setError(null);
-
     try {
-      // Mock API call with delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Generate mock results
-      const mockResults: ComparisonResult[] = [];
-      for (let i = 0; i < selectedDatasets.length; i++) {
-        for (let j = i + 1; j < selectedDatasets.length; j++) {
-          const datasetA = datasets.find(d => d.id === selectedDatasets[i]);
-          const datasetB = datasets.find(d => d.id === selectedDatasets[j]);
-          
-          if (!datasetA || !datasetB) continue;
+      const response = await get<MdmConfig[]>('/api/mdm/configs');
+      if (response.error) {
+        setError(response.error);
+        setConfigs([]);
+        return;
+      }
+      if (response.data && Array.isArray(response.data)) {
+        setConfigs(response.data);
+        // If we had a selected config, refresh it
+        if (selectedConfig) {
+          const updated = response.data.find(c => c.id === selectedConfig.id);
+          if (updated) {
+            setSelectedConfig(updated);
+          }
+        }
+      } else {
+        setConfigs([]);
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to load MDM configurations');
+      setConfigs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-          mockResults.push({
-            datasetA: datasetA.name,
-            datasetB: datasetB.name,
-            matchingEntities: Math.floor(Math.random() * 40000),
-            uniqueToA: Math.floor(Math.random() * 10000),
-            uniqueToB: Math.floor(Math.random() * 10000),
-            matchScore: Math.random() * 100,
-            commonColumns: ['id', 'name', 'email', 'phone', 'address'],
-            sampleMatches: [
-              { entityA: "CUST001", entityB: "C-001", confidence: 0.95 },
-              { entityA: "CUST002", entityB: "C-002", confidence: 0.88 },
-              { entityA: "CUST003", entityB: "C-003", confidence: 0.92 }
-            ],
-            columnStats: [
-              { column: 'id', matchRate: 0.95, nullRate: 0.01 },
-              { column: 'name', matchRate: 0.85, nullRate: 0.05 },
-              { column: 'email', matchRate: 0.75, nullRate: 0.15 },
-              { column: 'phone', matchRate: 0.65, nullRate: 0.25 }
-            ]
-          });
+  const fetchSourceLinks = async (configId: string) => {
+    try {
+      const response = await get<MdmSourceLink[]>(`/api/mdm/configs/${configId}/sources`);
+      if (response.data) {
+        setSourceLinks(response.data);
+      }
+    } catch (err: any) {
+      console.error('Error fetching source links:', err);
+    }
+  };
+
+  const fetchMatchRuns = async (configId: string) => {
+    try {
+      const response = await get<MdmMatchRun[]>(`/api/mdm/configs/${configId}/runs`);
+      if (response.data) {
+        setMatchRuns(response.data);
+      }
+    } catch (err: any) {
+      console.error('Error fetching match runs:', err);
+    }
+  };
+
+  const fetchCandidates = async (runId: string) => {
+    try {
+      const response = await get<MdmMatchCandidate[]>(`/api/mdm/runs/${runId}/candidates`);
+      if (response.data) {
+        setCandidates(response.data);
+      }
+    } catch (err: any) {
+      console.error('Error fetching candidates:', err);
+    }
+  };
+
+  const handleSelectConfig = (config: MdmConfig) => {
+    setSelectedConfig(config);
+    setSelectedRun(null);
+    setCandidates([]);
+    fetchSourceLinks(config.id);
+    fetchMatchRuns(config.id);
+  };
+
+  const handleStartMatching = async (configId: string) => {
+    try {
+      const response = await post<MdmMatchRun>(`/api/mdm/configs/${configId}/start-run`, {});
+      if (response.data) {
+        toast({ title: 'Success', description: 'MDM matching job started' });
+        fetchMatchRuns(configId);
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Failed to start matching', variant: 'destructive' });
+    }
+  };
+
+  const handleMergeApproved = async (runId: string) => {
+    try {
+      const response = await post(`/api/mdm/runs/${runId}/merge-approved`, {});
+      if (response.data) {
+        toast({ 
+          title: 'Success', 
+          description: (response.data as any).message || 'Merge completed' 
+        });
+        if (selectedConfig) {
+          fetchMatchRuns(selectedConfig.id);
+        }
+        if (selectedRun) {
+          fetchCandidates(selectedRun.id);
         }
       }
-      
-      setDetailedResults(mockResults);
-      setResults(mockResults);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to analyze datasets');
-    } finally {
-      setAnalyzing(false);
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Merge failed', variant: 'destructive' });
     }
   };
 
-  const renderDetailedResults = () => {
-    if (!selectedComparison) return null;
+  const handleDeleteConfig = async (configId: string) => {
+    if (!confirm('Are you sure you want to delete this MDM configuration?')) return;
     
-    const detail = detailedResults.find(r => 
-      `${r.datasetA}-${r.datasetB}` === selectedComparison
-    );
-    
-    if (!detail) return null;
-
-    return (
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle>Detailed Analysis: {detail.datasetA} vs {detail.datasetB}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Common Columns */}
-          <div>
-            <h4 className="text-sm font-medium mb-2">Common Columns</h4>
-            <div className="flex flex-wrap gap-1">
-              {detail.commonColumns.map(col => (
-                <Badge key={col} variant="secondary">{col}</Badge>
-              ))}
-            </div>
-          </div>
-
-          {/* Column Statistics */}
-          <div>
-            <h4 className="text-sm font-medium mb-2">Column Statistics</h4>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Column</TableHead>
-                  <TableHead className="text-right">Match Rate</TableHead>
-                  <TableHead className="text-right">Null Rate</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {detail.columnStats.map(stat => (
-                  <TableRow key={stat.column}>
-                    <TableCell>{stat.column}</TableCell>
-                    <TableCell className="text-right">{(stat.matchRate * 100).toFixed(1)}%</TableCell>
-                    <TableCell className="text-right">{(stat.nullRate * 100).toFixed(1)}%</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          {/* Sample Matches */}
-          <div>
-            <h4 className="text-sm font-medium mb-2">Sample Matches</h4>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Entity A</TableHead>
-                  <TableHead>Entity B</TableHead>
-                  <TableHead className="text-right">Confidence</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {detail.sampleMatches.map((match, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell>{match.entityA}</TableCell>
-                    <TableCell>{match.entityB}</TableCell>
-                    <TableCell className="text-right">{(match.confidence * 100).toFixed(1)}%</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    try {
+      await deleteApi(`/api/mdm/configs/${configId}`);
+      toast({ title: 'Success', description: 'Configuration deleted' });
+      if (selectedConfig?.id === configId) {
+        setSelectedConfig(null);
+      }
+      fetchConfigs();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Delete failed', variant: 'destructive' });
+    }
   };
 
-  return (
-    <div className="py-6">
-      <h1 className="text-3xl font-bold mb-6 flex items-center gap-2">
-        <GitCompare className="w-8 h-8" />
-        Master Data Management
-      </h1>
+  const handleDeleteSourceLink = async (linkId: string) => {
+    if (!confirm('Are you sure you want to remove this source link?')) return;
+    
+    try {
+      await deleteApi(`/api/mdm/sources/${linkId}`);
+      toast({ title: 'Success', description: 'Source link removed' });
+      if (selectedConfig) {
+        fetchSourceLinks(selectedConfig.id);
+        fetchConfigs(); // Refresh source count
+      }
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message || 'Delete failed', variant: 'destructive' });
+    }
+  };
 
-      <div className="flex justify-between items-center mb-6">
+  const getStatusBadge = (status: string) => {
+    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+      active: 'default',
+      completed: 'default',
+      running: 'secondary',
+      pending: 'outline',
+      approved: 'default',
+      rejected: 'destructive',
+      merged: 'default',
+      failed: 'destructive',
+      paused: 'outline',
+      archived: 'outline',
+    };
+    return <Badge variant={variants[status] || 'outline'}>{status}</Badge>;
+  };
+
+  const getMatchTypeBadge = (matchType: MdmMatchType) => {
+    const variants: Record<string, "default" | "secondary" | "outline"> = {
+      exact: 'default',
+      fuzzy: 'secondary',
+      probabilistic: 'outline',
+      new: 'secondary',
+    };
+    return <Badge variant={variants[matchType] || 'outline'}>{matchType}</Badge>;
+  };
+
+  const getConfidenceColor = (score: number) => {
+    if (score >= 0.9) return 'text-green-600';
+    if (score >= 0.8) return 'text-yellow-600';
+    return 'text-orange-600';
+  };
+
+  // Calculate statistics for selected config
+  const configStats = useMemo(() => {
+    if (!matchRuns.length) return null;
+    
+    const completedRuns = matchRuns.filter(r => r.status === MdmMatchRunStatus.COMPLETED);
+    const totalMatches = completedRuns.reduce((sum, r) => sum + r.matches_found, 0);
+    const totalNew = completedRuns.reduce((sum, r) => sum + r.new_records, 0);
+    const pendingReview = matchRuns.reduce((sum, r) => sum + r.pending_review_count, 0);
+    
+    return {
+      totalRuns: matchRuns.length,
+      completedRuns: completedRuns.length,
+      totalMatches,
+      totalNew,
+      pendingReview,
+    };
+  }, [matchRuns]);
+
+  return (
+    <div className="py-6 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
         <div>
+          <h1 className="text-3xl font-bold flex items-center gap-2">
+            <GitCompare className="w-8 h-8" />
+            Master Data Management
+          </h1>
           <p className="text-muted-foreground mt-1">
-            Analyze and manage entity overlaps across your data estate
+            Define master data contracts and manage entity matching across systems
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setIsConfigDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          Create Entity
+          New MDM Configuration
         </Button>
       </div>
 
       {error && (
-        <Alert variant="destructive" className="mb-6">
+        <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
-      <div className="grid grid-cols-12 gap-6">
-        {/* Dataset Selection */}
-        <div className="col-span-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Dataset Selection</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Entity Type</Label>
-                  <Select value={entityType} onValueChange={setEntityType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select entity type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="customer">Customer</SelectItem>
-                      <SelectItem value="product">Product</SelectItem>
-                      <SelectItem value="supplier">Supplier</SelectItem>
-                      <SelectItem value="location">Location</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Datasets to Compare</Label>
-                  <Select
-                    value={selectedDatasets[0] || ''}
-                    onValueChange={(value) => {
-                      if (!selectedDatasets.includes(value)) {
-                        setSelectedDatasets([...selectedDatasets, value]);
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select datasets" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {datasets
-                        .filter(dataset => !selectedDatasets.includes(dataset.id))
-                        .map((dataset) => (
-                          <SelectItem key={dataset.id} value={dataset.id}>
-                            {dataset.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedDatasets.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {selectedDatasets.map(id => {
-                        const dataset = datasets.find(d => d.id === id);
-                        return dataset ? (
-                          <Badge 
-                            key={id} 
-                            variant="secondary"
-                            className="flex items-center gap-1"
-                          >
-                            {dataset.name}
-                            <button
-                              onClick={() => {
-                                setSelectedDatasets(selectedDatasets.filter(d => d !== id));
+      {loading ? (
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-12 gap-6">
+          {/* MDM Configurations List */}
+          <div className="col-span-4">
+            <Card className="h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Database className="h-5 w-5" />
+                  MDM Configurations
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-[calc(100vh-320px)]">
+                  <div className="space-y-3 pr-4">
+                    {configs.map(config => (
+                      <div
+                        key={config.id}
+                        className={`p-3 rounded-lg border cursor-pointer transition-all hover:shadow-md ${
+                          selectedConfig?.id === config.id 
+                            ? 'border-primary bg-primary/5 shadow-sm' 
+                            : 'hover:border-primary/50'
+                        }`}
+                        onClick={() => handleSelectConfig(config)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium truncate">{config.name}</h4>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {config.entity_type} • {config.source_count} sources
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 ml-2">
+                            {getStatusBadge(config.status)}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteConfig(config.id);
                               }}
-                              className="ml-1 hover:text-destructive"
                             >
-                              ×
-                            </button>
-                          </Badge>
-                        ) : null;
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  onClick={handleAnalyze}
-                  disabled={analyzing || selectedDatasets.length < 2}
-                >
-                  <GitCompare className="h-4 w-4 mr-2" />
-                  Analyze Overlaps
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Selected Datasets Info */}
-        <div className="col-span-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Selected Datasets</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[300px]">
-                {selectedDatasets.map(id => {
-                  const dataset = datasets.find(d => d.id === id);
-                  return dataset ? (
-                    <div key={id} className="mb-4">
-                      <h4 className="font-medium">{dataset.name}</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Path: {dataset.catalog}.{dataset.schema}.{dataset.table}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        Records: {dataset.totalRecords.toLocaleString()}
-                      </p>
-                    </div>
-                  ) : null;
-                })}
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Analysis Results */}
-        <div className="col-span-12">
-          <Card>
-            <CardHeader>
-              <CardTitle>Analysis Results</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {analyzing && (
-                <div className="mb-4">
-                  <Progress value={33} className="w-full" />
-                </div>
-              )}
-
-              {results.length > 0 && (
-                <>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Dataset A</TableHead>
-                        <TableHead>Dataset B</TableHead>
-                        <TableHead className="text-right">Matching Entities</TableHead>
-                        <TableHead className="text-right">Unique to A</TableHead>
-                        <TableHead className="text-right">Unique to B</TableHead>
-                        <TableHead className="text-right">Match Score</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {results.map((result, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell>{result.datasetA}</TableCell>
-                          <TableCell>{result.datasetB}</TableCell>
-                          <TableCell className="text-right">
-                            {result.matchingEntities.toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {result.uniqueToA.toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {result.uniqueToB.toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {result.matchScore.toFixed(1)}%
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-
-                  <div className="mt-4">
-                    <Label>View Detailed Analysis</Label>
-                    <Select
-                      value={selectedComparison || ''}
-                      onValueChange={setSelectedComparison}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select comparison" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {results.map((result, idx) => (
-                          <SelectItem key={idx} value={`${result.datasetA}-${result.datasetB}`}>
-                            {result.datasetA} vs {result.datasetB}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        {config.last_run_at && (
+                          <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            Last run: <RelativeDate date={config.last_run_at} />
+                            {config.last_run_status && (
+                              <span className={
+                                config.last_run_status === 'completed' 
+                                  ? 'text-green-600' 
+                                  : config.last_run_status === 'failed' 
+                                    ? 'text-red-600' 
+                                    : 'text-yellow-600'
+                              }>
+                                ({config.last_run_status})
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {configs.length === 0 && (
+                      <div className="text-center py-12">
+                        <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                        <p className="text-muted-foreground">
+                          No MDM configurations yet.
+                        </p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Create one to get started.
+                        </p>
+                      </div>
+                    )}
                   </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
 
-                  {renderDetailedResults()}
-                </>
-              )}
-            </CardContent>
-          </Card>
+          {/* Configuration Details */}
+          <div className="col-span-8">
+            {selectedConfig ? (
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="text-xl">{selectedConfig.name}</CardTitle>
+                      <CardDescription className="mt-1">
+                        {selectedConfig.description || `Master contract for ${selectedConfig.entity_type} entities`}
+                      </CardDescription>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={() => handleStartMatching(selectedConfig.id)}
+                        disabled={selectedConfig.status !== MdmConfigStatus.ACTIVE}
+                      >
+                        <Play className="h-4 w-4 mr-2" />
+                        Start Matching
+                      </Button>
+                      <Button variant="outline" onClick={() => setIsLinkDialogOpen(true)}>
+                        <Link2 className="h-4 w-4 mr-2" />
+                        Link Source
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Tabs value={activeTab} onValueChange={setActiveTab}>
+                    <TabsList className="mb-4">
+                      <TabsTrigger value="overview">Overview</TabsTrigger>
+                      <TabsTrigger value="sources">
+                        Sources ({sourceLinks.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="rules">Matching Rules</TabsTrigger>
+                      <TabsTrigger value="runs">
+                        Match Runs ({matchRuns.length})
+                      </TabsTrigger>
+                      {selectedRun && (
+                        <TabsTrigger value="candidates">
+                          Candidates ({candidates.length})
+                        </TabsTrigger>
+                      )}
+                    </TabsList>
+
+                    {/* Overview Tab */}
+                    <TabsContent value="overview" className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 rounded-lg border bg-muted/30">
+                          <p className="text-sm text-muted-foreground">Master Contract</p>
+                          <p className="font-medium mt-1">{selectedConfig.master_contract_name || 'Not set'}</p>
+                        </div>
+                        <div className="p-4 rounded-lg border bg-muted/30">
+                          <p className="text-sm text-muted-foreground">Entity Type</p>
+                          <p className="font-medium capitalize mt-1">{selectedConfig.entity_type}</p>
+                        </div>
+                        <div className="p-4 rounded-lg border bg-muted/30">
+                          <p className="text-sm text-muted-foreground">Linked Sources</p>
+                          <p className="font-medium mt-1">{selectedConfig.source_count}</p>
+                        </div>
+                        <div className="p-4 rounded-lg border bg-muted/30">
+                          <p className="text-sm text-muted-foreground">Status</p>
+                          <div className="mt-1">{getStatusBadge(selectedConfig.status)}</div>
+                        </div>
+                      </div>
+
+                      {configStats && (
+                        <>
+                          <Separator />
+                          <div className="grid grid-cols-4 gap-4">
+                            <div className="text-center p-4 rounded-lg border">
+                              <p className="text-2xl font-bold text-primary">{configStats.totalRuns}</p>
+                              <p className="text-sm text-muted-foreground">Total Runs</p>
+                            </div>
+                            <div className="text-center p-4 rounded-lg border">
+                              <p className="text-2xl font-bold text-green-600">{configStats.totalMatches}</p>
+                              <p className="text-sm text-muted-foreground">Matches Found</p>
+                            </div>
+                            <div className="text-center p-4 rounded-lg border">
+                              <p className="text-2xl font-bold text-blue-600">{configStats.totalNew}</p>
+                              <p className="text-sm text-muted-foreground">New Records</p>
+                            </div>
+                            <div className="text-center p-4 rounded-lg border">
+                              <p className="text-2xl font-bold text-yellow-600">{configStats.pendingReview}</p>
+                              <p className="text-sm text-muted-foreground">Pending Review</p>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </TabsContent>
+
+                    {/* Sources Tab */}
+                    <TabsContent value="sources">
+                      {sourceLinks.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Source Contract</TableHead>
+                              <TableHead>Table</TableHead>
+                              <TableHead>Key Column</TableHead>
+                              <TableHead>Priority</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead className="w-16"></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {sourceLinks.map(link => (
+                              <TableRow key={link.id}>
+                                <TableCell className="font-medium">
+                                  {link.source_contract_name || link.source_contract_id}
+                                </TableCell>
+                                <TableCell className="font-mono text-sm">
+                                  {link.source_table_fqn || '-'}
+                                </TableCell>
+                                <TableCell>{link.key_column}</TableCell>
+                                <TableCell>{link.priority}</TableCell>
+                                <TableCell>{getStatusBadge(link.status)}</TableCell>
+                                <TableCell>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive"
+                                    onClick={() => handleDeleteSourceLink(link.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <div className="text-center py-12">
+                          <Link2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground">No source contracts linked yet.</p>
+                          <Button 
+                            variant="outline" 
+                            className="mt-4"
+                            onClick={() => setIsLinkDialogOpen(true)}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Link Source Contract
+                          </Button>
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    {/* Matching Rules Tab */}
+                    <TabsContent value="rules" className="space-y-4">
+                      <div>
+                        <h4 className="font-medium mb-3 flex items-center gap-2">
+                          <Settings2 className="h-4 w-4" />
+                          Matching Rules
+                        </h4>
+                        {selectedConfig.matching_rules?.length > 0 ? (
+                          <div className="space-y-2">
+                            {selectedConfig.matching_rules.map((rule, idx) => (
+                              <div key={idx} className="p-3 rounded-lg border">
+                                <div className="flex justify-between items-center">
+                                  <span className="font-medium">{rule.name}</span>
+                                  <Badge variant="outline">{rule.type}</Badge>
+                                </div>
+                                <div className="mt-2 text-sm text-muted-foreground">
+                                  Fields: {rule.fields.join(', ')} • 
+                                  Weight: {rule.weight} • 
+                                  Threshold: {rule.threshold}
+                                  {rule.algorithm && ` • Algorithm: ${rule.algorithm}`}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-muted-foreground text-sm">No matching rules configured. Default rules will be used.</p>
+                        )}
+                      </div>
+
+                      <Separator />
+
+                      <div>
+                        <h4 className="font-medium mb-3 flex items-center gap-2">
+                          <Merge className="h-4 w-4" />
+                          Survivorship Rules
+                        </h4>
+                        {selectedConfig.survivorship_rules?.length > 0 ? (
+                          <div className="space-y-2">
+                            {selectedConfig.survivorship_rules.map((rule, idx) => (
+                              <div key={idx} className="p-3 rounded-lg border">
+                                <div className="flex justify-between items-center">
+                                  <span className="font-medium">{rule.field}</span>
+                                  <Badge variant="secondary">{rule.strategy}</Badge>
+                                </div>
+                                {rule.priority && (
+                                  <div className="mt-1 text-sm text-muted-foreground">
+                                    Priority: {rule.priority.join(' > ')}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-muted-foreground text-sm">No survivorship rules configured. Source values will be preferred.</p>
+                        )}
+                      </div>
+                    </TabsContent>
+
+                    {/* Match Runs Tab */}
+                    <TabsContent value="runs">
+                      {matchRuns.length > 0 ? (
+                        <div className="space-y-3">
+                          {matchRuns.map(run => (
+                            <div 
+                              key={run.id} 
+                              className={`p-4 rounded-lg border transition-colors cursor-pointer ${
+                                selectedRun?.id === run.id 
+                                  ? 'border-primary bg-primary/5' 
+                                  : 'hover:border-primary/50'
+                              }`}
+                              onClick={() => {
+                                setSelectedRun(run);
+                                fetchCandidates(run.id);
+                                setActiveTab('candidates');
+                              }}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="font-medium">
+                                    Run {run.id.slice(0, 8)}...
+                                  </p>
+                                  <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
+                                    <span className="flex items-center gap-1">
+                                      <Clock className="h-3 w-3" />
+                                      <RelativeDate date={run.started_at || ''} />
+                                    </span>
+                                    {run.triggered_by && (
+                                      <span className="flex items-center gap-1">
+                                        <Users className="h-3 w-3" />
+                                        {run.triggered_by}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {getStatusBadge(run.status)}
+                                </div>
+                              </div>
+
+                              {run.status === MdmMatchRunStatus.RUNNING && (
+                                <div className="mt-3">
+                                  <Progress value={50} className="h-2" />
+                                </div>
+                              )}
+
+                              {run.status === MdmMatchRunStatus.COMPLETED && (
+                                <div className="mt-3 flex items-center justify-between">
+                                  <div className="flex gap-4 text-sm">
+                                    <span className="text-green-600">
+                                      {run.matches_found} matches
+                                    </span>
+                                    <span className="text-blue-600">
+                                      {run.new_records} new
+                                    </span>
+                                    {run.pending_review_count > 0 && (
+                                      <span className="text-yellow-600">
+                                        {run.pending_review_count} pending review
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    {run.pending_review_count > 0 && (
+                                      <Button 
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setSelectedRun(run);
+                                          setIsReviewDialogOpen(true);
+                                        }}
+                                      >
+                                        <FileCheck className="h-4 w-4 mr-1" />
+                                        Create Review
+                                      </Button>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedRun(run);
+                                        fetchCandidates(run.id);
+                                        setActiveTab('candidates');
+                                      }}
+                                    >
+                                      <Eye className="h-4 w-4 mr-1" />
+                                      View
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {run.status === MdmMatchRunStatus.FAILED && run.error_message && (
+                                <div className="mt-3 text-sm text-destructive">
+                                  Error: {run.error_message}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-12">
+                          <RefreshCw className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground">No match runs yet.</p>
+                          <Button 
+                            className="mt-4"
+                            onClick={() => handleStartMatching(selectedConfig.id)}
+                          >
+                            <Play className="h-4 w-4 mr-2" />
+                            Start First Matching Run
+                          </Button>
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    {/* Candidates Tab */}
+                    {selectedRun && (
+                      <TabsContent value="candidates">
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <h4 className="font-medium">
+                                Match Candidates for Run {selectedRun.id.slice(0, 8)}...
+                              </h4>
+                              <p className="text-sm text-muted-foreground">
+                                {candidates.filter(c => c.status === MdmMatchCandidateStatus.PENDING).length} pending, 
+                                {' '}{candidates.filter(c => c.status === MdmMatchCandidateStatus.APPROVED).length} approved,
+                                {' '}{candidates.filter(c => c.status === MdmMatchCandidateStatus.MERGED).length} merged
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              {candidates.some(c => c.status === MdmMatchCandidateStatus.APPROVED) && (
+                                <Button onClick={() => handleMergeApproved(selectedRun.id)}>
+                                  <Merge className="h-4 w-4 mr-2" />
+                                  Merge Approved
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          {candidates.length > 0 ? (
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Type</TableHead>
+                                  <TableHead>Master ID</TableHead>
+                                  <TableHead>Source ID</TableHead>
+                                  <TableHead>Confidence</TableHead>
+                                  <TableHead>Matched Fields</TableHead>
+                                  <TableHead>Status</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {candidates.map(candidate => (
+                                  <TableRow 
+                                    key={candidate.id}
+                                    className="cursor-pointer hover:bg-muted/50"
+                                    onClick={() => {
+                                      // Navigate to review or show detail modal
+                                      if (candidate.review_request_id) {
+                                        navigate(`/data-asset-reviews/${candidate.review_request_id}`);
+                                      }
+                                    }}
+                                  >
+                                    <TableCell>{getMatchTypeBadge(candidate.match_type)}</TableCell>
+                                    <TableCell className="font-mono text-sm">
+                                      {candidate.master_record_id || <span className="text-muted-foreground italic">New</span>}
+                                    </TableCell>
+                                    <TableCell className="font-mono text-sm">
+                                      {candidate.source_record_id}
+                                    </TableCell>
+                                    <TableCell>
+                                      <span className={`font-medium ${getConfidenceColor(candidate.confidence_score)}`}>
+                                        {(candidate.confidence_score * 100).toFixed(1)}%
+                                      </span>
+                                    </TableCell>
+                                    <TableCell>
+                                      {candidate.matched_fields?.length > 0 ? (
+                                        <div className="flex flex-wrap gap-1">
+                                          {candidate.matched_fields.slice(0, 3).map((field, idx) => (
+                                            <Badge key={idx} variant="outline" className="text-xs">
+                                              {field}
+                                            </Badge>
+                                          ))}
+                                          {candidate.matched_fields.length > 3 && (
+                                            <Badge variant="outline" className="text-xs">
+                                              +{candidate.matched_fields.length - 3}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="text-muted-foreground">-</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell>{getStatusBadge(candidate.status)}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          ) : (
+                            <div className="text-center py-8 text-muted-foreground">
+                              No candidates found for this run.
+                            </div>
+                          )}
+                        </div>
+                      </TabsContent>
+                    )}
+                  </Tabs>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <GitCompare className="h-16 w-16 mx-auto text-muted-foreground mb-6" />
+                  <h3 className="text-lg font-medium mb-2">Select an MDM Configuration</h3>
+                  <p className="text-muted-foreground mb-6">
+                    Choose a configuration from the list to view details and manage matching runs.
+                  </p>
+                  <Button onClick={() => setIsConfigDialogOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create New Configuration
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Dialogs */}
+      <MdmConfigDialog
+        isOpen={isConfigDialogOpen}
+        onClose={() => setIsConfigDialogOpen(false)}
+        onSuccess={() => {
+          fetchConfigs();
+          setIsConfigDialogOpen(false);
+        }}
+      />
+
+      {selectedConfig && (
+        <LinkSourceDialog
+          isOpen={isLinkDialogOpen}
+          configId={selectedConfig.id}
+          masterContractId={selectedConfig.master_contract_id}
+          onClose={() => setIsLinkDialogOpen(false)}
+          onSuccess={() => {
+            fetchSourceLinks(selectedConfig.id);
+            fetchConfigs();
+            setIsLinkDialogOpen(false);
+          }}
+        />
+      )}
+
+      {selectedRun && (
+        <CreateReviewDialog
+          isOpen={isReviewDialogOpen}
+          runId={selectedRun.id}
+          candidateCount={selectedRun.pending_review_count}
+          onClose={() => setIsReviewDialogOpen(false)}
+          onSuccess={(reviewId) => {
+            setIsReviewDialogOpen(false);
+            navigate(`/data-asset-reviews/${reviewId}`);
+          }}
+        />
+      )}
     </div>
   );
-} 
+}

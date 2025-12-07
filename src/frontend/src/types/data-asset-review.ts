@@ -24,6 +24,7 @@ export enum AssetType {
     MODEL = "model",
     VOLUME = "volume",
     NOTEBOOK = "notebook",
+    MDM_MATCH = "mdm_match",
     // Add others as needed
 }
 
