@@ -17,8 +17,8 @@ class WorkspaceAsset(BaseModel):
     path: Optional[str] = Field(None, description="Path or location of the asset")
     url: Optional[str] = Field(None, description="URL to access the asset in Databricks workspace")
     
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "type": "table",
                 "identifier": "main.default.sales_data",
@@ -27,4 +27,5 @@ class WorkspaceAsset(BaseModel):
                 "url": None
             }
         }
+    }
 
