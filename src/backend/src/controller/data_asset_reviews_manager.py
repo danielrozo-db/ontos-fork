@@ -126,8 +126,16 @@ class DataAssetReviewManager(SearchableAsset): # Inherit from SearchableAsset
             logger.error(f"Unexpected SDK error determining asset type for {fqn}: {e}. Defaulting to TABLE.", exc_info=True)
             return AssetType.TABLE
 
-    def create_review_request(self, request_data: DataAssetReviewRequestCreate) -> DataAssetReviewRequestApi:
-        """Creates a new data asset review request."""
+    def create_review_request(self, request_data: DataAssetReviewRequestCreate, db: Optional[Session] = None) -> DataAssetReviewRequestApi:
+        """Creates a new data asset review request.
+        
+        Args:
+            request_data: The review request data
+            db: Optional database session. If not provided, uses the manager's internal session.
+        """
+        # Use provided db session or fall back to instance session
+        db_session = db if db is not None else self._db
+        
         try:
             request_id = str(uuid.uuid4())
             assets_to_review: List[ReviewedAssetApi] = []
@@ -166,7 +174,7 @@ class DataAssetReviewManager(SearchableAsset): # Inherit from SearchableAsset
             )
 
             # Use the repository to create the request and its assets in DB
-            created_db_obj = self._repo.create_with_assets(db=self._db, obj_in=full_request)
+            created_db_obj = self._repo.create_with_assets(db=db_session, obj_in=full_request)
 
             # Convert DB object back to API model for response
             created_api_obj = DataAssetReviewRequestApi.from_orm(created_db_obj)
@@ -175,12 +183,12 @@ class DataAssetReviewManager(SearchableAsset): # Inherit from SearchableAsset
             try:
                  notification = Notification(
                      id=str(uuid.uuid4()),
-                     user_email=created_api_obj.reviewer_email, # Notify the reviewer
-                     # Using Notification model fields (assuming 'title' or 'message')
-                     title="New Data Asset Review Request", # Use title
-                     description=f"Review request ({created_api_obj.id}) assigned to you by {created_api_obj.requester_email}.", # Use description for details
-                     type=NotificationType.INFO, # Use NotificationType enum
-                     link=f"/data-asset-reviews/{created_api_obj.id}" # Link to the review details page
+                     recipient=created_api_obj.reviewer_email,  # Notify the reviewer
+                     title="New Data Asset Review Request",
+                     description=f"Review request ({created_api_obj.id}) assigned to you by {created_api_obj.requester_email}.",
+                     type=NotificationType.INFO,
+                     link=f"/data-asset-reviews/{created_api_obj.id}",
+                     created_at=datetime.utcnow(),
                  )
                  self._notifications_manager.create_notification(notification)
                  logger.info(f"Notification created for reviewer {created_api_obj.reviewer_email} for request {created_api_obj.id}")

@@ -51,7 +51,29 @@ export default function DataAssetReviewDetails() {
     const [error, setError] = useState<string | null>(null);
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
     const [selectedAsset, setSelectedAsset] = useState<ReviewedAsset | null>(null);
+    const [selectedAssetIndex, setSelectedAssetIndex] = useState<number>(0);
     const [isEditorOpen, setIsEditorOpen] = useState(false);
+
+    // Navigation helpers for asset review
+    const pendingAssets = useMemo(() => 
+        request?.assets?.filter(a => a.status === ReviewedAssetStatus.PENDING) ?? [], 
+        [request?.assets]
+    );
+    
+    const currentAssetIndexInPending = useMemo(() => {
+        if (!selectedAsset) return -1;
+        return pendingAssets.findIndex(a => a.id === selectedAsset.id);
+    }, [pendingAssets, selectedAsset]);
+    
+    const hasNextAsset = currentAssetIndexInPending >= 0 && currentAssetIndexInPending < pendingAssets.length - 1;
+    
+    const goToNextAsset = () => {
+        if (hasNextAsset) {
+            const nextAsset = pendingAssets[currentAssetIndexInPending + 1];
+            setSelectedAsset(nextAsset);
+            setSelectedAssetIndex(currentAssetIndexInPending + 2); // 1-based
+        }
+    };
 
     // Fetch request details
     const fetchRequestDetails = async () => {
@@ -162,6 +184,9 @@ export default function DataAssetReviewDetails() {
             cell: ({ row }) => (
                 <Button variant="outline" size="sm" onClick={() => {
                     setSelectedAsset(row.original);
+                    // Find the index in the pending assets for navigation
+                    const idx = pendingAssets.findIndex(a => a.id === row.original.id);
+                    setSelectedAssetIndex(idx >= 0 ? idx + 1 : 1); // 1-based
                     setIsEditorOpen(true);
                 }}>
                     Review
@@ -270,8 +295,16 @@ export default function DataAssetReviewDetails() {
                                             updated_at: new Date().toISOString(),
                                         };
                                     });
-                                    setIsEditorOpen(false); // Close dialog on save
+                                    // Don't close dialog here - let Save & Next handle navigation
+                                    // Only close if no next or user explicitly closes
+                                    if (!hasNextAsset) {
+                                        setIsEditorOpen(false);
+                                    }
                                 }}
+                                onNext={goToNextAsset}
+                                hasNext={hasNextAsset}
+                                currentIndex={selectedAssetIndex}
+                                totalCount={pendingAssets.length}
                              />
                              {/* Footer with save button is now part of AssetReviewEditor logic,
                                 but usually triggered from parent dialog for consistency.

@@ -27,6 +27,7 @@ import python from 'react-syntax-highlighter/dist/esm/languages/prism/python';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import ReactMarkdown from 'react-markdown';
 import LLMConsentDialog, { hasLLMConsent } from '@/components/common/llm-consent-dialog';
+import MdmMatchReview from '@/components/mdm/mdm-match-review';
 
 // Register languages
 SyntaxHighlighter.registerLanguage('sql', sql);
@@ -37,6 +38,10 @@ interface AssetReviewEditorProps {
     asset: ReviewedAsset;
     api: ReturnType<typeof useApi>;
     onReviewSave: (updatedAsset: ReviewedAsset) => void; // Callback after saving
+    onNext?: () => void; // Callback to navigate to next asset
+    hasNext?: boolean; // Whether there's a next asset
+    currentIndex?: number; // Current position (1-based)
+    totalCount?: number; // Total assets in review
 }
 
 // Helper function to check API response
@@ -52,7 +57,16 @@ const checkApiResponse = <T,>(response: { data?: T | { detail?: string }, error?
     return response.data as T;
 };
 
-export default function AssetReviewEditor({ requestId, asset, api, onReviewSave }: AssetReviewEditorProps) {
+export default function AssetReviewEditor({ 
+    requestId, 
+    asset, 
+    api, 
+    onReviewSave,
+    onNext,
+    hasNext = false,
+    currentIndex,
+    totalCount,
+}: AssetReviewEditorProps) {
     const { get, put, post } = api;
     const { toast } = useToast();
 
@@ -246,6 +260,32 @@ export default function AssetReviewEditor({ requestId, asset, api, onReviewSave 
 
         return <p className="text-sm text-muted-foreground">No preview or definition available for this asset type, or content is still loading.</p>;
     };
+
+    // Handle MDM Match assets with specialized component
+    if (asset.asset_type === AssetType.MDM_MATCH) {
+        return (
+            <div className="px-1 pb-1">
+                <MdmMatchReview
+                    assetFqn={asset.asset_fqn}
+                    onReviewComplete={(status) => {
+                        // Update the asset status in the parent based on MDM review outcome
+                        const newStatus = status === 'approved' 
+                            ? ReviewedAssetStatus.APPROVED 
+                            : ReviewedAssetStatus.REJECTED;
+                        onReviewSave({
+                            ...asset,
+                            status: newStatus,
+                            updated_at: new Date().toISOString(),
+                        });
+                    }}
+                    onNext={onNext}
+                    hasNext={hasNext}
+                    currentIndex={currentIndex}
+                    totalCount={totalCount}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="px-1 pb-1">

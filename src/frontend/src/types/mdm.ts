@@ -162,6 +162,7 @@ export interface MdmMatchRun {
   error_message?: string;
   triggered_by?: string;
   pending_review_count: number;
+  approved_count: number; // Approved but not yet merged
 }
 
 // --- Match Candidate Types --- //

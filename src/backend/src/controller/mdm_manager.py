@@ -387,8 +387,10 @@ class MdmManager:
         )
 
         # The reviews manager will detect MDM FQNs (mdm://) and set the correct asset type
+        # Pass our db session to ensure the review is committed in the same transaction
         review = self._reviews_manager.create_review_request(
-            request_data=review_data
+            request_data=review_data,
+            db=self._db
         )
 
         # Link candidates to review assets
@@ -587,6 +589,13 @@ class MdmManager:
             run_id=run.id,
             status=MdmMatchCandidateStatus.PENDING.value
         )
+        
+        # Get approved count (approved but not yet merged)
+        approved_count = mdm_match_candidate_repo.count_by_run_and_status(
+            db=self._db,
+            run_id=run.id,
+            status=MdmMatchCandidateStatus.APPROVED.value
+        )
 
         return MdmMatchRunApi(
             id=run.id,
@@ -603,6 +612,7 @@ class MdmManager:
             error_message=run.error_message,
             triggered_by=run.triggered_by,
             pending_review_count=pending_count,
+            approved_count=approved_count,
         )
 
     def _match_candidate_to_api(self, candidate: MdmMatchCandidateDb) -> MdmMatchCandidateApi:

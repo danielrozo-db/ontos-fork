@@ -639,8 +639,26 @@ export default function MasterDataManagement() {
                                         {run.pending_review_count} pending review
                                       </span>
                                     )}
+                                    {run.approved_count > 0 && (
+                                      <span className="text-emerald-600 font-medium">
+                                        {run.approved_count} ready to merge
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="flex gap-2">
+                                    {run.approved_count > 0 && (
+                                      <Button 
+                                        size="sm"
+                                        variant="default"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleMergeApproved(run.id);
+                                        }}
+                                      >
+                                        <Merge className="h-4 w-4 mr-1" />
+                                        Merge ({run.approved_count})
+                                      </Button>
+                                    )}
                                     {run.pending_review_count > 0 && (
                                       <Button 
                                         size="sm"

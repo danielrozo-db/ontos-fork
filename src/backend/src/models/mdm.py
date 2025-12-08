@@ -192,6 +192,7 @@ class MdmMatchRunApi(BaseModel):
     error_message: Optional[str] = None
     triggered_by: Optional[str] = None
     pending_review_count: int = 0  # Derived field
+    approved_count: int = 0  # Derived field: approved but not yet merged
 
     model_config = {"from_attributes": True}
 
