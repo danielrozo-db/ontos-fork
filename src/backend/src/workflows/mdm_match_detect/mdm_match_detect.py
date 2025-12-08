@@ -339,6 +339,7 @@ def find_matches(
         print(f"\n  Rule '{rule_name}' ({rule_type}): master_fields={master_fields} → source_fields={source_fields}")
         
         score_col = f"score_{rule_name}"
+        rule_applied = False  # Track if rule was actually applied
         
         if rule_type == 'deterministic':
             conditions = []
@@ -347,18 +348,32 @@ def find_matches(
                 source_col = f"source_{sf}"
                 print(f"    Checking: {master_col} == {source_col}")
                 if master_col in combined.columns and source_col in combined.columns:
-                    conditions.append(F.col(master_col) == F.col(source_col))
-                    print(f"    ✓ Both columns exist")
+                    # Apply field-specific normalization for better matching
+                    if 'phone' in mf.lower() or 'phone' in sf.lower():
+                        # Normalize phone numbers: keep only digits, compare last 7 digits
+                        # This handles variations like +1-555-0101 vs 555-0101
+                        norm_master_expr = f"RIGHT(REGEXP_REPLACE({master_col}, '[^0-9]', ''), 7)"
+                        norm_source_expr = f"RIGHT(REGEXP_REPLACE({source_col}, '[^0-9]', ''), 7)"
+                        conditions.append(F.expr(norm_master_expr) == F.expr(norm_source_expr))
+                        print(f"    ✓ Both columns exist (with phone normalization - last 7 digits)")
+                    elif 'email' in mf.lower() or 'email' in sf.lower():
+                        # Normalize email: lowercase and trim
+                        conditions.append(F.lower(F.trim(F.col(master_col))) == F.lower(F.trim(F.col(source_col))))
+                        print(f"    ✓ Both columns exist (with email normalization)")
+                    else:
+                        conditions.append(F.col(master_col) == F.col(source_col))
+                        print(f"    ✓ Both columns exist")
                 else:
                     print(f"    ✗ Missing column(s): master_exists={master_col in combined.columns}, source_exists={source_col in combined.columns}")
             
             if conditions:
                 combined_cond = reduce(lambda a, b: a & b, conditions)
                 combined = combined.withColumn(score_col, F.when(combined_cond, F.lit(weight)).otherwise(F.lit(0.0)))
+                rule_applied = True
                 print(f"    Applied {len(conditions)} condition(s)")
             else:
                 combined = combined.withColumn(score_col, F.lit(0.0))
-                print(f"    No valid conditions, score=0")
+                print(f"    No valid conditions, score=0 (rule EXCLUDED from total weight)")
         
         elif rule_type in ('probabilistic', 'fuzzy'):
             # Apply fuzzy matching for first field pair
@@ -377,23 +392,32 @@ def find_matches(
                         return fuzz.ratio(str(a).lower(), str(b).lower()) / 100.0
                     
                     combined = combined.withColumn(score_col, calc_fuzzy(F.col(master_col), F.col(source_col)) * F.lit(weight))
+                    rule_applied = True
                     print(f"    ✓ Applied fuzzy matching")
                 else:
                     combined = combined.withColumn(score_col, F.lit(0.0))
-                    print(f"    ✗ Missing column(s)")
+                    print(f"    ✗ Missing column(s) (rule EXCLUDED from total weight)")
             else:
                 combined = combined.withColumn(score_col, F.lit(0.0))
-                print(f"    ✗ No fields specified")
+                print(f"    ✗ No fields specified (rule EXCLUDED from total weight)")
         
         rule_scores.append(score_col)
-        rule_weights.append(weight)
+        # Only count weight for rules that were actually applied
+        if rule_applied:
+            rule_weights.append(weight)
+        else:
+            print(f"    ⚠ Rule weight {weight} NOT included in total (missing columns)")
     
     # Calculate overall confidence score
-    if rule_scores:
+    if rule_scores and rule_weights:
         total_weight = sum(rule_weights)
-        score_sum = sum([F.col(s) for s in rule_scores])
-        combined = combined.withColumn("confidence_score", score_sum / F.lit(total_weight))
-        print(f"\n  Calculated confidence_score from {len(rule_scores)} rules, total_weight={total_weight}")
+        if total_weight > 0:
+            score_sum = sum([F.col(s) for s in rule_scores])
+            combined = combined.withColumn("confidence_score", score_sum / F.lit(total_weight))
+            print(f"\n  Calculated confidence_score from {len(rule_scores)} rules, applicable_weight={total_weight}")
+        else:
+            combined = combined.withColumn("confidence_score", F.lit(0.0))
+            print(f"\n  All rules failed (missing columns), confidence_score=0")
     else:
         combined = combined.withColumn("confidence_score", F.lit(0.0))
         print(f"\n  No rule scores, confidence_score=0")
