@@ -34,6 +34,11 @@ class ToolName(str, Enum):
     EXPLORE_CATALOG_SCHEMA = "explore_catalog_schema"
     CREATE_DRAFT_DATA_CONTRACT = "create_draft_data_contract"
     CREATE_DRAFT_DATA_PRODUCT = "create_draft_data_product"
+    UPDATE_DATA_PRODUCT = "update_data_product"
+    UPDATE_DATA_CONTRACT = "update_data_contract"
+    ADD_SEMANTIC_LINK = "add_semantic_link"
+    LIST_SEMANTIC_LINKS = "list_semantic_links"
+    REMOVE_SEMANTIC_LINK = "remove_semantic_link"
 
 
 # ============================================================================

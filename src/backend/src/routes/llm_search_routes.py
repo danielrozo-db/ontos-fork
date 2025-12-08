@@ -17,6 +17,7 @@ from src.common.dependencies import (
     AuditCurrentUserDep,
     CurrentUserDep
 )
+from src.common.workspace_client import get_obo_workspace_client
 from src.models.llm_search import (
     ChatMessageCreate, ChatResponse, ConversationSession,
     SessionSummary, LLMSearchStatus
@@ -35,7 +36,11 @@ router = APIRouter(prefix="/api/llm-search", tags=["llm-search"])
 # ============================================================================
 
 async def get_llm_search_manager(request: Request, db: DBSessionDep) -> LLMSearchManager:
-    """Get the LLMSearchManager instance with fresh manager references."""
+    """Get the LLMSearchManager instance with fresh manager references.
+    
+    Uses OBO (On-Behalf-Of) workspace client so UC operations run with the
+    user's permissions, ensuring proper access control and audit trail.
+    """
     from src.common.config import get_settings
     settings = get_settings()
     
@@ -45,10 +50,13 @@ async def get_llm_search_manager(request: Request, db: DBSessionDep) -> LLMSearc
     data_contracts_manager = getattr(request.app.state, 'data_contracts_manager', None)
     semantic_models_manager = getattr(request.app.state, 'semantic_models_manager', None)
     search_manager = getattr(request.app.state, 'search_manager', None)
-    ws_client = getattr(request.app.state, 'ws_client', None)
+    
+    # Get OBO workspace client - uses user's token for proper access control
+    # Falls back to SP client if OBO token not available (local dev)
+    obo_ws_client = get_obo_workspace_client(request, settings)
     
     # Create new instance for each request with current db session
-    # (Don't cache because we need fresh db session and managers)
+    # (Don't cache because we need fresh db session and OBO client)
     return LLMSearchManager(
         db=db,
         settings=settings,
@@ -56,7 +64,7 @@ async def get_llm_search_manager(request: Request, db: DBSessionDep) -> LLMSearc
         data_contracts_manager=data_contracts_manager,
         semantic_models_manager=semantic_models_manager,
         search_manager=search_manager,
-        workspace_client=ws_client
+        workspace_client=obo_ws_client
     )
 
 
@@ -106,15 +114,12 @@ async def chat(
     }
     
     try:
-        # Get user token for Databricks access
-        user_token = request.headers.get("x-forwarded-access-token")
-        
         logger.info(f"LLM chat request from user {current_user.email}, session={message.session_id}")
         
+        # Note: manager already has OBO workspace client from get_llm_search_manager dependency
         response = await manager.chat(
             user_message=message.content,
             user_id=current_user.email,
-            user_token=user_token,
             session_id=message.session_id
         )
         
