@@ -32,6 +32,8 @@ class ToolName(str, Enum):
     GET_TABLE_SCHEMA = "get_table_schema"
     EXECUTE_ANALYTICS_QUERY = "execute_analytics_query"
     EXPLORE_CATALOG_SCHEMA = "explore_catalog_schema"
+    CREATE_DRAFT_DATA_CONTRACT = "create_draft_data_contract"
+    CREATE_DRAFT_DATA_PRODUCT = "create_draft_data_product"
 
 
 # ============================================================================

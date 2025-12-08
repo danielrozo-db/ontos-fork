@@ -49,6 +49,10 @@ You have access to the following tools:
 
 6. **explore_catalog_schema** - List all tables and views in a Unity Catalog schema with their columns. Use this to understand what data assets exist and suggest semantic models or data products.
 
+7. **create_draft_data_contract** - Create a new draft data contract from schema information. Always create contracts in draft status for user review.
+
+8. **create_draft_data_product** - Create a new draft data product, optionally linked to a contract. Always create products in draft status for user review.
+
 ## Guidelines
 
 - Always search for relevant data products or glossary terms before attempting analytics queries
@@ -219,6 +223,88 @@ TOOL_DEFINITIONS = [
                 "required": ["catalog", "schema"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_draft_data_contract",
+            "description": "Create a new draft data contract based on schema information. The contract will be created in 'draft' status for user review. Use after exploring a catalog schema to formalize a data asset.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name for the contract (e.g., 'Customer Master Data Contract')"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Business description of what this contract governs"
+                    },
+                    "domain": {
+                        "type": "string",
+                        "description": "Business domain (e.g., 'Customer', 'Sales', 'Finance')"
+                    },
+                    "tables": {
+                        "type": "array",
+                        "description": "List of tables to include in the contract schema",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string", "description": "Table name"},
+                                "full_name": {"type": "string", "description": "Fully qualified table name (catalog.schema.table)"},
+                                "description": {"type": "string", "description": "Table description"},
+                                "columns": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {"type": "string"},
+                                            "type": {"type": "string"},
+                                            "description": {"type": "string"}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "required": ["name", "description", "domain"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_draft_data_product",
+            "description": "Create a new draft data product. The product will be created in 'draft' status for user review. Optionally link to an existing data contract.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name for the data product (e.g., 'Customer Analytics Product')"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Business description and purpose of the data product"
+                    },
+                    "domain": {
+                        "type": "string",
+                        "description": "Business domain (e.g., 'Customer', 'Sales', 'Finance')"
+                    },
+                    "contract_id": {
+                        "type": "string",
+                        "description": "Optional: ID of an existing data contract to link to this product"
+                    },
+                    "output_tables": {
+                        "type": "array",
+                        "description": "List of output table FQNs this product provides",
+                        "items": {"type": "string"}
+                    }
+                },
+                "required": ["name", "description", "domain"]
+            }
+        }
     }
 ]
 
@@ -307,6 +393,7 @@ class LLMSearchManager:
         db: Session,
         settings: Settings,
         data_products_manager: Optional[Any] = None,
+        data_contracts_manager: Optional[Any] = None,
         semantic_models_manager: Optional[Any] = None,
         costs_manager: Optional[Any] = None,
         search_manager: Optional[Any] = None,
@@ -315,6 +402,7 @@ class LLMSearchManager:
         self._db = db
         self._settings = settings
         self._data_products_manager = data_products_manager
+        self._data_contracts_manager = data_contracts_manager
         self._semantic_models_manager = semantic_models_manager
         self._costs_manager = costs_manager
         self._search_manager = search_manager
@@ -522,18 +610,25 @@ class LLMSearchManager:
         
         Authentication priority:
         1. Explicit user_token parameter
-        2. Databricks SDK default config (OBO token in Databricks Apps, PAT/OAuth locally)
-        3. DATABRICKS_TOKEN setting/env var (fallback for local development)
+        2. DATABRICKS_TOKEN from settings/.env (for local development with explicit config)
+        3. Databricks SDK default config (OBO token in Databricks Apps)
         
-        Note: We prefer user credentials (OBO) for audit trail and permission consistency.
-        In Databricks Apps, this requires the 'serving.serving-endpoints' user scope.
+        Note: We check .env settings first so local development uses the configured
+        workspace, not ~/.databrickscfg. In Databricks Apps, DATABRICKS_TOKEN is
+        typically not set, so it falls through to SDK config (OBO).
         """
         try:
             from openai import OpenAI
             
             token = user_token
             
-            # Try Databricks SDK default config (OBO in Apps, PAT/OAuth locally)
+            # First try explicit token from settings/.env (local development)
+            if not token:
+                token = self._settings.DATABRICKS_TOKEN or os.environ.get('DATABRICKS_TOKEN')
+                if token:
+                    logger.info("Using token from settings/environment (PAT)")
+            
+            # Fall back to Databricks SDK config (OBO in Apps, ~/.databrickscfg locally)
             if not token:
                 try:
                     from databricks.sdk.core import Config
@@ -546,12 +641,6 @@ class LLMSearchManager:
                             logger.info("Using token from Databricks SDK (user credentials)")
                 except Exception as sdk_err:
                     logger.debug(f"Could not get token from SDK config: {sdk_err}")
-            
-            # Fallback to explicit token from settings/env (local development)
-            if not token:
-                token = self._settings.DATABRICKS_TOKEN or os.environ.get('DATABRICKS_TOKEN')
-                if token:
-                    logger.info("Using token from settings/environment (PAT)")
             
             if not token:
                 raise RuntimeError("No authentication token available. Ensure the app has access to a serving endpoint or set DATABRICKS_TOKEN.")
@@ -604,6 +693,12 @@ class LLMSearchManager:
         
         elif tool_name == "explore_catalog_schema":
             return await self._tool_explore_catalog_schema(user_token=user_token, **args)
+        
+        elif tool_name == "create_draft_data_contract":
+            return await self._tool_create_draft_data_contract(**args)
+        
+        elif tool_name == "create_draft_data_product":
+            return await self._tool_create_draft_data_product(**args)
         
         else:
             raise ValueError(f"Unknown tool: {tool_name}")
@@ -989,4 +1084,140 @@ class LLMSearchManager:
         except Exception as e:
             logger.error(f"Error exploring schema {catalog}.{schema}: {e}")
             return {"error": str(e), "catalog": catalog, "schema": schema}
+
+    async def _tool_create_draft_data_contract(
+        self,
+        name: str,
+        description: str,
+        domain: str,
+        tables: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
+        """Create a draft data contract from schema information."""
+        if not self._data_contracts_manager:
+            return {"error": "Data contracts manager not available"}
+        
+        try:
+            import uuid
+            logger.info(f"Creating draft data contract: {name}")
+            
+            # Build schema objects from tables
+            schema_objects = []
+            if tables:
+                for table in tables:
+                    properties = []
+                    for col in table.get("columns", []):
+                        properties.append({
+                            "property": col.get("name"),
+                            "logicalType": col.get("type", "string"),
+                            "physicalType": col.get("type", "STRING"),
+                            "businessName": col.get("name"),
+                            "description": col.get("description", "")
+                        })
+                    
+                    schema_objects.append({
+                        "name": table.get("name"),
+                        "physicalName": table.get("full_name") or table.get("name"),
+                        "description": table.get("description", ""),
+                        "properties": properties
+                    })
+            
+            # Build contract data in ODCS format
+            contract_data = {
+                "apiVersion": "v3.0.2",
+                "kind": "DataContract",
+                "name": name,
+                "version": "0.1.0",
+                "status": "draft",
+                "domain": domain,
+                "description": {
+                    "purpose": description
+                },
+                "schema": schema_objects
+            }
+            
+            # Create the contract
+            created = self._data_contracts_manager.create_contract_with_relations(
+                db=self._db,
+                contract_data=contract_data,
+                current_user=None  # Will use system default
+            )
+            
+            return {
+                "success": True,
+                "contract_id": created.id,
+                "name": created.name,
+                "version": created.version,
+                "status": created.status,
+                "message": f"Draft contract '{name}' created successfully. Review and publish it in the Data Contracts UI.",
+                "url": f"/data-contracts/{created.id}"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error creating draft contract: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def _tool_create_draft_data_product(
+        self,
+        name: str,
+        description: str,
+        domain: str,
+        contract_id: Optional[str] = None,
+        output_tables: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """Create a draft data product."""
+        if not self._data_products_manager:
+            return {"error": "Data products manager not available"}
+        
+        try:
+            import uuid
+            logger.info(f"Creating draft data product: {name}")
+            
+            # Build output ports from tables
+            output_ports = []
+            if output_tables:
+                for i, table_fqn in enumerate(output_tables):
+                    output_ports.append({
+                        "name": f"output_{i + 1}",
+                        "server": table_fqn,
+                        "description": f"Output table: {table_fqn}"
+                    })
+            
+            # If contract_id provided, link it
+            if contract_id and output_ports:
+                output_ports[0]["dataContractId"] = contract_id
+            
+            # Build product data in ODPS format
+            product_data = {
+                "apiVersion": "v1.0.0",
+                "kind": "DataProduct",
+                "id": str(uuid.uuid4()),
+                "name": name,
+                "version": "0.1.0",
+                "status": "draft",
+                "domain": domain,
+                "description": {
+                    "purpose": description
+                },
+                "outputPorts": output_ports
+            }
+            
+            # Create the product
+            created = self._data_products_manager.create_product(
+                product_data=product_data,
+                db=self._db
+            )
+            
+            return {
+                "success": True,
+                "product_id": created.id,
+                "name": created.name,
+                "version": created.version,
+                "status": created.status,
+                "message": f"Draft product '{name}' created successfully. Review and publish it in the Data Products UI.",
+                "url": f"/data-products/{created.id}"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error creating draft product: {e}", exc_info=True)
+            return {"error": str(e)}
 

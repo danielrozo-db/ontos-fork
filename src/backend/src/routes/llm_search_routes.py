@@ -42,6 +42,7 @@ async def get_llm_search_manager(request: Request, db: DBSessionDep) -> LLMSearc
     # Always get fresh manager references from app state
     # This ensures we use the properly initialized managers
     data_products_manager = getattr(request.app.state, 'data_products_manager', None)
+    data_contracts_manager = getattr(request.app.state, 'data_contracts_manager', None)
     semantic_models_manager = getattr(request.app.state, 'semantic_models_manager', None)
     search_manager = getattr(request.app.state, 'search_manager', None)
     ws_client = getattr(request.app.state, 'ws_client', None)
@@ -52,6 +53,7 @@ async def get_llm_search_manager(request: Request, db: DBSessionDep) -> LLMSearc
         db=db,
         settings=settings,
         data_products_manager=data_products_manager,
+        data_contracts_manager=data_contracts_manager,
         semantic_models_manager=semantic_models_manager,
         search_manager=search_manager,
         workspace_client=ws_client
