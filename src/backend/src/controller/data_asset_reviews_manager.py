@@ -85,7 +85,7 @@ class DataAssetReviewManager(SearchableAsset): # Inherit from SearchableAsset
         try:
             # Try fetching as Table first (most common)
             try:
-                table_info = self._ws_client.tables.get(full_name_arg=fqn)
+                table_info = self._ws_client.tables.get(full_name=fqn)
                 if table_info.table_type == TableType.VIEW or table_info.table_type == TableType.MATERIALIZED_VIEW:
                     return AssetType.VIEW
                 else:
@@ -459,7 +459,7 @@ class DataAssetReviewManager(SearchableAsset): # Inherit from SearchableAsset
         try:
             definition = None
             if asset_type == AssetType.VIEW:
-                 table_info = self._ws_client.tables.get(full_name_arg=asset_fqn)
+                 table_info = self._ws_client.tables.get(full_name=asset_fqn)
                  definition = table_info.view_definition
             elif asset_type == AssetType.FUNCTION:
                  func_info = self._ws_client.functions.get(name=asset_fqn)
@@ -516,7 +516,7 @@ class DataAssetReviewManager(SearchableAsset): # Inherit from SearchableAsset
              
              # --- Attempting preview via sql.execute --- #
             try:
-                table_info = self._ws_client.tables.get(full_name_arg=table_fqn)
+                table_info = self._ws_client.tables.get(full_name=table_fqn)
                 schema = table_info.columns
                 formatted_schema = [{"name": col.name, "type": col.type_text, "nullable": col.nullable} for col in schema]
                 

@@ -205,12 +205,12 @@ class CachingWorkspaceClient(WorkspaceClient):
                 )()
             
             # Get a single table by full name - delegate to underlying client
-            def get(self, full_name_arg: str = None, **kwargs):
+            def get(self, full_name: str = None, **kwargs):
                 # Use cache for individual table lookups too
-                if full_name_arg:
-                    cache_key = f'tables.get::{full_name_arg}'
+                if full_name:
+                    cache_key = f'tables.get::{full_name}'
                     return self._parent._cache_result(cache_key)(
-                        lambda: self._parent._client.tables.get(full_name_arg=full_name_arg, **kwargs)
+                        lambda: self._parent._client.tables.get(full_name=full_name, **kwargs)
                     )()
                 return self._parent._client.tables.get(**kwargs)
 

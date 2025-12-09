@@ -1113,7 +1113,7 @@ class LLMSearchManager:
             
             # Get table info from Unity Catalog
             logger.debug(f"[get_table_schema] Calling ws_client.tables.get for {table_fqn}")
-            table_info = self._ws_client.tables.get(full_name_arg=table_fqn)
+            table_info = self._ws_client.tables.get(full_name=table_fqn)
             
             columns = []
             if table_info.columns:
@@ -1251,7 +1251,7 @@ class LLMSearchManager:
                 if include_columns:
                     try:
                         # Get full table details including columns
-                        table_details = self._ws_client.tables.get(full_name_arg=table.full_name)
+                        table_details = self._ws_client.tables.get(full_name=table.full_name)
                         if table_details.columns:
                             table_info["columns"] = [
                                 {
