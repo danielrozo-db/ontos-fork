@@ -101,7 +101,6 @@ The application requires a `.env` file in the root directory for configuration. 
 | `DATABRICKS_VOLUME`        | Default Unity Catalog volume for storing app-related files (e.g., data contract outputs)                      | `app_volume`                                 | Yes      |
 | `APP_AUDIT_LOG_DIR`        | Directory path within the `DATABRICKS_VOLUME` for storing audit logs                                          | `audit_logs`                                 | Yes      |
 | `DATABRICKS_TOKEN`         | Personal access token for Databricks authentication (Optional - SDK can use other methods)                    | `dapi1234567890abcdef`                       | No       |
-| `DATABASE_TYPE`            | [Removed] App now uses PostgreSQL for metadata storage.                                                       | `postgres`                                   | -      |
 | `POSTGRES_HOST`            | Hostname or IP address of the PostgreSQL server                                                               | `localhost` or `your.pg.server.com`          | Cond.    |
 | `POSTGRES_PORT`            | Port number for the PostgreSQL server                                                                         | `5432`                                       | Cond.    |
 | `POSTGRES_USER`            | Username for connecting to PostgreSQL                                                                         | `app_user`                                   | Cond.    |
