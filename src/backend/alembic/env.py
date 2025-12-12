@@ -1,6 +1,6 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, text
+from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 
 from alembic import context
@@ -8,7 +8,7 @@ from alembic import context
 # --- Import application-specific components ---
 import os
 import sys
-from src.common.database import Base, get_db_url, _oauth_token # Import Base, helper, and OAuth token
+from src.common.database import Base, get_db_url # Import Base and helper
 from src.common.config import get_settings, Settings, init_config # Import settings loader, model, AND initializer
 # Add the project root to the Python path to allow imports from src.*
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -106,72 +106,31 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    # Check if an engine was provided via config.attributes (from database.py)
-    # This engine has OAuth token injection configured for Lakebase
-    provided_engine = config.attributes.get('engine', None)
-    target_schema = config.attributes.get('target_schema', None)
+    # Check if a connection was provided via config.attributes
+    # This allows database.py to pass an existing connection to avoid connection issues
+    connectable = config.attributes.get('connection', None)
     
-    if provided_engine is not None:
-        # Create a COMPLETELY SEPARATE engine for Alembic with its own connection pool
-        # This prevents AUTOCOMMIT from affecting the main application's connections
-        import logging
-        from sqlalchemy import create_engine, event
-        
-        logger = logging.getLogger("alembic.env")
-        logger.info("env.py: Creating dedicated AUTOCOMMIT engine for migrations")
-        
-        # Create a new engine with AUTOCOMMIT and NullPool (no connection sharing)
-        alembic_engine = create_engine(
-            provided_engine.url,
-            isolation_level="AUTOCOMMIT",
-            poolclass=pool.NullPool,  # No pooling - completely isolated
+    if connectable is not None:
+        # Use the provided connection directly
+        # The caller (database.py) uses connect() without starting a transaction,
+        # so we let Alembic manage the transaction via begin_transaction().
+        # This avoids nested transaction (SAVEPOINT) issues with PostgreSQL/Lakebase.
+        context.configure(
+            connection=connectable,
+            target_metadata=target_metadata,
+            include_object=include_object
         )
         
-        # Register OAuth token injection for Lakebase connections
-        # Access the token from the database module
-        @event.listens_for(alembic_engine, "do_connect")
-        def inject_oauth_token(dialect, conn_rec, cargs, cparams):
-            # Import here to get the current token value
-            from src.common.database import _oauth_token
-            if _oauth_token:
-                cparams["password"] = _oauth_token
-                logger.debug("env.py: Injected OAuth token into connection")
-        
-        try:
-            logger.info(f"env.py: Connecting to database with target_schema={target_schema}")
-            with alembic_engine.connect() as connection:
-                logger.info("env.py: Connection established")
-                
-                # Set search_path (commits immediately in AUTOCOMMIT mode)
-                if target_schema:
-                    logger.info(f"env.py: Setting search_path to {target_schema}")
-                    connection.execute(text(f'SET search_path TO "{target_schema}"'))
-                
-                logger.info("env.py: Configuring Alembic context")
-                context.configure(
-                    connection=connection,
-                    target_metadata=target_metadata,
-                    include_object=include_object,
-                    transactional_ddl=False,  # Tell Alembic not to use transactions
-                    transaction_per_migration=False,  # No per-migration transactions
-                )
-                
-                # Don't use begin_transaction() - AUTOCOMMIT handles each statement
-                logger.info("env.py: Running migrations (AUTOCOMMIT mode, no transaction wrapper)")
-                context.run_migrations()
-                logger.info("env.py: Migrations completed")
-        finally:
-            # Dispose the dedicated engine - this is critical to not leak connections
-            alembic_engine.dispose()
-            logger.info("env.py: Dedicated Alembic engine disposed")
+        with context.begin_transaction():
+            context.run_migrations()
     else:
-        # Standalone mode - create own engine (for CLI usage like `alembic upgrade head`)
+        # Create our own engine and connection (normal standalone mode)
         # Use a dictionary to pass the URL directly
         configuration = config.get_section(config.config_ini_section, {})
-        configuration["sqlalchemy.url"] = DB_URL
+        configuration["sqlalchemy.url"] = DB_URL # <--- Set the URL here
 
         connectable = engine_from_config(
-            configuration,
+            configuration, # Pass the modified configuration
             prefix="sqlalchemy.",
             poolclass=pool.NullPool,
         )
@@ -180,7 +139,7 @@ def run_migrations_online() -> None:
             context.configure(
                 connection=connection, 
                 target_metadata=target_metadata,
-                include_object=include_object
+                include_object=include_object # Pass the hook function
             )
 
             with context.begin_transaction():
