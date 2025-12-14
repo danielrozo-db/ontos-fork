@@ -773,7 +773,11 @@ def init_db() -> None:
         logger.info("Getting current database revision...")
         with engine.connect() as connection:
             db_revision = get_current_db_revision(connection, alembic_cfg)
-        # Connection is now closed, safe to proceed with upgrades
+        # CRITICAL: Dispose the engine pool immediately after getting revision.
+        # This releases the connection used by MigrationContext and clears any
+        # implicit transaction state that could interfere with subsequent Alembic operations.
+        logger.info("Disposing engine pool after revision check...")
+        _engine.dispose()
         logger.info(f"Current Database Revision: {db_revision}")
 
         # Handle migrations based on database state
@@ -785,13 +789,44 @@ def init_db() -> None:
             logger.info(f"Database revision '{db_revision}' differs from head revision '{head_revision}'.")
             logger.info("Attempting Alembic upgrade to head...")
             try:
-                target_schema = settings.POSTGRES_DB_SCHEMA or 'public'
-                # Pass engine to Alembic - let it fully manage connection and transaction lifecycle
-                # This avoids all transaction state conflicts that caused hangs with Lakebase
-                alembic_cfg.attributes['engine'] = _engine
-                alembic_cfg.attributes['target_schema'] = target_schema
-                alembic_command.upgrade(alembic_cfg, "head")
+                # CRITICAL: Dispose the main engine's connection pool before running Alembic.
+                # This releases all pooled connections that might hold implicit transaction state.
+                logger.info("Disposing engine pool to release connections before Alembic migration...")
+                _engine.dispose()
+                
+                # Run Alembic upgrade via subprocess to avoid hanging issues with
+                # Alembic's internal runpy-based execution when called programmatically.
+                # This ensures proper process isolation and cleanup.
+                import subprocess
+                import sys
+                
+                # For Lakebase (OAuth mode), we need to pass the token to the subprocess
+                # via environment variable since the subprocess can't access our in-memory token
+                subprocess_env = os.environ.copy()
+                is_lakebase_mode = not settings.ENV.upper().startswith("LOCAL")
+                if is_lakebase_mode:
+                    # Refresh token to ensure it's valid for the subprocess
+                    logger.info("Refreshing OAuth token for Alembic subprocess...")
+                    token = refresh_oauth_token(settings)
+                    subprocess_env["ALEMBIC_DB_PASSWORD"] = token
+                    logger.info("OAuth token passed to subprocess via environment variable")
+                
+                result = subprocess.run(
+                    [sys.executable, "-m", "alembic", "upgrade", "head"],
+                    cwd=os.path.dirname(alembic_script_location),  # Run from backend dir
+                    capture_output=True,
+                    text=True,
+                    timeout=300,  # 5 minute timeout
+                    env=subprocess_env
+                )
+                if result.returncode != 0:
+                    logger.error(f"Alembic upgrade stderr: {result.stderr}")
+                    raise RuntimeError(f"Alembic upgrade failed with exit code {result.returncode}: {result.stderr}")
+                logger.info(f"Alembic upgrade output: {result.stdout}")
                 logger.info("✓ Alembic upgrade to head COMPLETED.")
+            except subprocess.TimeoutExpired:
+                logger.critical("Alembic upgrade timed out after 5 minutes!")
+                raise RuntimeError("Alembic upgrade timed out")
             except Exception as alembic_err:
                 logger.critical("Alembic upgrade failed! Manual intervention may be required.", exc_info=True)
                 raise RuntimeError("Failed to upgrade database schema.") from alembic_err
@@ -834,14 +869,23 @@ def init_db() -> None:
             logger.info("✓ Database tables created by create_all.")
             
             # Stamp the database with the baseline migration
+            # Using direct INSERT instead of alembic_command.stamp() to avoid 
+            # hanging issues with Alembic's runpy-based execution in some environments
             logger.info("Stamping database with baseline migration...")
             try:
-                # Pass engine to Alembic - let it fully manage connection and transaction lifecycle
-                # This avoids all transaction state conflicts that caused hangs with Lakebase
-                alembic_cfg.attributes['engine'] = _engine
-                alembic_cfg.attributes['target_schema'] = target_schema
-                alembic_command.stamp(alembic_cfg, "head")
-                logger.info("✓ Database stamped with baseline migration.")
+                with _engine.begin() as connection:
+                    connection.execute(text(f'SET search_path TO "{target_schema}"'))
+                    # Create alembic_version table if needed and insert head revision
+                    connection.execute(text("""
+                        CREATE TABLE IF NOT EXISTS alembic_version (
+                            version_num VARCHAR(32) NOT NULL,
+                            CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)
+                        )
+                    """))
+                    connection.execute(text("DELETE FROM alembic_version"))
+                    connection.execute(text("INSERT INTO alembic_version (version_num) VALUES (:rev)"), 
+                                      {"rev": head_revision})
+                logger.info(f"✓ Database stamped with baseline migration: {head_revision}")
             except Exception as stamp_err:
                 logger.error(f"Failed to stamp database: {stamp_err}", exc_info=True)
                 raise
