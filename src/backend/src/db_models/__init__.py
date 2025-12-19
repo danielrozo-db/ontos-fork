@@ -10,6 +10,8 @@ from .teams import TeamDb, TeamMemberDb
 from .projects import ProjectDb, project_team_association
 from .genie_spaces import GenieSpaceDb
 from .llm_sessions import LLMSessionDb, LLMMessageDb
+from .data_quality_checks import DataQualityCheckRunDb, DataQualityCheckResultDb
+from .data_contract_validations import DataContractValidationRunDb, DataContractValidationResultDb
 
 __all__ = [
     "DataProductDb",
@@ -29,4 +31,8 @@ __all__ = [
     "GenieSpaceDb",
     "LLMSessionDb",
     "LLMMessageDb",
+    "DataQualityCheckRunDb",
+    "DataQualityCheckResultDb",
+    "DataContractValidationRunDb",
+    "DataContractValidationResultDb",
 ] 
