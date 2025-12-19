@@ -68,7 +68,7 @@ export default function Home() {
   const [complianceLoading, setComplianceLoading] = useState(true);
   const [complianceError, setComplianceError] = useState<string | null>(null);
   const allowedMaturities = useFeatureVisibilityStore((state) => state.allowedMaturities);
-  const { permissions, isLoading: permissionsLoading, hasPermission, requestableRoles } = usePermissions();
+  const { permissions, isLoading: permissionsLoading, hasPermission, requestableRoles, appliedRoleId } = usePermissions();
 
   useEffect(() => {
     fetch('/api/data-products')
@@ -299,7 +299,7 @@ export default function Home() {
           allowedMaturities.includes(tile.maturity as FeatureMaturity) &&
           hasPermission(tile.id, FeatureAccessLevel.READ_ONLY)
       );
-  }, [baseSummaryTiles, allowedMaturities, permissionsLoading, hasPermission]);
+  }, [baseSummaryTiles, allowedMaturities, permissionsLoading, hasPermission, appliedRoleId]);
 
   // const summaryTiles = baseSummaryTiles.filter(tile => allowedMaturities.includes(tile.maturity as FeatureMaturity));
   const isComplianceVisible = filteredSummaryTiles.some(tile => tile.id === 'compliance');
@@ -311,7 +311,7 @@ export default function Home() {
   }, [permissions, permissionsLoading]);
 
   // Determine configured home sections from applied role (if any)
-  const { availableRoles, appliedRoleId } = usePermissions();
+  const { availableRoles } = usePermissions();
   const { userInfo } = useUserStore();
   const userGroups = (userInfo as any)?.groups || [];
 
