@@ -20,6 +20,7 @@ from src.controller.search_manager import SearchManager
 from src.controller.tags_manager import TagsManager # Import TagsManager
 from src.controller.workspace_manager import WorkspaceManager # Import WorkspaceManager
 from src.controller.change_log_manager import ChangeLogManager # Import ChangeLogManager
+from src.controller.datasets_manager import DatasetsManager # Import DatasetsManager
 
 # Import base dependencies
 from src.common.database import get_session_factory # Import the factory function
@@ -45,9 +46,10 @@ from src.common.manager_dependencies import (
     get_search_manager,
     get_workspace_manager,
     get_change_log_manager,
+    get_datasets_manager,
 )
 # Import workspace client getter separately as it might be structured differently
-from src.common.workspace_client import get_workspace_client # Added
+from src.common.workspace_client import get_workspace_client_dependency  # Fixed to use proper wrapper
 
 logger = get_logger(__name__)
 
@@ -101,7 +103,7 @@ async def get_current_user(user_details: UserInfo = Depends(get_user_details_fro
 DBSessionDep = Annotated[Session, Depends(get_db)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 CurrentUserDep = Annotated[UserInfo, Depends(get_current_user)]
-WorkspaceClientDep = Annotated[WorkspaceClient, Depends(get_workspace_client)]
+WorkspaceClientDep = Annotated[WorkspaceClient, Depends(get_workspace_client_dependency())]
 
 # Manager Dependencies
 SettingsManagerDep = Annotated[SettingsManager, Depends(get_settings_manager)]
@@ -117,6 +119,7 @@ SemanticModelsManagerDep = Annotated[SemanticModelsManager, Depends(get_semantic
 SearchManagerDep = Annotated[SearchManager, Depends(get_search_manager)]
 WorkspaceManagerDep = Annotated[WorkspaceManager, Depends(get_workspace_manager)]
 ChangeLogManagerDep = Annotated[ChangeLogManager, Depends(get_change_log_manager)]
+DatasetsManagerDep = Annotated[DatasetsManager, Depends(get_datasets_manager)]
 
 # Permission Checker Dependency
 PermissionCheckerDep = AuthorizationManagerDep 

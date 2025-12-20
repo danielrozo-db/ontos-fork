@@ -17,6 +17,7 @@ import {
     UserCheck, // Added icon for Teams
     FolderOpen, // Added icon for Projects
     ScrollText, // Added icon for Audit Trail
+    HardDrive, // Added icon for Datasets
     type LucideIcon, // Import LucideIcon type
   } from 'lucide-react';
   
@@ -65,6 +66,16 @@ import {
       group: 'Data Products',
       maturity: 'ga',
       showInLanding: false,
+    },
+    {
+      id: 'datasets',
+      name: 'Datasets',
+      path: '/datasets',
+      description: 'Physical implementations of data contracts (tables, views).',
+      icon: HardDrive,
+      group: 'Data Products',
+      maturity: 'ga',
+      showInLanding: true,
     },
     {
       id: 'data-contracts',

@@ -12,6 +12,7 @@ from .genie_spaces import GenieSpaceDb
 from .llm_sessions import LLMSessionDb, LLMMessageDb
 from .data_quality_checks import DataQualityCheckRunDb, DataQualityCheckResultDb
 from .data_contract_validations import DataContractValidationRunDb, DataContractValidationResultDb
+from .datasets import DatasetDb, DatasetSubscriptionDb, DatasetTagDb, DatasetCustomPropertyDb
 
 __all__ = [
     "DataProductDb",
@@ -35,4 +36,8 @@ __all__ = [
     "DataQualityCheckResultDb",
     "DataContractValidationRunDb",
     "DataContractValidationResultDb",
+    "DatasetDb",
+    "DatasetSubscriptionDb",
+    "DatasetTagDb",
+    "DatasetCustomPropertyDb",
 ] 

@@ -30,6 +30,7 @@ from src.routes import (
     data_contracts_routes,
     data_domains_routes,
     data_product_routes,
+    datasets_routes,
     entitlements_routes,
     entitlements_sync_routes,
     estate_manager_routes,
@@ -185,6 +186,7 @@ if not os.environ.get('TESTING'):
 # Data Management features
 data_product_routes.register_routes(app)
 data_contracts_routes.register_routes(app)
+datasets_routes.register_routes(app)
 semantic_models_routes.register_routes(app)
 master_data_management_routes.register_routes(app)
 mdm_routes.register_routes(app)  # New MDM integration with contracts/reviews
@@ -218,9 +220,6 @@ projects_routes.register_routes(app)
 costs_routes.register_routes(app)
 from src.routes import approvals_routes
 approvals_routes.register_routes(app)
-
-from src.routes import debug_routes
-debug_routes.register_routes(app)
 
 # Define other specific API routes BEFORE the catch-all
 @app.get("/api/time")

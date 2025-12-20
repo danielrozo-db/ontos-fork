@@ -23,6 +23,7 @@ from src.controller.comments_manager import CommentsManager
 from src.controller.jobs_manager import JobsManager
 from src.controller.workspace_manager import WorkspaceManager
 from src.controller.change_log_manager import ChangeLogManager
+from src.controller.datasets_manager import DatasetsManager
 
 # Import other dependencies needed by these providers
 from src.common.database import get_db
@@ -168,6 +169,13 @@ def get_change_log_manager(request: Request) -> ChangeLogManager:
         manager = ChangeLogManager()
         setattr(request.app.state, 'change_log_manager', manager)
         logger.info("Initialized ChangeLogManager and stored on app.state.change_log_manager")
+    return manager
+
+def get_datasets_manager(request: Request) -> DatasetsManager:
+    manager = getattr(request.app.state, 'datasets_manager', None)
+    if not manager:
+        logger.critical("DatasetsManager not found in application state during request!")
+        raise HTTPException(status_code=503, detail="Datasets service not configured.")
     return manager
 
 # Add getters for Compliance, Estate, MDM, Security, Entitlements, Catalog Commander managers when they are added
