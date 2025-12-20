@@ -22,6 +22,7 @@ from src.common.features import get_feature_config, FeatureAccessLevel, get_all_
 from src.common.logging import get_logger
 from src.repositories.settings_repository import app_role_repo, role_hierarchy_repo
 from src.repositories.workflow_installations_repository import workflow_installation_repo
+from src.repositories.app_settings_repository import app_settings_repo
 from src.db_models.settings import AppRoleDb, NO_ROLE_SENTINEL
 from src.repositories.teams_repository import team_repo
 from src.repositories.projects_repository import project_repo
@@ -149,6 +150,20 @@ class SettingsManager:
             logger.error(f"Error initializing JobsManager: {e}")
             self._jobs = None
             self._available_jobs = []
+        
+        # Load persisted settings from database (overrides env vars)
+        self._load_persisted_settings()
+
+    def _load_persisted_settings(self) -> None:
+        """Load persisted settings from database and apply to in-memory Settings."""
+        try:
+            # Load WORKSPACE_DEPLOYMENT_PATH from database if set
+            db_path = app_settings_repo.get_by_key(self._db, 'WORKSPACE_DEPLOYMENT_PATH')
+            if db_path is not None:
+                self._settings.WORKSPACE_DEPLOYMENT_PATH = db_path
+                logger.info(f"Loaded WORKSPACE_DEPLOYMENT_PATH from database: {db_path}")
+        except Exception as e:
+            logger.warning(f"Failed to load persisted settings from database: {e}")
 
     # --- Role override helpers (in-memory persistence) ---
     def set_applied_role_override_for_user(self, user_email: Optional[str], role_id: Optional[str]) -> None:
@@ -920,6 +935,7 @@ class SettingsManager:
             'enabled_jobs': enabled_job_ids,  # From database, not Settings model
             'available_workflows': available,
             'current_settings': self._settings.to_dict(),
+            'workspace_deployment_path': self._settings.WORKSPACE_DEPLOYMENT_PATH,
         }
 
     def update_settings(self, settings: dict) -> Settings:
@@ -1077,6 +1093,19 @@ class SettingsManager:
         self._settings.sync_enabled = settings.get('sync_enabled', False)
         self._settings.sync_repository = settings.get('sync_repository')
         self._settings.updated_at = datetime.utcnow()
+        
+        # Handle workspace_deployment_path - persist to database for durability
+        if 'workspace_deployment_path' in settings:
+            new_path = settings.get('workspace_deployment_path')
+            # Normalize empty string to None
+            if new_path == '':
+                new_path = None
+            # Persist to database
+            app_settings_repo.set(self._db, 'WORKSPACE_DEPLOYMENT_PATH', new_path)
+            # Update in-memory settings
+            self._settings.WORKSPACE_DEPLOYMENT_PATH = new_path
+            logger.info(f"Updated WORKSPACE_DEPLOYMENT_PATH to: {new_path}")
+        
         return self._settings
 
     # --- RBAC Methods --- 

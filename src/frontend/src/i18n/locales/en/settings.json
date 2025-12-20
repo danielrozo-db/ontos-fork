@@ -19,7 +19,17 @@
   "general": {
     "title": "General Settings",
     "description": "Configure basic application settings",
-    "enableBackgroundJobs": "Enable Background Jobs"
+    "enableBackgroundJobs": "Enable Background Jobs",
+    "workspaceDeploymentPath": {
+      "label": "Workspace Deployment Path",
+      "placeholder": "/Workspace/Users/user@domain.com/ontos-workflows",
+      "help": "Path in Databricks workspace where workflow files are deployed for background jobs."
+    },
+    "saveButton": "Save Settings",
+    "messages": {
+      "saveSuccess": "Settings saved successfully",
+      "saveError": "Failed to save settings"
+    }
   },
   "databricks": {
     "title": "Databricks Settings",

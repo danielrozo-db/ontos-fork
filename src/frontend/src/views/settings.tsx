@@ -1,25 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Settings as SettingsIcon, ShieldX, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Settings as SettingsIcon, ShieldX, Loader2, Save } from 'lucide-react';
 import RolesSettings from '@/components/settings/roles-settings';
 import SemanticModelsSettings from '@/components/settings/semantic-models-settings';
 import TagsSettings from '@/components/settings/tags-settings';
 import JobsSettings from '@/components/settings/jobs-settings';
 import { usePermissions } from '@/stores/permissions-store';
 import { FeatureAccessLevel } from '@/types/settings';
+import { useToast } from '@/hooks/use-toast';
 
 interface AppSettings {
   id: string;
   name: string;
   value: any;
   enableBackgroundJobs: boolean;
+  workspaceDeploymentPath: string;
   databricksHost: string;
   databricksToken: string;
   databricksWarehouseId: string;
@@ -33,9 +36,11 @@ interface AppSettings {
 export default function Settings() {
   const { t } = useTranslation(['settings', 'common']);
   const { isLoading: permissionsLoading, hasPermission } = usePermissions();
+  const { toast } = useToast();
   
   // Check if user has at least READ_ONLY access to settings
   const hasSettingsAccess = hasPermission('settings', FeatureAccessLevel.READ_ONLY);
+  const hasWriteAccess = hasPermission('settings', FeatureAccessLevel.READ_WRITE);
   
   // Legacy general/databricks/git settings state (kept for existing tabs)
   const [settings, setSettings] = useState<AppSettings>({
@@ -43,6 +48,7 @@ export default function Settings() {
     name: '',
     value: null,
     enableBackgroundJobs: false,
+    workspaceDeploymentPath: '',
     databricksHost: '',
     databricksToken: '',
     databricksWarehouseId: '',
@@ -52,11 +58,57 @@ export default function Settings() {
     gitBranch: '',
     gitToken: ''
   });
-  // Local saving state for this view (not used for Jobs tab)
-  // Keeping these in case we later add saving of general fields
-  // const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {}, []);
+  // Fetch current settings on mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch('/api/settings');
+        if (response.ok) {
+          const data = await response.json();
+          setSettings(prev => ({
+            ...prev,
+            workspaceDeploymentPath: data.workspace_deployment_path || '',
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to fetch settings:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const handleSaveGeneralSettings = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspace_deployment_path: settings.workspaceDeploymentPath,
+        }),
+      });
+      if (response.ok) {
+        toast({
+          title: t('settings:general.messages.saveSuccess', 'Settings saved successfully'),
+        });
+      } else {
+        throw new Error('Failed to save settings');
+      }
+    } catch (error) {
+      toast({
+        title: t('settings:general.messages.saveError', 'Failed to save settings'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
   
   // Show loading while permissions are being fetched
   if (permissionsLoading) {
@@ -142,7 +194,36 @@ export default function Settings() {
                 />
                 <Label htmlFor="background-jobs">{t('settings:general.enableBackgroundJobs')}</Label>
               </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="workspaceDeploymentPath">
+                  {t('settings:general.workspaceDeploymentPath.label', 'Workspace Deployment Path')}
+                </Label>
+                <Input
+                  id="workspaceDeploymentPath"
+                  name="workspaceDeploymentPath"
+                  value={settings.workspaceDeploymentPath}
+                  onChange={handleChange}
+                  placeholder={t('settings:general.workspaceDeploymentPath.placeholder', '/Workspace/Users/user@domain.com/ontos-workflows')}
+                  disabled={!hasWriteAccess || isLoading}
+                />
+                <p className="text-sm text-muted-foreground">
+                  {t('settings:general.workspaceDeploymentPath.help', 'Path in Databricks workspace where workflow files are deployed for background jobs.')}
+                </p>
+              </div>
             </CardContent>
+            {hasWriteAccess && (
+              <CardFooter>
+                <Button onClick={handleSaveGeneralSettings} disabled={isSaving}>
+                  {isSaving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
+                  {t('settings:general.saveButton', 'Save Settings')}
+                </Button>
+              </CardFooter>
+            )}
           </Card>
         </TabsContent>
 
