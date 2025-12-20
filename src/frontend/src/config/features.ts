@@ -161,7 +161,7 @@ import {
     },
     // Security
     {
-      id: 'security',
+      id: 'security-features',
       name: 'Security Features',
       path: '/security',
       description: 'Enable advanced security like differential privacy.',

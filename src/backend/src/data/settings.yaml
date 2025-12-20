@@ -28,13 +28,14 @@ roles:
       data-domains: Admin
       data-products: Admin
       data-contracts: Admin
+      datasets: Admin
       teams: Read-only
       projects: Read-only
       business-glossary: Admin
       compliance: Admin
       estate-manager: Admin
       master-data: Admin
-      security: Admin
+      security-features: Admin
       entitlements: Admin
       entitlements-sync: Admin
       data-asset-reviews: Admin
@@ -64,6 +65,7 @@ roles:
       data-domains: Read/Write
       data-products: Read/Write
       data-contracts: Read/Write
+      datasets: Read/Write
       teams: Read-only
       projects: Read-only
       business-glossary: Read/Write
@@ -94,6 +96,7 @@ roles:
       data-domains: Read-only
       data-products: Read-only
       data-contracts: Read-only
+      datasets: Read-only
       teams: Read-only
       projects: Read-only
       business-glossary: Read-only
@@ -107,6 +110,7 @@ roles:
       data-domains: Read-only
       data-products: Read/Write
       data-contracts: Read/Write
+      datasets: Read/Write
       teams: Read/Write
       projects: Read/Write
       business-glossary: Read-only
@@ -128,7 +132,7 @@ roles:
   - name: Security Officer
     description: "Default role: Security Officer"
     feature_permissions:
-      security: Admin
+      security-features: Admin
       entitlements: Admin
       entitlements-sync: Admin
       compliance: Read/Write

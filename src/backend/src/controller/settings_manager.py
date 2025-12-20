@@ -60,7 +60,7 @@ DEFAULT_ROLE_PERMISSIONS = {
         'compliance': FeatureAccessLevel.ADMIN,
         'estate-manager': FeatureAccessLevel.ADMIN,
         'master-data': FeatureAccessLevel.ADMIN,
-        'security': FeatureAccessLevel.ADMIN,
+        'security-features': FeatureAccessLevel.ADMIN,
         'entitlements': FeatureAccessLevel.ADMIN,
         'entitlements-sync': FeatureAccessLevel.ADMIN,
         'data-asset-reviews': FeatureAccessLevel.ADMIN,
@@ -97,7 +97,7 @@ DEFAULT_ROLE_PERMISSIONS = {
         'catalog-commander': FeatureAccessLevel.READ_ONLY,
     },
     "Security Officer": {
-        'security': FeatureAccessLevel.ADMIN,
+        'security-features': FeatureAccessLevel.ADMIN,
         'entitlements': FeatureAccessLevel.ADMIN,
         'entitlements-sync': FeatureAccessLevel.ADMIN,
         'compliance': FeatureAccessLevel.READ_WRITE,
@@ -157,11 +157,49 @@ class SettingsManager:
     def _load_persisted_settings(self) -> None:
         """Load persisted settings from database and apply to in-memory Settings."""
         try:
-            # Load WORKSPACE_DEPLOYMENT_PATH from database if set
-            db_path = app_settings_repo.get_by_key(self._db, 'WORKSPACE_DEPLOYMENT_PATH')
-            if db_path is not None:
-                self._settings.WORKSPACE_DEPLOYMENT_PATH = db_path
-                logger.info(f"Loaded WORKSPACE_DEPLOYMENT_PATH from database: {db_path}")
+            # Load all persisted settings from database
+            all_settings = app_settings_repo.get_all(self._db)
+            
+            # WORKSPACE_DEPLOYMENT_PATH
+            if 'WORKSPACE_DEPLOYMENT_PATH' in all_settings and all_settings['WORKSPACE_DEPLOYMENT_PATH'] is not None:
+                self._settings.WORKSPACE_DEPLOYMENT_PATH = all_settings['WORKSPACE_DEPLOYMENT_PATH']
+                logger.info(f"Loaded WORKSPACE_DEPLOYMENT_PATH from database: {all_settings['WORKSPACE_DEPLOYMENT_PATH']}")
+            
+            # Databricks Unity Catalog settings
+            if 'DATABRICKS_CATALOG' in all_settings and all_settings['DATABRICKS_CATALOG']:
+                self._settings.DATABRICKS_CATALOG = all_settings['DATABRICKS_CATALOG']
+                logger.info(f"Loaded DATABRICKS_CATALOG from database: {all_settings['DATABRICKS_CATALOG']}")
+            
+            if 'DATABRICKS_SCHEMA' in all_settings and all_settings['DATABRICKS_SCHEMA']:
+                self._settings.DATABRICKS_SCHEMA = all_settings['DATABRICKS_SCHEMA']
+                logger.info(f"Loaded DATABRICKS_SCHEMA from database: {all_settings['DATABRICKS_SCHEMA']}")
+            
+            if 'DATABRICKS_VOLUME' in all_settings and all_settings['DATABRICKS_VOLUME']:
+                self._settings.DATABRICKS_VOLUME = all_settings['DATABRICKS_VOLUME']
+                logger.info(f"Loaded DATABRICKS_VOLUME from database: {all_settings['DATABRICKS_VOLUME']}")
+            
+            # Audit log directory
+            if 'APP_AUDIT_LOG_DIR' in all_settings and all_settings['APP_AUDIT_LOG_DIR']:
+                self._settings.APP_AUDIT_LOG_DIR = all_settings['APP_AUDIT_LOG_DIR']
+                logger.info(f"Loaded APP_AUDIT_LOG_DIR from database: {all_settings['APP_AUDIT_LOG_DIR']}")
+            
+            # LLM settings
+            if 'LLM_ENABLED' in all_settings and all_settings['LLM_ENABLED'] is not None:
+                self._settings.LLM_ENABLED = all_settings['LLM_ENABLED'].lower() == 'true'
+                logger.info(f"Loaded LLM_ENABLED from database: {self._settings.LLM_ENABLED}")
+            
+            if 'LLM_ENDPOINT' in all_settings and all_settings['LLM_ENDPOINT'] is not None:
+                self._settings.LLM_ENDPOINT = all_settings['LLM_ENDPOINT']
+                logger.info(f"Loaded LLM_ENDPOINT from database: {all_settings['LLM_ENDPOINT']}")
+            
+            if 'LLM_SYSTEM_PROMPT' in all_settings and all_settings['LLM_SYSTEM_PROMPT'] is not None:
+                self._settings.LLM_SYSTEM_PROMPT = all_settings['LLM_SYSTEM_PROMPT']
+                logger.info("Loaded LLM_SYSTEM_PROMPT from database")
+            
+            if 'LLM_DISCLAIMER_TEXT' in all_settings and all_settings['LLM_DISCLAIMER_TEXT'] is not None:
+                self._settings.LLM_DISCLAIMER_TEXT = all_settings['LLM_DISCLAIMER_TEXT']
+                logger.info("Loaded LLM_DISCLAIMER_TEXT from database")
+                
         except Exception as e:
             logger.warning(f"Failed to load persisted settings from database: {e}")
 
@@ -936,6 +974,17 @@ class SettingsManager:
             'available_workflows': available,
             'current_settings': self._settings.to_dict(),
             'workspace_deployment_path': self._settings.WORKSPACE_DEPLOYMENT_PATH,
+            # Databricks Unity Catalog settings
+            'databricks_catalog': self._settings.DATABRICKS_CATALOG,
+            'databricks_schema': self._settings.DATABRICKS_SCHEMA,
+            'databricks_volume': self._settings.DATABRICKS_VOLUME,
+            # Audit log settings
+            'app_audit_log_dir': self._settings.APP_AUDIT_LOG_DIR,
+            # LLM settings
+            'llm_enabled': self._settings.LLM_ENABLED,
+            'llm_endpoint': self._settings.LLM_ENDPOINT,
+            'llm_system_prompt': self._settings.LLM_SYSTEM_PROMPT,
+            'llm_disclaimer_text': self._settings.LLM_DISCLAIMER_TEXT,
         }
 
     def update_settings(self, settings: dict) -> Settings:
@@ -1105,6 +1154,58 @@ class SettingsManager:
             # Update in-memory settings
             self._settings.WORKSPACE_DEPLOYMENT_PATH = new_path
             logger.info(f"Updated WORKSPACE_DEPLOYMENT_PATH to: {new_path}")
+        
+        # Handle Databricks Unity Catalog settings
+        if 'databricks_catalog' in settings:
+            value = settings.get('databricks_catalog') or None
+            app_settings_repo.set(self._db, 'DATABRICKS_CATALOG', value)
+            self._settings.DATABRICKS_CATALOG = value or self._settings.DATABRICKS_CATALOG
+            logger.info(f"Updated DATABRICKS_CATALOG to: {value}")
+        
+        if 'databricks_schema' in settings:
+            value = settings.get('databricks_schema') or None
+            app_settings_repo.set(self._db, 'DATABRICKS_SCHEMA', value)
+            self._settings.DATABRICKS_SCHEMA = value or self._settings.DATABRICKS_SCHEMA
+            logger.info(f"Updated DATABRICKS_SCHEMA to: {value}")
+        
+        if 'databricks_volume' in settings:
+            value = settings.get('databricks_volume') or None
+            app_settings_repo.set(self._db, 'DATABRICKS_VOLUME', value)
+            self._settings.DATABRICKS_VOLUME = value or self._settings.DATABRICKS_VOLUME
+            logger.info(f"Updated DATABRICKS_VOLUME to: {value}")
+        
+        # Handle audit log directory
+        if 'app_audit_log_dir' in settings:
+            value = settings.get('app_audit_log_dir') or None
+            app_settings_repo.set(self._db, 'APP_AUDIT_LOG_DIR', value)
+            self._settings.APP_AUDIT_LOG_DIR = value or self._settings.APP_AUDIT_LOG_DIR
+            logger.info(f"Updated APP_AUDIT_LOG_DIR to: {value}")
+        
+        # Handle LLM settings
+        if 'llm_enabled' in settings:
+            value = settings.get('llm_enabled')
+            # Convert to string for storage, then back to bool
+            app_settings_repo.set(self._db, 'LLM_ENABLED', str(value).lower() if value is not None else None)
+            self._settings.LLM_ENABLED = bool(value) if value is not None else self._settings.LLM_ENABLED
+            logger.info(f"Updated LLM_ENABLED to: {value}")
+        
+        if 'llm_endpoint' in settings:
+            value = settings.get('llm_endpoint') or None
+            app_settings_repo.set(self._db, 'LLM_ENDPOINT', value)
+            self._settings.LLM_ENDPOINT = value
+            logger.info(f"Updated LLM_ENDPOINT to: {value}")
+        
+        if 'llm_system_prompt' in settings:
+            value = settings.get('llm_system_prompt') or None
+            app_settings_repo.set(self._db, 'LLM_SYSTEM_PROMPT', value)
+            self._settings.LLM_SYSTEM_PROMPT = value
+            logger.info(f"Updated LLM_SYSTEM_PROMPT")
+        
+        if 'llm_disclaimer_text' in settings:
+            value = settings.get('llm_disclaimer_text') or None
+            app_settings_repo.set(self._db, 'LLM_DISCLAIMER_TEXT', value)
+            self._settings.LLM_DISCLAIMER_TEXT = value
+            logger.info(f"Updated LLM_DISCLAIMER_TEXT")
         
         return self._settings
 

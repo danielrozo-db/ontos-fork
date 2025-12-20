@@ -40,7 +40,7 @@ async def get_configs(
     audit_manager: AuditManagerDep,
     current_user: AuditCurrentUserDep,
     manager: EntitlementsSyncManager = Depends(get_entitlements_sync_manager),
-    _: bool = Depends(PermissionChecker('entitlements', FeatureAccessLevel.ADMIN))
+    _: bool = Depends(PermissionChecker('entitlements-sync', FeatureAccessLevel.ADMIN))
 ):
     """Get all entitlements sync configurations"""
     success = False
@@ -84,7 +84,7 @@ async def get_config(
     audit_manager: AuditManagerDep,
     current_user: AuditCurrentUserDep,
     manager: EntitlementsSyncManager = Depends(get_entitlements_sync_manager),
-    _: bool = Depends(PermissionChecker('entitlements', FeatureAccessLevel.ADMIN))
+    _: bool = Depends(PermissionChecker('entitlements-sync', FeatureAccessLevel.ADMIN))
 ):
     """Get a specific sync configuration by ID"""
     success = False
@@ -133,7 +133,7 @@ async def create_config(
     audit_manager: AuditManagerDep,
     current_user: AuditCurrentUserDep,
     manager: EntitlementsSyncManager = Depends(get_entitlements_sync_manager),
-    _: bool = Depends(PermissionChecker('entitlements', FeatureAccessLevel.ADMIN))
+    _: bool = Depends(PermissionChecker('entitlements-sync', FeatureAccessLevel.ADMIN))
 ):
     """Create a new sync configuration"""
     success = False
@@ -186,7 +186,7 @@ async def update_config(
     audit_manager: AuditManagerDep,
     current_user: AuditCurrentUserDep,
     manager: EntitlementsSyncManager = Depends(get_entitlements_sync_manager),
-    _: bool = Depends(PermissionChecker('entitlements', FeatureAccessLevel.ADMIN))
+    _: bool = Depends(PermissionChecker('entitlements-sync', FeatureAccessLevel.ADMIN))
 ):
     """Update an existing sync configuration"""
     success = False
@@ -235,7 +235,7 @@ async def delete_config(
     audit_manager: AuditManagerDep,
     current_user: AuditCurrentUserDep,
     manager: EntitlementsSyncManager = Depends(get_entitlements_sync_manager),
-    _: bool = Depends(PermissionChecker('entitlements', FeatureAccessLevel.ADMIN))
+    _: bool = Depends(PermissionChecker('entitlements-sync', FeatureAccessLevel.ADMIN))
 ):
     """Delete a sync configuration"""
     success = False
@@ -282,7 +282,7 @@ async def get_connections(
     audit_manager: AuditManagerDep,
     current_user: AuditCurrentUserDep,
     manager: EntitlementsSyncManager = Depends(get_entitlements_sync_manager),
-    _: bool = Depends(PermissionChecker('entitlements', FeatureAccessLevel.ADMIN))
+    _: bool = Depends(PermissionChecker('entitlements-sync', FeatureAccessLevel.ADMIN))
 ):
     """Get available Unity Catalog connections"""
     success = False
@@ -325,7 +325,7 @@ async def get_catalogs(
     audit_manager: AuditManagerDep,
     current_user: AuditCurrentUserDep,
     manager: EntitlementsSyncManager = Depends(get_entitlements_sync_manager),
-    _: bool = Depends(PermissionChecker('entitlements', FeatureAccessLevel.ADMIN))
+    _: bool = Depends(PermissionChecker('entitlements-sync', FeatureAccessLevel.ADMIN))
 ):
     """Get available Unity Catalog catalogs"""
     success = False

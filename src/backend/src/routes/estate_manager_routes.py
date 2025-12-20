@@ -23,7 +23,7 @@ def get_estate_manager(client: WorkspaceClient = Depends(get_workspace_client), 
 @router.get("/estates", response_model=list[Estate])
 async def list_estates(
     estate_manager: EstateManager = Depends(get_estate_manager),
-    _: bool = Depends(PermissionChecker('estates', FeatureAccessLevel.READ_ONLY))
+    _: bool = Depends(PermissionChecker('estate-manager', FeatureAccessLevel.READ_ONLY))
 ):
     """List all configured estates"""
     logger.info("Listing estates")
@@ -33,7 +33,7 @@ async def list_estates(
 async def get_estate(
     estate_id: str,
     estate_manager: EstateManager = Depends(get_estate_manager),
-    _: bool = Depends(PermissionChecker('estates', FeatureAccessLevel.READ_ONLY))
+    _: bool = Depends(PermissionChecker('estate-manager', FeatureAccessLevel.READ_ONLY))
 ):
     """Get a specific estate by ID"""
     estate = await estate_manager.get_estate(estate_id)
@@ -49,7 +49,7 @@ async def create_estate(
     audit_manager: AuditManagerDep,
     audit_user: AuditCurrentUserDep,
     estate_manager: EstateManager = Depends(get_estate_manager),
-    _: bool = Depends(PermissionChecker('estates', FeatureAccessLevel.ADMIN))
+    _: bool = Depends(PermissionChecker('estate-manager', FeatureAccessLevel.ADMIN))
 ):
     """Create a new estate"""
     success = False
@@ -78,7 +78,7 @@ async def create_estate(
             db=db,
             username=audit_user.username,
             ip_address=request.client.host if request.client else None,
-            feature="estates",
+            feature="estate-manager",
             action="CREATE",
             success=success,
             details=details
@@ -93,7 +93,7 @@ async def update_estate(
     audit_manager: AuditManagerDep,
     audit_user: AuditCurrentUserDep,
     estate_manager: EstateManager = Depends(get_estate_manager),
-    _: bool = Depends(PermissionChecker('estates', FeatureAccessLevel.ADMIN))
+    _: bool = Depends(PermissionChecker('estate-manager', FeatureAccessLevel.ADMIN))
 ):
     """Update an existing estate"""
     success = False
@@ -123,7 +123,7 @@ async def update_estate(
             db=db,
             username=audit_user.username,
             ip_address=request.client.host if request.client else None,
-            feature="estates",
+            feature="estate-manager",
             action="UPDATE",
             success=success,
             details=details
@@ -137,7 +137,7 @@ async def delete_estate(
     audit_manager: AuditManagerDep,
     audit_user: AuditCurrentUserDep,
     estate_manager: EstateManager = Depends(get_estate_manager),
-    _: bool = Depends(PermissionChecker('estates', FeatureAccessLevel.ADMIN))
+    _: bool = Depends(PermissionChecker('estate-manager', FeatureAccessLevel.ADMIN))
 ):
     """Delete an estate"""
     success = False
@@ -161,7 +161,7 @@ async def delete_estate(
             db=db,
             username=audit_user.username,
             ip_address=request.client.host if request.client else None,
-            feature="estates",
+            feature="estate-manager",
             action="DELETE",
             success=success,
             details=details
@@ -175,7 +175,7 @@ async def sync_estate(
     audit_manager: AuditManagerDep,
     audit_user: AuditCurrentUserDep,
     estate_manager: EstateManager = Depends(get_estate_manager),
-    _: bool = Depends(PermissionChecker('estates', FeatureAccessLevel.ADMIN))
+    _: bool = Depends(PermissionChecker('estate-manager', FeatureAccessLevel.ADMIN))
 ):
     """Trigger a sync for a specific estate"""
     success = False
@@ -200,7 +200,7 @@ async def sync_estate(
             db=db,
             username=audit_user.username,
             ip_address=request.client.host if request.client else None,
-            feature="estates",
+            feature="estate-manager",
             action="SYNC",
             success=success,
             details=details

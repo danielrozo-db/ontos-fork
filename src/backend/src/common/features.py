@@ -80,7 +80,7 @@ APP_FEATURES: Dict[str, Dict[str, str | List[FeatureAccessLevel]]] = {
         'allowed_levels': READ_WRITE_ADMIN_LEVELS # Requires admin for setup?
     },
     # Security
-    'security': {
+    'security-features': {
         'name': 'Security Features',
         'allowed_levels': ADMIN_ONLY_LEVELS # Likely admin only
     },
@@ -130,6 +130,18 @@ APP_FEATURES: Dict[str, Dict[str, str | List[FeatureAccessLevel]]] = {
     'llm-search': {
         'name': 'LLM Search',
         'allowed_levels': READ_WRITE_ADMIN_LEVELS  # Anyone with read access can use LLM search
+    },
+    'notifications': {
+        'name': 'Notifications',
+        'allowed_levels': READ_WRITE_ADMIN_LEVELS  # Users can view/manage own notifications
+    },
+    'jobs': {
+        'name': 'Jobs',
+        'allowed_levels': READ_WRITE_ADMIN_LEVELS  # View/manage background jobs
+    },
+    'self-service': {
+        'name': 'Self Service',
+        'allowed_levels': READ_WRITE_ADMIN_LEVELS  # Self-service data requests
     },
     # 'about': { ... } # About page doesn't need explicit permissions here
 
