@@ -25,6 +25,48 @@
       "placeholder": "/Workspace/Users/user@domain.com/ontos-workflows",
       "help": "Path in Databricks workspace where workflow files are deployed for background jobs."
     },
+    "unityCatalog": {
+      "title": "Unity Catalog",
+      "help": "Unity Catalog location for storing application data.",
+      "catalog": {
+        "label": "Catalog",
+        "placeholder": "app_data"
+      },
+      "schema": {
+        "label": "Schema",
+        "placeholder": "app_ontos"
+      },
+      "volume": {
+        "label": "Volume",
+        "placeholder": "app_files"
+      }
+    },
+    "auditLog": {
+      "label": "Audit Log Directory",
+      "placeholder": "audit_logs",
+      "help": "Directory where audit log files are stored."
+    },
+    "llm": {
+      "title": "AI / LLM Configuration",
+      "enabled": {
+        "label": "Enable AI Features"
+      },
+      "endpoint": {
+        "label": "LLM Endpoint",
+        "placeholder": "databricks-claude-sonnet-4-5",
+        "help": "Databricks serving endpoint name for the LLM."
+      },
+      "systemPrompt": {
+        "label": "System Prompt",
+        "placeholder": "You are a Data Steward...",
+        "help": "System prompt that defines the AI assistant behavior."
+      },
+      "disclaimer": {
+        "label": "Disclaimer Text",
+        "placeholder": "This feature uses AI to analyze data assets...",
+        "help": "Disclaimer shown to users when using AI features."
+      }
+    },
     "saveButton": "Save Settings",
     "messages": {
       "saveSuccess": "Settings saved successfully",

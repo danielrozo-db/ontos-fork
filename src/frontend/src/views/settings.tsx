@@ -8,6 +8,8 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Separator } from '@/components/ui/separator';
 import { Settings as SettingsIcon, ShieldX, Loader2, Save } from 'lucide-react';
 import RolesSettings from '@/components/settings/roles-settings';
 import SemanticModelsSettings from '@/components/settings/semantic-models-settings';
@@ -23,11 +25,21 @@ interface AppSettings {
   value: any;
   enableBackgroundJobs: boolean;
   workspaceDeploymentPath: string;
+  // Unity Catalog settings
+  databricksCatalog: string;
+  databricksSchema: string;
+  databricksVolume: string;
+  // Audit log
+  appAuditLogDir: string;
+  // LLM settings
+  llmEnabled: boolean;
+  llmEndpoint: string;
+  llmSystemPrompt: string;
+  llmDisclaimerText: string;
+  // Legacy settings (kept for existing tabs)
   databricksHost: string;
   databricksToken: string;
   databricksWarehouseId: string;
-  databricksCatalog: string;
-  databricksSchema: string;
   gitRepoUrl: string;
   gitBranch: string;
   gitToken: string;
@@ -42,18 +54,28 @@ export default function Settings() {
   const hasSettingsAccess = hasPermission('settings', FeatureAccessLevel.READ_ONLY);
   const hasWriteAccess = hasPermission('settings', FeatureAccessLevel.READ_WRITE);
   
-  // Legacy general/databricks/git settings state (kept for existing tabs)
+  // General/databricks/git settings state
   const [settings, setSettings] = useState<AppSettings>({
     id: '',
     name: '',
     value: null,
     enableBackgroundJobs: false,
     workspaceDeploymentPath: '',
+    // Unity Catalog settings
+    databricksCatalog: '',
+    databricksSchema: '',
+    databricksVolume: '',
+    // Audit log
+    appAuditLogDir: '',
+    // LLM settings
+    llmEnabled: false,
+    llmEndpoint: '',
+    llmSystemPrompt: '',
+    llmDisclaimerText: '',
+    // Legacy settings
     databricksHost: '',
     databricksToken: '',
     databricksWarehouseId: '',
-    databricksCatalog: '',
-    databricksSchema: '',
     gitRepoUrl: '',
     gitBranch: '',
     gitToken: ''
@@ -72,6 +94,14 @@ export default function Settings() {
           setSettings(prev => ({
             ...prev,
             workspaceDeploymentPath: data.workspace_deployment_path || '',
+            databricksCatalog: data.databricks_catalog || '',
+            databricksSchema: data.databricks_schema || '',
+            databricksVolume: data.databricks_volume || '',
+            appAuditLogDir: data.app_audit_log_dir || '',
+            llmEnabled: data.llm_enabled || false,
+            llmEndpoint: data.llm_endpoint || '',
+            llmSystemPrompt: data.llm_system_prompt || '',
+            llmDisclaimerText: data.llm_disclaimer_text || '',
           }));
         }
       } catch (error) {
@@ -91,6 +121,14 @@ export default function Settings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workspace_deployment_path: settings.workspaceDeploymentPath,
+          databricks_catalog: settings.databricksCatalog,
+          databricks_schema: settings.databricksSchema,
+          databricks_volume: settings.databricksVolume,
+          app_audit_log_dir: settings.appAuditLogDir,
+          llm_enabled: settings.llmEnabled,
+          llm_endpoint: settings.llmEndpoint,
+          llm_system_prompt: settings.llmSystemPrompt,
+          llm_disclaimer_text: settings.llmDisclaimerText,
         }),
       });
       if (response.ok) {
@@ -108,6 +146,11 @@ export default function Settings() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleLlmEnabledChange = (checked: boolean) => {
+    if (!settings) return;
+    setSettings({ ...settings, llmEnabled: checked });
   };
   
   // Show loading while permissions are being fetched
@@ -185,7 +228,8 @@ export default function Settings() {
               <CardTitle>{t('settings:general.title')}</CardTitle>
               <CardDescription>{t('settings:general.description')}</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
+              {/* Jobs Settings */}
               <div className="flex items-center space-x-2">
                 <Switch
                   id="background-jobs"
@@ -210,6 +254,149 @@ export default function Settings() {
                 <p className="text-sm text-muted-foreground">
                   {t('settings:general.workspaceDeploymentPath.help', 'Path in Databricks workspace where workflow files are deployed for background jobs.')}
                 </p>
+              </div>
+
+              <Separator />
+
+              {/* Unity Catalog Settings */}
+              <div>
+                <h3 className="text-lg font-medium mb-3">{t('settings:general.unityCatalog.title', 'Unity Catalog')}</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="databricksCatalog">
+                      {t('settings:general.unityCatalog.catalog.label', 'Catalog')}
+                    </Label>
+                    <Input
+                      id="databricksCatalog"
+                      name="databricksCatalog"
+                      value={settings.databricksCatalog}
+                      onChange={handleChange}
+                      placeholder={t('settings:general.unityCatalog.catalog.placeholder', 'app_data')}
+                      disabled={!hasWriteAccess || isLoading}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="databricksSchema">
+                      {t('settings:general.unityCatalog.schema.label', 'Schema')}
+                    </Label>
+                    <Input
+                      id="databricksSchema"
+                      name="databricksSchema"
+                      value={settings.databricksSchema}
+                      onChange={handleChange}
+                      placeholder={t('settings:general.unityCatalog.schema.placeholder', 'app_ontos')}
+                      disabled={!hasWriteAccess || isLoading}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="databricksVolume">
+                      {t('settings:general.unityCatalog.volume.label', 'Volume')}
+                    </Label>
+                    <Input
+                      id="databricksVolume"
+                      name="databricksVolume"
+                      value={settings.databricksVolume}
+                      onChange={handleChange}
+                      placeholder={t('settings:general.unityCatalog.volume.placeholder', 'app_files')}
+                      disabled={!hasWriteAccess || isLoading}
+                    />
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  {t('settings:general.unityCatalog.help', 'Unity Catalog location for storing application data.')}
+                </p>
+              </div>
+
+              <Separator />
+
+              {/* Audit Log Settings */}
+              <div className="space-y-2">
+                <Label htmlFor="appAuditLogDir">
+                  {t('settings:general.auditLog.label', 'Audit Log Directory')}
+                </Label>
+                <Input
+                  id="appAuditLogDir"
+                  name="appAuditLogDir"
+                  value={settings.appAuditLogDir}
+                  onChange={handleChange}
+                  placeholder={t('settings:general.auditLog.placeholder', 'audit_logs')}
+                  disabled={!hasWriteAccess || isLoading}
+                />
+                <p className="text-sm text-muted-foreground">
+                  {t('settings:general.auditLog.help', 'Directory where audit log files are stored.')}
+                </p>
+              </div>
+
+              <Separator />
+
+              {/* LLM Settings */}
+              <div>
+                <h3 className="text-lg font-medium mb-3">{t('settings:general.llm.title', 'AI / LLM Configuration')}</h3>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="llmEnabled"
+                      checked={settings.llmEnabled}
+                      onCheckedChange={handleLlmEnabledChange}
+                      disabled={!hasWriteAccess || isLoading}
+                    />
+                    <Label htmlFor="llmEnabled">{t('settings:general.llm.enabled.label', 'Enable AI Features')}</Label>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="llmEndpoint">
+                      {t('settings:general.llm.endpoint.label', 'LLM Endpoint')}
+                    </Label>
+                    <Input
+                      id="llmEndpoint"
+                      name="llmEndpoint"
+                      value={settings.llmEndpoint}
+                      onChange={handleChange}
+                      placeholder={t('settings:general.llm.endpoint.placeholder', 'databricks-claude-sonnet-4-5')}
+                      disabled={!hasWriteAccess || isLoading || !settings.llmEnabled}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      {t('settings:general.llm.endpoint.help', 'Databricks serving endpoint name for the LLM.')}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="llmSystemPrompt">
+                      {t('settings:general.llm.systemPrompt.label', 'System Prompt')}
+                    </Label>
+                    <Textarea
+                      id="llmSystemPrompt"
+                      name="llmSystemPrompt"
+                      value={settings.llmSystemPrompt}
+                      onChange={handleChange}
+                      placeholder={t('settings:general.llm.systemPrompt.placeholder', 'You are a Data Steward...')}
+                      disabled={!hasWriteAccess || isLoading || !settings.llmEnabled}
+                      rows={4}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      {t('settings:general.llm.systemPrompt.help', 'System prompt that defines the AI assistant behavior.')}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="llmDisclaimerText">
+                      {t('settings:general.llm.disclaimer.label', 'Disclaimer Text')}
+                    </Label>
+                    <Textarea
+                      id="llmDisclaimerText"
+                      name="llmDisclaimerText"
+                      value={settings.llmDisclaimerText}
+                      onChange={handleChange}
+                      placeholder={t('settings:general.llm.disclaimer.placeholder', 'This feature uses AI to analyze data assets...')}
+                      disabled={!hasWriteAccess || isLoading || !settings.llmEnabled}
+                      rows={3}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      {t('settings:general.llm.disclaimer.help', 'Disclaimer shown to users when using AI features.')}
+                    </p>
+                  </div>
+                </div>
               </div>
             </CardContent>
             {hasWriteAccess && (
