@@ -120,6 +120,20 @@ ontos:semanticAssignment a rdf:Property ;
     rdfs:range ontos:OntologyConcept ;
     skos:definition "Enables semantic classification and discovery by connecting physical assets to conceptual definitions." .
 
+ontos:conceptAssignment a rdf:Property ;
+    rdfs:subPropertyOf ontos:semanticAssignment ;
+    rdfs:label "concept assignment" ;
+    rdfs:comment "Links a resource to an ontology class or concept (e.g., skos:Concept, rdfs:Class)." ;
+    rdfs:range ontos:OntologyConcept ;
+    skos:definition "Specialized semantic assignment for classifying resources by their conceptual type." .
+
+ontos:propertyAssignment a rdf:Property ;
+    rdfs:subPropertyOf ontos:semanticAssignment ;
+    rdfs:label "property assignment" ;
+    rdfs:comment "Links a resource to an ontology property (e.g., rdf:Property, owl:ObjectProperty, owl:DatatypeProperty)." ;
+    rdfs:range rdf:Property ;
+    skos:definition "Specialized semantic assignment for associating resources with semantic properties or relationships." .
+
 # ============================================================================
 # OBJECT PROPERTIES - ORGANIZATIONAL RELATIONSHIPS
 # ============================================================================
