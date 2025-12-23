@@ -60,11 +60,11 @@ export default function ConceptSelectDialog({ isOpen, onOpenChange, onSelect, pa
                   Suggested (child {entityType === 'property' ? 'properties' : 'concepts'})
                 </div>
                 {suggested.map(r => (
-                  <div key={r.value} className="flex items-center justify-between gap-3 bg-blue-50 p-2 rounded-lg">
+                  <div key={r.value} className="flex items-center justify-between gap-3 bg-blue-50 dark:bg-blue-950 p-2 rounded-lg">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <Badge variant="secondary" className="shrink-0">{r.type}</Badge>
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-semibold truncate" title={r.label}>
+                        <div className="text-sm font-semibold truncate text-foreground" title={r.label}>
                           {r.label}
                         </div>
                         <div className="text-xs text-muted-foreground font-mono break-all" title={r.value}>
