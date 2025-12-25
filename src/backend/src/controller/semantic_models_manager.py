@@ -3,10 +3,13 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from rdflib import Graph, ConjunctiveGraph, Dataset
 from rdflib.namespace import RDF, RDFS, SKOS, OWL
-from rdflib import URIRef, Literal, Namespace
+from rdflib import URIRef, Literal, Namespace, BNode
 
 # Ontos application ontology namespace
 ONTOS = Namespace("http://ontos.app/ontology#")
+
+# XSD namespace for datatype handling
+from rdflib.namespace import XSD
 from sqlalchemy.orm import Session
 import signal
 from contextlib import contextmanager
@@ -30,6 +33,7 @@ from src.models.ontology import (
     ConceptSearchResult
 )
 from src.repositories.semantic_models_repository import semantic_models_repo
+from src.repositories.rdf_triples_repository import rdf_triples_repo
 from src.common.logging import get_logger
 from src.common.sparql_validator import SPARQLQueryValidator
 
@@ -103,6 +107,24 @@ class SemanticModelsManager:
             self._db.add(db_obj)
         self._db.flush()
         self._db.refresh(db_obj)
+        
+        # Import triples to rdf_triples table if content is provided
+        if db_obj.content_text:
+            try:
+                context_name = f"urn:semantic-model:{db_obj.id}"
+                temp_graph = Graph()
+                fmt = 'turtle' if db_obj.format == 'skos' else 'xml'
+                temp_graph.parse(data=db_obj.content_text, format=fmt)
+                self._import_graph_to_db(
+                    graph=temp_graph,
+                    context_name=context_name,
+                    source_type='upload',
+                    source_identifier=db_obj.id,
+                    created_by=created_by,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to import semantic model triples to database: {e}")
+        
         self._db.commit()  # Persist changes immediately since manager uses singleton session
         return self._to_api(db_obj)
 
@@ -135,6 +157,27 @@ class SemanticModelsManager:
         self._db.add(db_obj)
         self._db.flush()
         self._db.refresh(db_obj)
+        
+        # Update rdf_triples: remove old triples, import new ones
+        context_name = f"urn:semantic-model:{db_obj.id}"
+        try:
+            # Remove existing triples for this model
+            rdf_triples_repo.remove_by_context(self._db, context_name)
+            
+            # Import new triples
+            temp_graph = Graph()
+            fmt = 'turtle' if db_obj.format == 'skos' else 'xml'
+            temp_graph.parse(data=content_text, format=fmt)
+            self._import_graph_to_db(
+                graph=temp_graph,
+                context_name=context_name,
+                source_type='upload',
+                source_identifier=db_obj.id,
+                created_by=updated_by,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to update semantic model triples in database: {e}")
+        
         self._db.commit()  # Persist changes immediately since manager uses singleton session
         return self._to_api(db_obj)
 
@@ -153,6 +196,15 @@ class SemanticModelsManager:
                     logger.info(f"Deleted physical file: {file_path}")
             except Exception as e:
                 logger.warning(f"Failed to delete physical file for model {model_id}: {e}")
+        
+        # Delete triples from rdf_triples table
+        context_name = f"urn:semantic-model:{model_id}"
+        try:
+            deleted_count = rdf_triples_repo.remove_by_context(self._db, context_name)
+            if deleted_count > 0:
+                logger.info(f"Deleted {deleted_count} triples for semantic model {model_id}")
+        except Exception as e:
+            logger.warning(f"Failed to delete triples for semantic model {model_id}: {e}")
         
         # Delete from database
         obj = semantic_models_repo.remove(self._db, id=model_id)
@@ -201,7 +253,174 @@ class SemanticModelsManager:
         else:
             # Assume RDF/XML for RDFS
             context.parse(data=content_text, format="xml")
+
+    # --- RDF Triple Persistence Methods ---
     
+    def _skolemize_bnode(self, bnode: BNode, context_name: str) -> str:
+        """Convert a blank node to a stable URI for persistence.
+        
+        Blank nodes are graph-local identifiers. To persist them, we convert
+        them to URIs that include the context name for global uniqueness.
+        """
+        return f"urn:ontos:bnode:{context_name}:{str(bnode)}"
+
+    def _import_graph_to_db(
+        self,
+        graph: Graph,
+        context_name: str,
+        source_type: str,
+        source_identifier: str,
+        created_by: Optional[str] = None,
+    ) -> int:
+        """Import all triples from an rdflib graph into the database.
+        
+        Uses bulk insert with ON CONFLICT DO NOTHING for idempotent imports.
+        Blank nodes are skolemized to stable URIs.
+        
+        Args:
+            graph: The rdflib Graph to import
+            context_name: Named graph context (e.g., 'urn:taxonomy:databricks_ontology')
+            source_type: Type of source ('file', 'upload', 'demo', 'link')
+            source_identifier: Identifier for the source (filename, model_id, etc.)
+            created_by: User who initiated the import
+        
+        Returns:
+            Number of triples actually inserted (excludes duplicates)
+        """
+        triples_to_insert = []
+        
+        for subj, pred, obj in graph:
+            # Handle subject (can be URI or blank node)
+            if isinstance(subj, BNode):
+                subject_uri = self._skolemize_bnode(subj, context_name)
+            else:
+                subject_uri = str(subj)
+            
+            predicate_uri = str(pred)
+            
+            # Handle object (can be URI, blank node, or literal)
+            if isinstance(obj, BNode):
+                object_value = self._skolemize_bnode(obj, context_name)
+                object_is_uri = True
+                object_language = None
+                object_datatype = None
+            elif isinstance(obj, Literal):
+                object_value = str(obj)
+                object_is_uri = False
+                object_language = obj.language if obj.language else None
+                object_datatype = str(obj.datatype) if obj.datatype else None
+            else:
+                # URIRef
+                object_value = str(obj)
+                object_is_uri = True
+                object_language = None
+                object_datatype = None
+            
+            triples_to_insert.append({
+                'subject_uri': subject_uri,
+                'predicate_uri': predicate_uri,
+                'object_value': object_value,
+                'object_is_uri': object_is_uri,
+                'object_language': object_language,
+                'object_datatype': object_datatype,
+                'context_name': context_name,
+                'source_type': source_type,
+                'source_identifier': source_identifier,
+                'created_by': created_by,
+            })
+        
+        if triples_to_insert:
+            inserted = rdf_triples_repo.add_triples_bulk(self._db, triples_to_insert)
+            self._db.commit()
+            logger.info(f"Imported {inserted}/{len(triples_to_insert)} triples "
+                       f"from {source_type}:{source_identifier} to context '{context_name}'")
+            return inserted
+        return 0
+
+    def _sync_bundled_taxonomies(self) -> None:
+        """Sync bundled taxonomy files from data/taxonomies/ to the database.
+        
+        Called on every startup. Uses ON CONFLICT DO NOTHING for idempotent
+        behavior - existing triples are skipped, new/missing triples are added.
+        This allows:
+        - First run: imports everything
+        - Subsequent runs: fast no-op for existing triples
+        - New files added: automatically imported
+        - Partial DB: self-healing backfill
+        """
+        taxonomy_dir = self._data_dir / "taxonomies"
+        
+        if not taxonomy_dir.exists() or not taxonomy_dir.is_dir():
+            logger.warning(f"Taxonomy directory does not exist: {taxonomy_dir}")
+            return
+        
+        taxonomy_files = list(taxonomy_dir.glob("*.ttl"))
+        logger.info(f"Syncing {len(taxonomy_files)} bundled taxonomy files to database")
+        
+        for f in taxonomy_files:
+            if not f.is_file():
+                continue
+            
+            context_name = f"urn:taxonomy:{f.stem}"
+            
+            try:
+                # Parse the TTL file into a temporary graph
+                temp_graph = Graph()
+                temp_graph.parse(f.as_posix(), format='turtle')
+                triple_count = len(temp_graph)
+                
+                # Import to database (idempotent with ON CONFLICT DO NOTHING)
+                inserted = self._import_graph_to_db(
+                    graph=temp_graph,
+                    context_name=context_name,
+                    source_type='file',
+                    source_identifier=f.name,
+                    created_by='system@startup',
+                )
+                
+                if inserted > 0:
+                    logger.info(f"Synced taxonomy '{f.name}': {inserted} new triples "
+                               f"(total in file: {triple_count})")
+                else:
+                    logger.debug(f"Taxonomy '{f.name}' already synced ({triple_count} triples)")
+                    
+            except Exception as e:
+                logger.error(f"Failed to sync taxonomy {f.name}: {e}")
+
+    def _load_triples_from_db_to_graph(self) -> None:
+        """Load all triples from the database into the in-memory graph.
+        
+        This replaces direct file loading - the database is now the source of truth.
+        Triples are organized into named graph contexts based on their context_name.
+        """
+        all_triples = rdf_triples_repo.list_all(self._db)
+        logger.info(f"Loading {len(all_triples)} triples from database into graph")
+        
+        for triple in all_triples:
+            context = self._graph.get_context(triple.context_name)
+            
+            subj = URIRef(triple.subject_uri)
+            pred = URIRef(triple.predicate_uri)
+            
+            if triple.object_is_uri:
+                obj = URIRef(triple.object_value)
+            else:
+                # It's a literal
+                if triple.object_language:
+                    obj = Literal(triple.object_value, lang=triple.object_language)
+                elif triple.object_datatype:
+                    obj = Literal(triple.object_value, datatype=URIRef(triple.object_datatype))
+                else:
+                    obj = Literal(triple.object_value)
+            
+            context.add((subj, pred, obj))
+        
+        # Log stats by context
+        contexts = rdf_triples_repo.list_contexts(self._db)
+        for ctx in contexts:
+            count = rdf_triples_repo.count_by_context(self._db, ctx)
+            logger.debug(f"Loaded context '{ctx}': {count} triples")
+
     def _load_database_glossaries_into_graph(self) -> None:
         """Load database glossaries as RDF triples into named graphs"""
         try:
@@ -212,10 +431,38 @@ class SemanticModelsManager:
             logger.warning(f"Failed to load database glossaries into graph: {e}")
 
     def rebuild_graph_from_enabled(self) -> None:
-        logger.info("Starting to rebuild graph from enabled models and taxonomies")
+        """Rebuild the in-memory RDF graph from database and dynamic sources.
+        
+        The database (rdf_triples table) is the source of truth for:
+        - Bundled taxonomies (synced from data/taxonomies/ on startup)
+        - User-uploaded ontologies
+        - Demo data
+        - Semantic links
+        
+        Dynamic sources (computed, not stored):
+        - Application entities (data domains, data products, data contracts)
+        - Database glossaries
+        """
+        logger.info("Starting to rebuild graph from database and dynamic sources")
         self._graph = ConjunctiveGraph()
         
-        # Load database-backed semantic models into named graphs
+        # Step 1: Sync bundled taxonomy files to database (idempotent)
+        # This ensures any new/missing files are imported
+        try:
+            self._sync_bundled_taxonomies()
+        except Exception as e:
+            logger.error(f"Failed to sync bundled taxonomies: {e}")
+        
+        # Step 2: Load all triples from database into in-memory graph
+        # This includes: taxonomies, user uploads, demo data, semantic links
+        try:
+            self._load_triples_from_db_to_graph()
+        except Exception as e:
+            logger.error(f"Failed to load triples from database: {e}")
+        
+        # Step 3: Load database-backed semantic models (legacy support)
+        # These are models stored as content_text in semantic_models table
+        # TODO: Migrate these to rdf_triples table as well
         items = semantic_models_repo.get_multi(self._db)
         for it in items:
             if not it.enabled:
@@ -228,53 +475,18 @@ class SemanticModelsManager:
             except Exception as e:
                 logger.warning(f"Skipping model '{it.name}' due to parse error: {e}")
         
-        # Load application entities (data domains, data products, data contracts) into a named graph
+        # Step 4: Load application entities (dynamically computed, not stored)
         try:
             self._load_app_entities_into_graph()
         except Exception as e:
             logger.warning(f"Failed to load application entities into graph: {e}")
-
-        # Load file-based taxonomies into named graphs
-        try:
-            taxonomy_dir = self._data_dir / "taxonomies"
-            logger.info(f"Looking for taxonomies in directory: {taxonomy_dir}")
-            if taxonomy_dir.exists() and taxonomy_dir.is_dir():
-                taxonomy_files = list(taxonomy_dir.glob("*.ttl"))
-                logger.info(f"Found {len(taxonomy_files)} TTL files: {[f.name for f in taxonomy_files]}")
-                for f in taxonomy_files:
-                    if not f.is_file():
-                        continue
-                    try:
-                        context_name = f"urn:taxonomy:{f.stem}"
-                        context = self._graph.get_context(context_name)
-                        context.parse(f.as_posix(), format='turtle')
-                        triples_count = len(context)
-                        logger.info(f"Successfully loaded taxonomy '{f.name}' into context '{context_name}' with {triples_count} triples")
-                    except Exception as e:
-                        logger.error(f"Failed loading taxonomy {f.name}: {e}")
-            else:
-                logger.warning(f"Taxonomy directory does not exist or is not a directory: {taxonomy_dir}")
-        except Exception as e:
-            logger.error(f"Failed to load file-based taxonomies: {e}")
         
-        # Note: Loading from src/schemas/rdf/ has been disabled
-        # Ontologies should be managed via the UI or data/taxonomies/ directory
-        
-        # Load database glossaries into named graphs
+        # Step 5: Load database glossaries (dynamically computed)
         self._load_database_glossaries_into_graph()
         
-        # Add rdfs:seeAlso links from entity-semantic links
-        try:
-            from src.repositories.semantic_links_repository import entity_semantic_links_repo
-            links = entity_semantic_links_repo.list_all(self._db)
-            context_name = "urn:semantic-links"
-            context = self._graph.get_context(context_name)
-            for link in links:
-                subj = URIRef(f"urn:ontos:{link.entity_type}:{link.entity_id}")
-                obj = URIRef(link.iri)
-                context.add((subj, ONTOS.semanticAssignment, obj))
-        except Exception as e:
-            logger.warning(f"Failed to incorporate semantic entity links into graph: {e}")
+        # Note: Semantic links are now loaded from rdf_triples in Step 2
+        # The entity_semantic_links table is kept as a denormalized index
+        # but triples are also persisted to rdf_triples via dual-write
 
         # Build persistent caches after graph is rebuilt
         try:
@@ -911,25 +1123,73 @@ class SemanticModelsManager:
         except Exception as e:
             logger.debug(f"Skipping data contracts load into graph: {e}")
 
-    def add_entity_semantic_link_to_graph(self, entity_type: str, entity_id: str, iri: str) -> None:
-        """Incrementally add a single semantic link triple into the graph without full rebuild."""
+    def add_entity_semantic_link_to_graph(self, entity_type: str, entity_id: str, iri: str, created_by: Optional[str] = None) -> None:
+        """Incrementally add a single semantic link triple into the graph and database.
+        
+        Dual-write: Updates both the in-memory graph AND persists to rdf_triples table.
+        The entity_semantic_links table is the primary record (written by SemanticLinksManager),
+        this ensures the triple is also in rdf_triples for graph queries.
+        """
+        context_name = "urn:semantic-links"
+        subject_uri = f"urn:ontos:{entity_type}:{entity_id}"
+        predicate_uri = str(ONTOS.semanticAssignment)
+        
+        # Add to in-memory graph
         try:
-            context = self._graph.get_context("urn:semantic-links")
-            subj = URIRef(f"urn:ontos:{entity_type}:{entity_id}")
+            context = self._graph.get_context(context_name)
+            subj = URIRef(subject_uri)
             obj = URIRef(iri)
             context.add((subj, ONTOS.semanticAssignment, obj))
         except Exception as e:
-            logger.warning(f"Failed to add semantic link incrementally: {e}")
+            logger.warning(f"Failed to add semantic link to in-memory graph: {e}")
+        
+        # Persist to database (dual-write)
+        try:
+            rdf_triples_repo.add_triple(
+                db=self._db,
+                subject_uri=subject_uri,
+                predicate_uri=predicate_uri,
+                object_value=iri,
+                object_is_uri=True,
+                context_name=context_name,
+                source_type='link',
+                source_identifier=f"{entity_type}:{entity_id}",
+                created_by=created_by,
+            )
+            self._db.commit()
+        except Exception as e:
+            logger.warning(f"Failed to persist semantic link to database: {e}")
 
     def remove_entity_semantic_link_from_graph(self, entity_type: str, entity_id: str, iri: str) -> None:
-        """Incrementally remove a single semantic link triple from the graph without full rebuild."""
+        """Incrementally remove a single semantic link triple from the graph and database.
+        
+        Dual-write: Removes from both the in-memory graph AND rdf_triples table.
+        """
+        context_name = "urn:semantic-links"
+        subject_uri = f"urn:ontos:{entity_type}:{entity_id}"
+        predicate_uri = str(ONTOS.semanticAssignment)
+        
+        # Remove from in-memory graph
         try:
-            context = self._graph.get_context("urn:semantic-links")
-            subj = URIRef(f"urn:ontos:{entity_type}:{entity_id}")
+            context = self._graph.get_context(context_name)
+            subj = URIRef(subject_uri)
             obj = URIRef(iri)
             context.remove((subj, ONTOS.semanticAssignment, obj))
         except Exception as e:
-            logger.warning(f"Failed to remove semantic link incrementally: {e}")
+            logger.warning(f"Failed to remove semantic link from in-memory graph: {e}")
+        
+        # Remove from database (dual-write)
+        try:
+            rdf_triples_repo.remove_triple(
+                db=self._db,
+                subject_uri=subject_uri,
+                predicate_uri=predicate_uri,
+                object_value=iri,
+                context_name=context_name,
+            )
+            self._db.commit()
+        except Exception as e:
+            logger.warning(f"Failed to remove semantic link from database: {e}")
 
     # --- New Ontology Methods ---
     

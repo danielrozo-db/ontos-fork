@@ -163,7 +163,7 @@ class SemanticLinksManager:
             except Exception:
                 manager = None
             if manager is not None:
-                manager.add_entity_semantic_link_to_graph(payload.entity_type, payload.entity_id, payload.iri)
+                manager.add_entity_semantic_link_to_graph(payload.entity_type, payload.entity_id, payload.iri, created_by=created_by)
             else:
                 # As a safe fallback, perform a lightweight rebuild using a temp instance
                 from src.controller.semantic_models_manager import SemanticModelsManager

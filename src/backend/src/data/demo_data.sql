@@ -14,8 +14,9 @@
 -- 7. Notifications
 -- 8. Compliance Policies and Runs
 -- 9. Cost Items
--- 10. Semantic Links
--- 11. Metadata (notes, links, documents)
+-- 10. RDF Triples (demo ontology concepts)
+-- 11. Semantic Links
+-- 12. Metadata (notes, links, documents)
 --
 -- UUID Format: {type:3}{seq:5}-0000-4000-8000-000000000001
 -- All type codes are valid hex (0-9, a-f).
@@ -53,6 +54,7 @@
 --   01d = data_contract_authoritative_definitions
 --   01e = data_contract_schema_object_authoritative_definitions
 --   01f = data_contract_schema_property_authoritative_definitions
+--   020 = rdf_triples (demo ontology concepts)
 -- ============================================================================
 
 BEGIN;
@@ -476,67 +478,174 @@ ON CONFLICT (id) DO NOTHING;
 
 
 -- ============================================================================
--- 10. SEMANTIC LINKS (type=015)
+-- 10. RDF TRIPLES - Demo Ontology Concepts (type=020)
+-- ============================================================================
+-- These define the demo business concepts that are referenced by entity_semantic_links.
+-- Without these, clicking on semantic links in the UI would find no matching concepts.
+-- Uses the demo namespace: http://demo.ontos.app/concepts#
+
+INSERT INTO rdf_triples (id, subject_uri, predicate_uri, object_value, object_is_uri, context_name, source_type, source_identifier, created_by, created_at) VALUES
+-- Domain Concepts (rdf:type skos:Concept)
+('02000001-0000-4000-8000-000000000001', 'http://demo.ontos.app/concepts#CustomerDomain', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000002-0000-4000-8000-000000000002', 'http://demo.ontos.app/concepts#CustomerDomain', 'http://www.w3.org/2000/01/rdf-schema#label', 'Customer Domain', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000003-0000-4000-8000-000000000003', 'http://demo.ontos.app/concepts#FinancialDomain', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000004-0000-4000-8000-000000000004', 'http://demo.ontos.app/concepts#FinancialDomain', 'http://www.w3.org/2000/01/rdf-schema#label', 'Financial Domain', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000005-0000-4000-8000-000000000005', 'http://demo.ontos.app/concepts#SalesDomain', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000006-0000-4000-8000-000000000006', 'http://demo.ontos.app/concepts#SalesDomain', 'http://www.w3.org/2000/01/rdf-schema#label', 'Sales Domain', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000007-0000-4000-8000-000000000007', 'http://demo.ontos.app/concepts#MarketingDomain', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000008-0000-4000-8000-000000000008', 'http://demo.ontos.app/concepts#MarketingDomain', 'http://www.w3.org/2000/01/rdf-schema#label', 'Marketing Domain', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000009-0000-4000-8000-000000000009', 'http://demo.ontos.app/concepts#RetailDomain', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200000a-0000-4000-8000-00000000000a', 'http://demo.ontos.app/concepts#RetailDomain', 'http://www.w3.org/2000/01/rdf-schema#label', 'Retail Domain', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200000b-0000-4000-8000-00000000000b', 'http://demo.ontos.app/concepts#ProductDomain', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200000c-0000-4000-8000-00000000000c', 'http://demo.ontos.app/concepts#ProductDomain', 'http://www.w3.org/2000/01/rdf-schema#label', 'Product Domain', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200000d-0000-4000-8000-00000000000d', 'http://demo.ontos.app/concepts#EmployeeDomain', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200000e-0000-4000-8000-00000000000e', 'http://demo.ontos.app/concepts#EmployeeDomain', 'http://www.w3.org/2000/01/rdf-schema#label', 'Employee Domain', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+
+-- Business Concepts (for Data Products)
+('0200000f-0000-4000-8000-00000000000f', 'http://demo.ontos.app/concepts#Sale', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000010-0000-4000-8000-000000000010', 'http://demo.ontos.app/concepts#Sale', 'http://www.w3.org/2000/01/rdf-schema#label', 'Sale', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000011-0000-4000-8000-000000000011', 'http://demo.ontos.app/concepts#Transaction', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000012-0000-4000-8000-000000000012', 'http://demo.ontos.app/concepts#Transaction', 'http://www.w3.org/2000/01/rdf-schema#label', 'Transaction', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000013-0000-4000-8000-000000000013', 'http://demo.ontos.app/concepts#Customer', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000014-0000-4000-8000-000000000014', 'http://demo.ontos.app/concepts#Customer', 'http://www.w3.org/2000/01/rdf-schema#label', 'Customer', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000015-0000-4000-8000-000000000015', 'http://demo.ontos.app/concepts#Inventory', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000016-0000-4000-8000-000000000016', 'http://demo.ontos.app/concepts#Inventory', 'http://www.w3.org/2000/01/rdf-schema#label', 'Inventory', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000017-0000-4000-8000-000000000017', 'http://demo.ontos.app/concepts#Product', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000018-0000-4000-8000-000000000018', 'http://demo.ontos.app/concepts#Product', 'http://www.w3.org/2000/01/rdf-schema#label', 'Product', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+
+-- Glossary Terms (for Data Contracts and Schemas)
+('02000019-0000-4000-8000-000000000019', 'http://demo.ontos.app/glossary#Customer', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200001a-0000-4000-8000-00000000001a', 'http://demo.ontos.app/glossary#Customer', 'http://www.w3.org/2000/01/rdf-schema#label', 'Customer', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200001b-0000-4000-8000-00000000001b', 'http://demo.ontos.app/glossary#PersonalData', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200001c-0000-4000-8000-00000000001c', 'http://demo.ontos.app/glossary#PersonalData', 'http://www.w3.org/2000/01/rdf-schema#label', 'Personal Data', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200001d-0000-4000-8000-00000000001d', 'http://demo.ontos.app/glossary#Product', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200001e-0000-4000-8000-00000000001e', 'http://demo.ontos.app/glossary#Product', 'http://www.w3.org/2000/01/rdf-schema#label', 'Product', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200001f-0000-4000-8000-00000000001f', 'http://demo.ontos.app/glossary#Inventory', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000020-0000-4000-8000-000000000020', 'http://demo.ontos.app/glossary#Inventory', 'http://www.w3.org/2000/01/rdf-schema#label', 'Inventory', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000021-0000-4000-8000-000000000021', 'http://demo.ontos.app/glossary#Device', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000022-0000-4000-8000-000000000022', 'http://demo.ontos.app/glossary#Device', 'http://www.w3.org/2000/01/rdf-schema#label', 'Device', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000023-0000-4000-8000-000000000023', 'http://demo.ontos.app/glossary#Telemetry', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000024-0000-4000-8000-000000000024', 'http://demo.ontos.app/glossary#Telemetry', 'http://www.w3.org/2000/01/rdf-schema#label', 'Telemetry', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000025-0000-4000-8000-000000000025', 'http://demo.ontos.app/glossary#Transaction', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000026-0000-4000-8000-000000000026', 'http://demo.ontos.app/glossary#Transaction', 'http://www.w3.org/2000/01/rdf-schema#label', 'Transaction', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000027-0000-4000-8000-000000000027', 'http://demo.ontos.app/glossary#FinancialRecord', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000028-0000-4000-8000-000000000028', 'http://demo.ontos.app/glossary#FinancialRecord', 'http://www.w3.org/2000/01/rdf-schema#label', 'Financial Record', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+
+-- Schema-level glossary terms
+('02000029-0000-4000-8000-000000000029', 'http://demo.ontos.app/glossary#CustomerProfile', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200002a-0000-4000-8000-00000000002a', 'http://demo.ontos.app/glossary#CustomerProfile', 'http://www.w3.org/2000/01/rdf-schema#label', 'Customer Profile', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200002b-0000-4000-8000-00000000002b', 'http://demo.ontos.app/glossary#MasterData', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200002c-0000-4000-8000-00000000002c', 'http://demo.ontos.app/glossary#MasterData', 'http://www.w3.org/2000/01/rdf-schema#label', 'Master Data', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200002d-0000-4000-8000-00000000002d', 'http://demo.ontos.app/glossary#CustomerPreference', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200002e-0000-4000-8000-00000000002e', 'http://demo.ontos.app/glossary#CustomerPreference', 'http://www.w3.org/2000/01/rdf-schema#label', 'Customer Preference', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200002f-0000-4000-8000-00000000002f', 'http://demo.ontos.app/glossary#Address', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000030-0000-4000-8000-000000000030', 'http://demo.ontos.app/glossary#Address', 'http://www.w3.org/2000/01/rdf-schema#label', 'Address', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000031-0000-4000-8000-000000000031', 'http://demo.ontos.app/glossary#ContactInformation', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000032-0000-4000-8000-000000000032', 'http://demo.ontos.app/glossary#ContactInformation', 'http://www.w3.org/2000/01/rdf-schema#label', 'Contact Information', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000033-0000-4000-8000-000000000033', 'http://demo.ontos.app/glossary#IoTDevice', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000034-0000-4000-8000-000000000034', 'http://demo.ontos.app/glossary#IoTDevice', 'http://www.w3.org/2000/01/rdf-schema#label', 'IoT Device', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000035-0000-4000-8000-000000000035', 'http://demo.ontos.app/glossary#AssetRegistry', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000036-0000-4000-8000-000000000036', 'http://demo.ontos.app/glossary#AssetRegistry', 'http://www.w3.org/2000/01/rdf-schema#label', 'Asset Registry', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000037-0000-4000-8000-000000000037', 'http://demo.ontos.app/glossary#SensorReading', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000038-0000-4000-8000-000000000038', 'http://demo.ontos.app/glossary#SensorReading', 'http://www.w3.org/2000/01/rdf-schema#label', 'Sensor Reading', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000039-0000-4000-8000-000000000039', 'http://demo.ontos.app/glossary#DeviceEvent', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200003a-0000-4000-8000-00000000003a', 'http://demo.ontos.app/glossary#DeviceEvent', 'http://www.w3.org/2000/01/rdf-schema#label', 'Device Event', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200003b-0000-4000-8000-00000000003b', 'http://demo.ontos.app/glossary#Alert', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200003c-0000-4000-8000-00000000003c', 'http://demo.ontos.app/glossary#Alert', 'http://www.w3.org/2000/01/rdf-schema#label', 'Alert', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+
+-- Property-level glossary terms
+('0200003d-0000-4000-8000-00000000003d', 'http://demo.ontos.app/glossary#CustomerId', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200003e-0000-4000-8000-00000000003e', 'http://demo.ontos.app/glossary#CustomerId', 'http://www.w3.org/2000/01/rdf-schema#label', 'Customer ID', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200003f-0000-4000-8000-00000000003f', 'http://demo.ontos.app/glossary#UniqueIdentifier', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000040-0000-4000-8000-000000000040', 'http://demo.ontos.app/glossary#UniqueIdentifier', 'http://www.w3.org/2000/01/rdf-schema#label', 'Unique Identifier', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000041-0000-4000-8000-000000000041', 'http://demo.ontos.app/glossary#EmailAddress', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000042-0000-4000-8000-000000000042', 'http://demo.ontos.app/glossary#EmailAddress', 'http://www.w3.org/2000/01/rdf-schema#label', 'Email Address', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000043-0000-4000-8000-000000000043', 'http://demo.ontos.app/glossary#PII', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000044-0000-4000-8000-000000000044', 'http://demo.ontos.app/glossary#PII', 'http://www.w3.org/2000/01/rdf-schema#label', 'PII', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000045-0000-4000-8000-000000000045', 'http://demo.ontos.app/glossary#FirstName', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000046-0000-4000-8000-000000000046', 'http://demo.ontos.app/glossary#FirstName', 'http://www.w3.org/2000/01/rdf-schema#label', 'First Name', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000047-0000-4000-8000-000000000047', 'http://demo.ontos.app/glossary#LastName', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000048-0000-4000-8000-000000000048', 'http://demo.ontos.app/glossary#LastName', 'http://www.w3.org/2000/01/rdf-schema#label', 'Last Name', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000049-0000-4000-8000-000000000049', 'http://demo.ontos.app/glossary#DateOfBirth', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200004a-0000-4000-8000-00000000004a', 'http://demo.ontos.app/glossary#DateOfBirth', 'http://www.w3.org/2000/01/rdf-schema#label', 'Date of Birth', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200004b-0000-4000-8000-00000000004b', 'http://demo.ontos.app/glossary#PhoneNumber', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200004c-0000-4000-8000-00000000004c', 'http://demo.ontos.app/glossary#PhoneNumber', 'http://www.w3.org/2000/01/rdf-schema#label', 'Phone Number', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200004d-0000-4000-8000-00000000004d', 'http://demo.ontos.app/glossary#CountryCode', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200004e-0000-4000-8000-00000000004e', 'http://demo.ontos.app/glossary#CountryCode', 'http://www.w3.org/2000/01/rdf-schema#label', 'Country Code', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('0200004f-0000-4000-8000-00000000004f', 'http://demo.ontos.app/glossary#AccountStatus', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000050-0000-4000-8000-000000000050', 'http://demo.ontos.app/glossary#AccountStatus', 'http://www.w3.org/2000/01/rdf-schema#label', 'Account Status', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000051-0000-4000-8000-000000000051', 'http://demo.ontos.app/glossary#DeviceId', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000052-0000-4000-8000-000000000052', 'http://demo.ontos.app/glossary#DeviceId', 'http://www.w3.org/2000/01/rdf-schema#label', 'Device ID', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000053-0000-4000-8000-000000000053', 'http://demo.ontos.app/glossary#DeviceType', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000054-0000-4000-8000-000000000054', 'http://demo.ontos.app/glossary#DeviceType', 'http://www.w3.org/2000/01/rdf-schema#label', 'Device Type', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000055-0000-4000-8000-000000000055', 'http://demo.ontos.app/glossary#DeviceStatus', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type', 'http://www.w3.org/2004/02/skos/core#Concept', true, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW()),
+('02000056-0000-4000-8000-000000000056', 'http://demo.ontos.app/glossary#DeviceStatus', 'http://www.w3.org/2000/01/rdf-schema#label', 'Device Status', false, 'urn:demo', 'demo', 'demo_data.sql', 'system@demo', NOW())
+
+ON CONFLICT (id) DO NOTHING;
+
+
+-- ============================================================================
+-- 11. SEMANTIC LINKS (type=015)
 -- ============================================================================
 
 INSERT INTO entity_semantic_links (id, entity_id, entity_type, iri, label, created_by, created_at) VALUES
--- Data Domains
-('01500001-0000-4000-8000-000000000001', '00000007-0000-4000-8000-000000000007', 'data_domain', 'http://example.com/business/concepts#CustomerDomain', 'Customer Domain', 'system@demo', NOW()),
-('01500002-0000-4000-8000-000000000002', '00000002-0000-4000-8000-000000000002', 'data_domain', 'http://example.com/business/concepts#FinancialDomain', 'Financial Domain', 'system@demo', NOW()),
-('01500003-0000-4000-8000-000000000003', '00000003-0000-4000-8000-000000000003', 'data_domain', 'http://example.com/business/concepts#SalesDomain', 'Sales Domain', 'system@demo', NOW()),
-('01500004-0000-4000-8000-000000000004', '00000004-0000-4000-8000-000000000004', 'data_domain', 'http://example.com/business/concepts#MarketingDomain', 'Marketing Domain', 'system@demo', NOW()),
-('01500005-0000-4000-8000-000000000005', '00000005-0000-4000-8000-000000000005', 'data_domain', 'http://example.com/business/concepts#RetailDomain', 'Retail Domain', 'system@demo', NOW()),
-('01500006-0000-4000-8000-000000000006', '00000008-0000-4000-8000-000000000008', 'data_domain', 'http://example.com/business/concepts#ProductDomain', 'Product Domain', 'system@demo', NOW()),
-('01500007-0000-4000-8000-000000000007', '00000009-0000-4000-8000-000000000009', 'data_domain', 'http://example.com/business/concepts#EmployeeDomain', 'Employee Domain', 'system@demo', NOW()),
+-- Data Domains (link to demo.ontos.app concepts defined in rdf_triples above)
+('01500001-0000-4000-8000-000000000001', '00000007-0000-4000-8000-000000000007', 'data_domain', 'http://demo.ontos.app/concepts#CustomerDomain', 'Customer Domain', 'system@demo', NOW()),
+('01500002-0000-4000-8000-000000000002', '00000002-0000-4000-8000-000000000002', 'data_domain', 'http://demo.ontos.app/concepts#FinancialDomain', 'Financial Domain', 'system@demo', NOW()),
+('01500003-0000-4000-8000-000000000003', '00000003-0000-4000-8000-000000000003', 'data_domain', 'http://demo.ontos.app/concepts#SalesDomain', 'Sales Domain', 'system@demo', NOW()),
+('01500004-0000-4000-8000-000000000004', '00000004-0000-4000-8000-000000000004', 'data_domain', 'http://demo.ontos.app/concepts#MarketingDomain', 'Marketing Domain', 'system@demo', NOW()),
+('01500005-0000-4000-8000-000000000005', '00000005-0000-4000-8000-000000000005', 'data_domain', 'http://demo.ontos.app/concepts#RetailDomain', 'Retail Domain', 'system@demo', NOW()),
+('01500006-0000-4000-8000-000000000006', '00000008-0000-4000-8000-000000000008', 'data_domain', 'http://demo.ontos.app/concepts#ProductDomain', 'Product Domain', 'system@demo', NOW()),
+('01500007-0000-4000-8000-000000000007', '00000009-0000-4000-8000-000000000009', 'data_domain', 'http://demo.ontos.app/concepts#EmployeeDomain', 'Employee Domain', 'system@demo', NOW()),
 
--- Data Products
-('01500008-0000-4000-8000-000000000008', '00700001-0000-4000-8000-000000000001', 'data_product', 'http://example.com/business/concepts#Sale', 'Sale', 'system@demo', NOW()),
-('01500009-0000-4000-8000-000000000009', '00700002-0000-4000-8000-000000000002', 'data_product', 'http://example.com/business/concepts#Transaction', 'Transaction', 'system@demo', NOW()),
-('0150000a-0000-4000-8000-000000000010', '00700006-0000-4000-8000-000000000006', 'data_product', 'http://example.com/business/concepts#Customer', 'Customer', 'system@demo', NOW()),
-('0150000b-0000-4000-8000-000000000011', '00700007-0000-4000-8000-000000000007', 'data_product', 'http://example.com/business/concepts#Sale', 'Sale', 'system@demo', NOW()),
-('0150000c-0000-4000-8000-000000000012', '00700004-0000-4000-8000-000000000004', 'data_product', 'http://example.com/business/concepts#Inventory', 'Inventory', 'system@demo', NOW()),
-('0150000d-0000-4000-8000-000000000013', '00700005-0000-4000-8000-000000000005', 'data_product', 'http://example.com/business/concepts#Product', 'Product', 'system@demo', NOW()),
+-- Data Products (link to demo.ontos.app concepts)
+('01500008-0000-4000-8000-000000000008', '00700001-0000-4000-8000-000000000001', 'data_product', 'http://demo.ontos.app/concepts#Sale', 'Sale', 'system@demo', NOW()),
+('01500009-0000-4000-8000-000000000009', '00700002-0000-4000-8000-000000000002', 'data_product', 'http://demo.ontos.app/concepts#Transaction', 'Transaction', 'system@demo', NOW()),
+('0150000a-0000-4000-8000-000000000010', '00700006-0000-4000-8000-000000000006', 'data_product', 'http://demo.ontos.app/concepts#Customer', 'Customer', 'system@demo', NOW()),
+('0150000b-0000-4000-8000-000000000011', '00700007-0000-4000-8000-000000000007', 'data_product', 'http://demo.ontos.app/concepts#Sale', 'Sale', 'system@demo', NOW()),
+('0150000c-0000-4000-8000-000000000012', '00700004-0000-4000-8000-000000000004', 'data_product', 'http://demo.ontos.app/concepts#Inventory', 'Inventory', 'system@demo', NOW()),
+('0150000d-0000-4000-8000-000000000013', '00700005-0000-4000-8000-000000000005', 'data_product', 'http://demo.ontos.app/concepts#Product', 'Product', 'system@demo', NOW()),
 
--- Data Contracts (mirrors data_contract_authoritative_definitions)
-('0150000e-0000-4000-8000-000000000014', '00400001-0000-4000-8000-000000000001', 'data_contract', 'http://glossary.example.com/terms/Customer', 'Customer', 'system@demo', NOW()),
-('0150000f-0000-4000-8000-000000000015', '00400001-0000-4000-8000-000000000001', 'data_contract', 'http://glossary.example.com/terms/PersonalData', 'Personal Data', 'system@demo', NOW()),
-('01500010-0000-4000-8000-000000000016', '00400002-0000-4000-8000-000000000002', 'data_contract', 'http://glossary.example.com/terms/Product', 'Product', 'system@demo', NOW()),
-('01500011-0000-4000-8000-000000000017', '00400002-0000-4000-8000-000000000002', 'data_contract', 'http://glossary.example.com/terms/Inventory', 'Inventory', 'system@demo', NOW()),
-('01500012-0000-4000-8000-000000000018', '00400004-0000-4000-8000-000000000004', 'data_contract', 'http://glossary.example.com/terms/Device', 'Device', 'system@demo', NOW()),
-('01500013-0000-4000-8000-000000000019', '00400004-0000-4000-8000-000000000004', 'data_contract', 'http://glossary.example.com/terms/Telemetry', 'Telemetry', 'system@demo', NOW()),
-('01500014-0000-4000-8000-000000000020', '00400006-0000-4000-8000-000000000006', 'data_contract', 'http://glossary.example.com/terms/Transaction', 'Transaction', 'system@demo', NOW()),
-('01500015-0000-4000-8000-000000000021', '00400006-0000-4000-8000-000000000006', 'data_contract', 'http://glossary.example.com/terms/FinancialRecord', 'Financial Record', 'system@demo', NOW()),
+-- Data Contracts (link to demo.ontos.app glossary terms)
+('0150000e-0000-4000-8000-000000000014', '00400001-0000-4000-8000-000000000001', 'data_contract', 'http://demo.ontos.app/glossary#Customer', 'Customer', 'system@demo', NOW()),
+('0150000f-0000-4000-8000-000000000015', '00400001-0000-4000-8000-000000000001', 'data_contract', 'http://demo.ontos.app/glossary#PersonalData', 'Personal Data', 'system@demo', NOW()),
+('01500010-0000-4000-8000-000000000016', '00400002-0000-4000-8000-000000000002', 'data_contract', 'http://demo.ontos.app/glossary#Product', 'Product', 'system@demo', NOW()),
+('01500011-0000-4000-8000-000000000017', '00400002-0000-4000-8000-000000000002', 'data_contract', 'http://demo.ontos.app/glossary#Inventory', 'Inventory', 'system@demo', NOW()),
+('01500012-0000-4000-8000-000000000018', '00400004-0000-4000-8000-000000000004', 'data_contract', 'http://demo.ontos.app/glossary#Device', 'Device', 'system@demo', NOW()),
+('01500013-0000-4000-8000-000000000019', '00400004-0000-4000-8000-000000000004', 'data_contract', 'http://demo.ontos.app/glossary#Telemetry', 'Telemetry', 'system@demo', NOW()),
+('01500014-0000-4000-8000-000000000020', '00400006-0000-4000-8000-000000000006', 'data_contract', 'http://demo.ontos.app/glossary#Transaction', 'Transaction', 'system@demo', NOW()),
+('01500015-0000-4000-8000-000000000021', '00400006-0000-4000-8000-000000000006', 'data_contract', 'http://demo.ontos.app/glossary#FinancialRecord', 'Financial Record', 'system@demo', NOW()),
 
 -- Schema Objects - use entity_id = contractId#schemaName, entity_type = data_contract_schema
 -- Customer Data Contract (00400001...) schemas: customers, customer_preferences, customer_addresses
-('01500016-0000-4000-8000-000000000022', '00400001-0000-4000-8000-000000000001#customers', 'data_contract_schema', 'http://glossary.example.com/terms/CustomerProfile', 'Customer Profile', 'system@demo', NOW()),
-('01500017-0000-4000-8000-000000000023', '00400001-0000-4000-8000-000000000001#customers', 'data_contract_schema', 'http://glossary.example.com/terms/MasterData', 'Master Data', 'system@demo', NOW()),
-('01500018-0000-4000-8000-000000000024', '00400001-0000-4000-8000-000000000001#customer_preferences', 'data_contract_schema', 'http://glossary.example.com/terms/CustomerPreference', 'Customer Preference', 'system@demo', NOW()),
-('01500019-0000-4000-8000-000000000025', '00400001-0000-4000-8000-000000000001#customer_addresses', 'data_contract_schema', 'http://glossary.example.com/terms/Address', 'Address', 'system@demo', NOW()),
-('0150001a-0000-4000-8000-000000000026', '00400001-0000-4000-8000-000000000001#customer_addresses', 'data_contract_schema', 'http://glossary.example.com/terms/ContactInformation', 'Contact Information', 'system@demo', NOW()),
+('01500016-0000-4000-8000-000000000022', '00400001-0000-4000-8000-000000000001#customers', 'data_contract_schema', 'http://demo.ontos.app/glossary#CustomerProfile', 'Customer Profile', 'system@demo', NOW()),
+('01500017-0000-4000-8000-000000000023', '00400001-0000-4000-8000-000000000001#customers', 'data_contract_schema', 'http://demo.ontos.app/glossary#MasterData', 'Master Data', 'system@demo', NOW()),
+('01500018-0000-4000-8000-000000000024', '00400001-0000-4000-8000-000000000001#customer_preferences', 'data_contract_schema', 'http://demo.ontos.app/glossary#CustomerPreference', 'Customer Preference', 'system@demo', NOW()),
+('01500019-0000-4000-8000-000000000025', '00400001-0000-4000-8000-000000000001#customer_addresses', 'data_contract_schema', 'http://demo.ontos.app/glossary#Address', 'Address', 'system@demo', NOW()),
+('0150001a-0000-4000-8000-000000000026', '00400001-0000-4000-8000-000000000001#customer_addresses', 'data_contract_schema', 'http://demo.ontos.app/glossary#ContactInformation', 'Contact Information', 'system@demo', NOW()),
 -- IoT Device Registry Contract (00400004...) schemas: devices, sensor_readings, device_events
-('0150001b-0000-4000-8000-000000000027', '00400004-0000-4000-8000-000000000004#devices', 'data_contract_schema', 'http://glossary.example.com/terms/IoTDevice', 'IoT Device', 'system@demo', NOW()),
-('0150001c-0000-4000-8000-000000000028', '00400004-0000-4000-8000-000000000004#devices', 'data_contract_schema', 'http://glossary.example.com/terms/AssetRegistry', 'Asset Registry', 'system@demo', NOW()),
-('0150001d-0000-4000-8000-000000000029', '00400004-0000-4000-8000-000000000004#sensor_readings', 'data_contract_schema', 'http://glossary.example.com/terms/SensorReading', 'Sensor Reading', 'system@demo', NOW()),
-('0150001e-0000-4000-8000-000000000030', '00400004-0000-4000-8000-000000000004#device_events', 'data_contract_schema', 'http://glossary.example.com/terms/DeviceEvent', 'Device Event', 'system@demo', NOW()),
-('0150001f-0000-4000-8000-000000000031', '00400004-0000-4000-8000-000000000004#device_events', 'data_contract_schema', 'http://glossary.example.com/terms/Alert', 'Alert', 'system@demo', NOW()),
+('0150001b-0000-4000-8000-000000000027', '00400004-0000-4000-8000-000000000004#devices', 'data_contract_schema', 'http://demo.ontos.app/glossary#IoTDevice', 'IoT Device', 'system@demo', NOW()),
+('0150001c-0000-4000-8000-000000000028', '00400004-0000-4000-8000-000000000004#devices', 'data_contract_schema', 'http://demo.ontos.app/glossary#AssetRegistry', 'Asset Registry', 'system@demo', NOW()),
+('0150001d-0000-4000-8000-000000000029', '00400004-0000-4000-8000-000000000004#sensor_readings', 'data_contract_schema', 'http://demo.ontos.app/glossary#SensorReading', 'Sensor Reading', 'system@demo', NOW()),
+('0150001e-0000-4000-8000-000000000030', '00400004-0000-4000-8000-000000000004#device_events', 'data_contract_schema', 'http://demo.ontos.app/glossary#DeviceEvent', 'Device Event', 'system@demo', NOW()),
+('0150001f-0000-4000-8000-000000000031', '00400004-0000-4000-8000-000000000004#device_events', 'data_contract_schema', 'http://demo.ontos.app/glossary#Alert', 'Alert', 'system@demo', NOW()),
 
 -- Schema Properties - use entity_id = contractId#schemaName#propertyName, entity_type = data_contract_property
 -- Customer Data Contract > customers schema properties
-('01500020-0000-4000-8000-000000000032', '00400001-0000-4000-8000-000000000001#customers#customer_id', 'data_contract_property', 'http://glossary.example.com/terms/CustomerId', 'customerId', 'system@demo', NOW()),
-('01500021-0000-4000-8000-000000000033', '00400001-0000-4000-8000-000000000001#customers#customer_id', 'data_contract_property', 'http://glossary.example.com/terms/UniqueIdentifier', 'Unique Identifier', 'system@demo', NOW()),
-('01500022-0000-4000-8000-000000000034', '00400001-0000-4000-8000-000000000001#customers#email', 'data_contract_property', 'http://glossary.example.com/terms/EmailAddress', 'emailAddress', 'system@demo', NOW()),
-('01500023-0000-4000-8000-000000000035', '00400001-0000-4000-8000-000000000001#customers#email', 'data_contract_property', 'http://glossary.example.com/terms/PII', 'PII', 'system@demo', NOW()),
-('01500024-0000-4000-8000-000000000036', '00400001-0000-4000-8000-000000000001#customers#first_name', 'data_contract_property', 'http://glossary.example.com/terms/FirstName', 'firstName', 'system@demo', NOW()),
-('01500025-0000-4000-8000-000000000037', '00400001-0000-4000-8000-000000000001#customers#last_name', 'data_contract_property', 'http://glossary.example.com/terms/LastName', 'lastName', 'system@demo', NOW()),
-('01500026-0000-4000-8000-000000000038', '00400001-0000-4000-8000-000000000001#customers#date_of_birth', 'data_contract_property', 'http://glossary.example.com/terms/DateOfBirth', 'dateOfBirth', 'system@demo', NOW()),
-('01500027-0000-4000-8000-000000000039', '00400001-0000-4000-8000-000000000001#customers#phone_number', 'data_contract_property', 'http://glossary.example.com/terms/PhoneNumber', 'phoneNumber', 'system@demo', NOW()),
-('01500028-0000-4000-8000-000000000040', '00400001-0000-4000-8000-000000000001#customers#country_code', 'data_contract_property', 'http://glossary.example.com/terms/CountryCode', 'countryCode', 'system@demo', NOW()),
-('01500029-0000-4000-8000-000000000041', '00400001-0000-4000-8000-000000000001#customers#account_status', 'data_contract_property', 'http://glossary.example.com/terms/AccountStatus', 'accountStatus', 'system@demo', NOW()),
+('01500020-0000-4000-8000-000000000032', '00400001-0000-4000-8000-000000000001#customers#customer_id', 'data_contract_property', 'http://demo.ontos.app/glossary#CustomerId', 'customerId', 'system@demo', NOW()),
+('01500021-0000-4000-8000-000000000033', '00400001-0000-4000-8000-000000000001#customers#customer_id', 'data_contract_property', 'http://demo.ontos.app/glossary#UniqueIdentifier', 'Unique Identifier', 'system@demo', NOW()),
+('01500022-0000-4000-8000-000000000034', '00400001-0000-4000-8000-000000000001#customers#email', 'data_contract_property', 'http://demo.ontos.app/glossary#EmailAddress', 'emailAddress', 'system@demo', NOW()),
+('01500023-0000-4000-8000-000000000035', '00400001-0000-4000-8000-000000000001#customers#email', 'data_contract_property', 'http://demo.ontos.app/glossary#PII', 'PII', 'system@demo', NOW()),
+('01500024-0000-4000-8000-000000000036', '00400001-0000-4000-8000-000000000001#customers#first_name', 'data_contract_property', 'http://demo.ontos.app/glossary#FirstName', 'firstName', 'system@demo', NOW()),
+('01500025-0000-4000-8000-000000000037', '00400001-0000-4000-8000-000000000001#customers#last_name', 'data_contract_property', 'http://demo.ontos.app/glossary#LastName', 'lastName', 'system@demo', NOW()),
+('01500026-0000-4000-8000-000000000038', '00400001-0000-4000-8000-000000000001#customers#date_of_birth', 'data_contract_property', 'http://demo.ontos.app/glossary#DateOfBirth', 'dateOfBirth', 'system@demo', NOW()),
+('01500027-0000-4000-8000-000000000039', '00400001-0000-4000-8000-000000000001#customers#phone_number', 'data_contract_property', 'http://demo.ontos.app/glossary#PhoneNumber', 'phoneNumber', 'system@demo', NOW()),
+('01500028-0000-4000-8000-000000000040', '00400001-0000-4000-8000-000000000001#customers#country_code', 'data_contract_property', 'http://demo.ontos.app/glossary#CountryCode', 'countryCode', 'system@demo', NOW()),
+('01500029-0000-4000-8000-000000000041', '00400001-0000-4000-8000-000000000001#customers#account_status', 'data_contract_property', 'http://demo.ontos.app/glossary#AccountStatus', 'accountStatus', 'system@demo', NOW()),
 -- IoT Device Registry Contract > devices schema properties
-('0150002a-0000-4000-8000-000000000042', '00400004-0000-4000-8000-000000000004#devices#device_id', 'data_contract_property', 'http://glossary.example.com/terms/DeviceId', 'deviceId', 'system@demo', NOW()),
-('0150002b-0000-4000-8000-000000000043', '00400004-0000-4000-8000-000000000004#devices#device_type', 'data_contract_property', 'http://glossary.example.com/terms/DeviceType', 'deviceType', 'system@demo', NOW()),
-('0150002c-0000-4000-8000-000000000044', '00400004-0000-4000-8000-000000000004#devices#status', 'data_contract_property', 'http://glossary.example.com/terms/DeviceStatus', 'deviceStatus', 'system@demo', NOW())
+('0150002a-0000-4000-8000-000000000042', '00400004-0000-4000-8000-000000000004#devices#device_id', 'data_contract_property', 'http://demo.ontos.app/glossary#DeviceId', 'deviceId', 'system@demo', NOW()),
+('0150002b-0000-4000-8000-000000000043', '00400004-0000-4000-8000-000000000004#devices#device_type', 'data_contract_property', 'http://demo.ontos.app/glossary#DeviceType', 'deviceType', 'system@demo', NOW()),
+('0150002c-0000-4000-8000-000000000044', '00400004-0000-4000-8000-000000000004#devices#status', 'data_contract_property', 'http://demo.ontos.app/glossary#DeviceStatus', 'deviceStatus', 'system@demo', NOW())
 
 ON CONFLICT (id) DO NOTHING;
 
