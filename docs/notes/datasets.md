@@ -2,18 +2,22 @@
 
 ## Overview
 
-Datasets are **physical implementations of Data Contracts**. They represent actual Unity Catalog tables and views that exist in specific SDLC environments (development, staging, production, etc.).
+Datasets are **physical implementations of Data Contracts**. They represent a logical grouping of physical data assets (tables, views) that exist across different systems and SDLC environments (development, staging, production, etc.).
 
 The relationship model is:
 
 ```
 Data Product → Data Contract ← Dataset
      (DP)           (DC)         (DS)
+                      ↑
+              DatasetInstance
+              (physical impl)
 ```
 
 - A **Data Product** references **Data Contracts** through its output ports
-- A **Dataset** implements a **Data Contract** - representing the actual physical table/view
-- Multiple Datasets can implement the same Contract (e.g., `sales` table in dev, staging, and prod)
+- A **Dataset** is a logical entity that can have multiple **physical instances**
+- Each **DatasetInstance** links to a specific contract version and server (system + environment)
+- Multiple instances can exist for the same dataset (e.g., dev vs prod, or different systems like Unity Catalog and Snowflake)
 
 ## Key Concepts
 
@@ -91,12 +95,36 @@ Users can subscribe to Datasets to receive notifications about:
 
 | Relationship | Type | Description |
 |--------------|------|-------------|
-| `contract` | Many-to-One | Data Contract this dataset implements |
+| `contract` | Many-to-One | Data Contract this dataset implements (legacy) |
 | `owner_team` | Many-to-One | Team that owns this dataset |
 | `project` | Many-to-One | Project this dataset belongs to |
 | `subscriptions` | One-to-Many | User subscriptions |
 | `tags` | One-to-Many | Simple string tags |
 | `custom_properties` | One-to-Many | Key-value custom properties |
+| `instances` | One-to-Many | Physical implementations (see below) |
+
+### Dataset Instances (Physical Implementations)
+
+Each Dataset can have multiple physical instances. An instance represents a concrete implementation in a specific system and environment.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | UUID | Unique identifier |
+| `dataset_id` | UUID | Parent dataset |
+| `contract_id` | UUID | Contract version this instance implements |
+| `contract_server_id` | UUID | Server entry from the contract (defines system type + environment) |
+| `physical_path` | String | Path in the target system (flexible format) |
+| `status` | Enum | `active`, `deprecated`, `retired` |
+| `notes` | Text | Optional notes |
+
+**Key Benefits:**
+- Track the same dataset across different environments (dev, prod)
+- Support different contract versions per environment (DEV uses draft v2.0, PROD uses active v1.5)
+- Support multiple systems (Unity Catalog, Snowflake, BigQuery, etc.)
+- Flexible `physical_path` format per system type
+
+**System Types (from ODCS servers):**
+The server type comes from the contract's `servers` array, following the [ODCS Infrastructure & Servers specification](https://bitol-io.github.io/open-data-contract-standard/v3.0.2/infrastructure-servers/). Supported types include: databricks, snowflake, bigquery, postgresql, mysql, s3, kafka, and many more.
 
 ## API Endpoints
 
@@ -132,6 +160,16 @@ Users can subscribe to Datasets to receive notifications about:
 | `POST` | `/api/datasets/{id}/subscribe` | Subscribe to dataset |
 | `DELETE` | `/api/datasets/{id}/subscribe` | Unsubscribe |
 | `GET` | `/api/datasets/{id}/subscribers` | List subscribers |
+
+### Physical Instances
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/datasets/{id}/instances` | List all instances |
+| `GET` | `/api/datasets/{id}/instances/{instance_id}` | Get instance details |
+| `POST` | `/api/datasets/{id}/instances` | Add new instance |
+| `PUT` | `/api/datasets/{id}/instances/{instance_id}` | Update instance |
+| `DELETE` | `/api/datasets/{id}/instances/{instance_id}` | Remove instance |
 
 ## Query Parameters
 
@@ -171,17 +209,39 @@ POST /api/datasets
 }
 ```
 
-### 2. Multi-Environment Tracking
+### 2. Multi-Environment Tracking with Instances
 
-Track the same logical table across environments:
+Track the same logical dataset across environments using instances:
+
+```python
+POST /api/datasets/{dataset_id}/instances
+{
+  "contract_id": "contract-v1.5-uuid",      # Active version for prod
+  "contract_server_id": "server-prod-uuid", # Prod server from contract
+  "physical_path": "prod_catalog.sales.transactions",
+  "status": "active"
+}
+
+POST /api/datasets/{dataset_id}/instances
+{
+  "contract_id": "contract-v2.0-uuid",      # Draft version for dev
+  "contract_server_id": "server-dev-uuid",  # Dev server from contract
+  "physical_path": "dev_catalog.sales.transactions",
+  "status": "active"
+}
+```
+
+### 3. Multi-System Support
+
+The same dataset can have instances in different systems (via different contract servers):
 
 ```
-dev:     lob_gtm_dev.sales.transactions     → Contract: sales-contract-v1
-staging: lob_gtm_staging.sales.transactions → Contract: sales-contract-v1  
-prod:    lob_gtm_prod.sales.transactions    → Contract: sales-contract-v1
+Instance 1: Unity Catalog (prod)  → prod_catalog.sales.transactions
+Instance 2: Snowflake (analytics) → ANALYTICS_DB.SALES.TRANSACTIONS
+Instance 3: BigQuery (reporting)  → project.dataset.transactions
 ```
 
-### 3. Consumer Discovery
+### 4. Consumer Discovery
 
 Data consumers browse the Datasets list to find production-ready data:
 
@@ -189,7 +249,7 @@ Data consumers browse the Datasets list to find production-ready data:
 GET /api/datasets?environment=prod&status=active&published=true
 ```
 
-### 4. Impact Analysis
+### 5. Impact Analysis
 
 When a contract changes, find all affected datasets:
 

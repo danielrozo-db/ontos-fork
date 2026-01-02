@@ -41,6 +41,13 @@ class DatasetEnvironment(str, Enum):
     UAT = "uat"
 
 
+class DatasetInstanceStatus(str, Enum):
+    """Instance lifecycle status values."""
+    ACTIVE = "active"
+    DEPRECATED = "deprecated"
+    RETIRED = "retired"
+
+
 # ============================================================================
 # Tag Models
 # ============================================================================
@@ -120,6 +127,67 @@ class DatasetSubscribersListResponse(BaseModel):
 
 
 # ============================================================================
+# Instance Models (Physical implementations)
+# ============================================================================
+
+class DatasetInstance(BaseModel):
+    """Physical instance of a dataset in a specific system/environment."""
+    id: str = Field(..., description="Instance ID")
+    dataset_id: str = Field(..., description="Parent dataset ID")
+    
+    # Contract linkage
+    contract_id: Optional[str] = Field(None, description="Contract version this instance implements")
+    contract_name: Optional[str] = Field(None, description="Contract name (denormalized)")
+    contract_version: Optional[str] = Field(None, description="Contract version (denormalized)")
+    
+    # Server linkage (from contract)
+    contract_server_id: Optional[str] = Field(None, description="Server entry ID from the contract")
+    server_type: Optional[str] = Field(None, description="Server type (databricks, snowflake, etc.) from contract server")
+    server_environment: Optional[str] = Field(None, description="Environment (dev, prod, etc.) from contract server")
+    server_name: Optional[str] = Field(None, description="Server identifier from contract server")
+    
+    # Physical location
+    physical_path: str = Field(..., description="Physical path in the target system (flexible format)")
+    
+    # Instance status
+    status: str = Field("active", description="Instance status (active, deprecated, retired)")
+    notes: Optional[str] = Field(None, description="Notes about this instance")
+    
+    # Audit
+    created_at: Optional[datetime] = Field(None, description="Creation timestamp")
+    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+    created_by: Optional[str] = Field(None, description="Created by user")
+    updated_by: Optional[str] = Field(None, description="Last updated by user")
+
+    model_config = {"from_attributes": True}
+
+
+class DatasetInstanceCreate(BaseModel):
+    """Model for creating an instance."""
+    contract_id: Optional[str] = Field(None, description="Contract version this instance implements")
+    contract_server_id: Optional[str] = Field(None, description="Server entry ID from the contract")
+    physical_path: str = Field(..., description="Physical path in the target system")
+    status: str = Field("active", description="Instance status")
+    notes: Optional[str] = Field(None, description="Notes about this instance")
+
+
+class DatasetInstanceUpdate(BaseModel):
+    """Model for updating an instance."""
+    contract_id: Optional[str] = Field(None, description="Contract version this instance implements")
+    contract_server_id: Optional[str] = Field(None, description="Server entry ID from the contract")
+    physical_path: Optional[str] = Field(None, description="Physical path in the target system")
+    status: Optional[str] = Field(None, description="Instance status")
+    notes: Optional[str] = Field(None, description="Notes about this instance")
+
+
+class DatasetInstanceListResponse(BaseModel):
+    """Response model for listing instances."""
+    dataset_id: str = Field(..., description="Parent dataset ID")
+    instance_count: int = Field(..., description="Number of instances")
+    instances: List[DatasetInstance] = Field(default_factory=list, description="List of instances")
+
+
+# ============================================================================
 # Dataset List Item (Lightweight for list views)
 # ============================================================================
 
@@ -142,6 +210,7 @@ class DatasetListItem(BaseModel):
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")
     updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
     subscriber_count: Optional[int] = Field(None, description="Number of subscribers")
+    instance_count: Optional[int] = Field(None, description="Number of physical instances")
 
     model_config = {"from_attributes": True}
 
@@ -186,7 +255,9 @@ class Dataset(BaseModel):
     # Related data
     tags: List[DatasetTag] = Field(default_factory=list, description="Tags")
     custom_properties: List[DatasetCustomProperty] = Field(default_factory=list, description="Custom properties")
+    instances: List[DatasetInstance] = Field(default_factory=list, description="Physical instances")
     subscriber_count: Optional[int] = Field(None, description="Number of subscribers")
+    instance_count: Optional[int] = Field(None, description="Number of physical instances")
     
     # Audit
     created_at: Optional[datetime] = Field(None, description="Creation timestamp")

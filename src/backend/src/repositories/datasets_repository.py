@@ -15,6 +15,7 @@ from src.db_models.datasets import (
     DatasetSubscriptionDb,
     DatasetTagDb,
     DatasetCustomPropertyDb,
+    DatasetInstanceDb,
 )
 from src.common.logging import get_logger
 
@@ -39,6 +40,8 @@ class DatasetRepository(CRUDBase[DatasetDb, Dict[str, Any], Union[Dict[str, Any]
                     selectinload(self.model.subscriptions),
                     selectinload(self.model.tags),
                     selectinload(self.model.custom_properties),
+                    selectinload(self.model.instances).selectinload(DatasetInstanceDb.contract),
+                    selectinload(self.model.instances).selectinload(DatasetInstanceDb.contract_server),
                 )
                 .filter(self.model.id == id)
                 .first()
@@ -154,6 +157,7 @@ class DatasetRepository(CRUDBase[DatasetDb, Dict[str, Any], Union[Dict[str, Any]
                 selectinload(self.model.owner_team),
                 selectinload(self.model.subscriptions),
                 selectinload(self.model.tags),
+                selectinload(self.model.instances),
             )
 
             # Apply filters
@@ -491,4 +495,239 @@ class DatasetCustomPropertyRepository(CRUDBase[DatasetCustomPropertyDb, Dict[str
 
 # Singleton instance
 dataset_custom_property_repo = DatasetCustomPropertyRepository()
+
+
+class DatasetInstanceRepository(CRUDBase[DatasetInstanceDb, Dict[str, Any], DatasetInstanceDb]):
+    """Repository for Dataset Instance operations."""
+
+    def __init__(self):
+        super().__init__(DatasetInstanceDb)
+
+    def get_with_relations(self, db: Session, *, id: str) -> Optional[DatasetInstanceDb]:
+        """Get an instance with contract and server relations loaded."""
+        try:
+            return (
+                db.query(self.model)
+                .options(
+                    selectinload(self.model.contract),
+                    selectinload(self.model.contract_server),
+                )
+                .filter(self.model.id == id)
+                .first()
+            )
+        except Exception as e:
+            logger.error(f"Error fetching instance with relations for id {id}: {e}", exc_info=True)
+            db.rollback()
+            raise
+
+    def get_by_dataset(
+        self,
+        db: Session,
+        *,
+        dataset_id: str,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[DatasetInstanceDb]:
+        """Get all instances for a dataset."""
+        try:
+            return (
+                db.query(self.model)
+                .options(
+                    selectinload(self.model.contract),
+                    selectinload(self.model.contract_server),
+                )
+                .filter(self.model.dataset_id == dataset_id)
+                .order_by(self.model.created_at)
+                .offset(skip)
+                .limit(limit)
+                .all()
+            )
+        except Exception as e:
+            logger.error(f"Error fetching instances for dataset {dataset_id}: {e}", exc_info=True)
+            db.rollback()
+            raise
+
+    def get_by_contract(
+        self,
+        db: Session,
+        *,
+        contract_id: str,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[DatasetInstanceDb]:
+        """Get all instances implementing a specific contract version."""
+        try:
+            return (
+                db.query(self.model)
+                .options(
+                    selectinload(self.model.dataset),
+                    selectinload(self.model.contract_server),
+                )
+                .filter(self.model.contract_id == contract_id)
+                .offset(skip)
+                .limit(limit)
+                .all()
+            )
+        except Exception as e:
+            logger.error(f"Error fetching instances by contract {contract_id}: {e}", exc_info=True)
+            db.rollback()
+            raise
+
+    def get_by_server(
+        self,
+        db: Session,
+        *,
+        contract_server_id: str
+    ) -> List[DatasetInstanceDb]:
+        """Get all instances linked to a specific contract server."""
+        try:
+            return (
+                db.query(self.model)
+                .options(
+                    selectinload(self.model.dataset),
+                    selectinload(self.model.contract),
+                )
+                .filter(self.model.contract_server_id == contract_server_id)
+                .all()
+            )
+        except Exception as e:
+            logger.error(f"Error fetching instances by server {contract_server_id}: {e}", exc_info=True)
+            db.rollback()
+            raise
+
+    def get_by_physical_path(
+        self,
+        db: Session,
+        *,
+        physical_path: str
+    ) -> List[DatasetInstanceDb]:
+        """Get instances by physical path (across all datasets)."""
+        try:
+            return (
+                db.query(self.model)
+                .options(
+                    selectinload(self.model.dataset),
+                    selectinload(self.model.contract),
+                    selectinload(self.model.contract_server),
+                )
+                .filter(self.model.physical_path == physical_path)
+                .all()
+            )
+        except Exception as e:
+            logger.error(f"Error fetching instances by path {physical_path}: {e}", exc_info=True)
+            db.rollback()
+            raise
+
+    def get_by_dataset_and_server(
+        self,
+        db: Session,
+        *,
+        dataset_id: str,
+        contract_server_id: str
+    ) -> Optional[DatasetInstanceDb]:
+        """Get instance by dataset and server (unique pair)."""
+        try:
+            return (
+                db.query(self.model)
+                .filter(
+                    self.model.dataset_id == dataset_id,
+                    self.model.contract_server_id == contract_server_id
+                )
+                .first()
+            )
+        except Exception as e:
+            logger.error(f"Error fetching instance for dataset {dataset_id} and server {contract_server_id}: {e}", exc_info=True)
+            db.rollback()
+            raise
+
+    def count_by_dataset(self, db: Session, dataset_id: str) -> int:
+        """Count instances for a dataset."""
+        try:
+            return db.query(self.model).filter(self.model.dataset_id == dataset_id).count()
+        except Exception as e:
+            logger.error(f"Error counting instances for dataset {dataset_id}: {e}", exc_info=True)
+            db.rollback()
+            raise
+
+    def create_instance(
+        self,
+        db: Session,
+        *,
+        dataset_id: str,
+        contract_id: Optional[str] = None,
+        contract_server_id: Optional[str] = None,
+        physical_path: str,
+        status: str = "active",
+        notes: Optional[str] = None,
+        created_by: Optional[str] = None
+    ) -> DatasetInstanceDb:
+        """Create an instance for a dataset."""
+        try:
+            instance = DatasetInstanceDb(
+                dataset_id=dataset_id,
+                contract_id=contract_id,
+                contract_server_id=contract_server_id,
+                physical_path=physical_path,
+                status=status,
+                notes=notes,
+                created_by=created_by,
+            )
+            db.add(instance)
+            db.flush()
+            db.refresh(instance)
+            return instance
+        except Exception as e:
+            logger.error(f"Error creating instance for dataset {dataset_id}: {e}", exc_info=True)
+            db.rollback()
+            raise
+
+    def update_instance(
+        self,
+        db: Session,
+        *,
+        instance: DatasetInstanceDb,
+        contract_id: Optional[str] = None,
+        contract_server_id: Optional[str] = None,
+        physical_path: Optional[str] = None,
+        status: Optional[str] = None,
+        notes: Optional[str] = None,
+        updated_by: Optional[str] = None
+    ) -> DatasetInstanceDb:
+        """Update an instance."""
+        try:
+            if contract_id is not None:
+                instance.contract_id = contract_id
+            if contract_server_id is not None:
+                instance.contract_server_id = contract_server_id
+            if physical_path is not None:
+                instance.physical_path = physical_path
+            if status is not None:
+                instance.status = status
+            if notes is not None:
+                instance.notes = notes
+            if updated_by is not None:
+                instance.updated_by = updated_by
+            
+            db.flush()
+            db.refresh(instance)
+            return instance
+        except Exception as e:
+            logger.error(f"Error updating instance {instance.id}: {e}", exc_info=True)
+            db.rollback()
+            raise
+
+    def delete_by_dataset(self, db: Session, *, dataset_id: str) -> int:
+        """Delete all instances for a dataset."""
+        try:
+            count = db.query(self.model).filter(self.model.dataset_id == dataset_id).delete()
+            db.flush()
+            return count
+        except Exception as e:
+            logger.error(f"Error deleting instances for dataset {dataset_id}: {e}", exc_info=True)
+            db.rollback()
+            raise
+
+
+# Singleton instance
+dataset_instance_repo = DatasetInstanceRepository()
 

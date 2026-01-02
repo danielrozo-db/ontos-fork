@@ -25,6 +25,10 @@ from src.models.datasets import (
     DatasetSubscriptionCreate,
     DatasetSubscriptionResponse,
     DatasetSubscribersListResponse,
+    DatasetInstance,
+    DatasetInstanceCreate,
+    DatasetInstanceUpdate,
+    DatasetInstanceListResponse,
 )
 
 logger = get_logger(__name__)
@@ -491,6 +495,203 @@ async def get_dataset_subscribers(
         skip=skip,
         limit=limit,
     )
+
+
+# =============================================================================
+# Instance Endpoints (Physical Implementations)
+# =============================================================================
+
+@router.get("/datasets/{dataset_id}/instances", response_model=DatasetInstanceListResponse)
+async def list_dataset_instances(
+    dataset_id: str,
+    db: DBSessionDep,
+    ws_client: WorkspaceClientDep,
+    current_user: CurrentUserDep,
+    _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_ONLY)),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+):
+    """
+    List all physical instances for a dataset.
+    
+    Returns information about where the dataset is physically implemented,
+    including the system type, environment, and physical path.
+    """
+    manager = get_datasets_manager(db, ws_client)
+    
+    try:
+        return manager.list_instances(
+            dataset_id=dataset_id,
+            skip=skip,
+            limit=limit,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+
+@router.get("/datasets/{dataset_id}/instances/{instance_id}", response_model=DatasetInstance)
+async def get_dataset_instance(
+    dataset_id: str,
+    instance_id: str,
+    db: DBSessionDep,
+    ws_client: WorkspaceClientDep,
+    current_user: CurrentUserDep,
+    _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_ONLY)),
+):
+    """
+    Get a single instance by ID.
+    """
+    manager = get_datasets_manager(db, ws_client)
+    
+    instance = manager.get_instance(instance_id)
+    
+    if not instance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Instance {instance_id} not found",
+        )
+    
+    # Verify instance belongs to the dataset
+    if instance.dataset_id != dataset_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Instance {instance_id} not found in dataset {dataset_id}",
+        )
+    
+    return instance
+
+
+@router.post("/datasets/{dataset_id}/instances", response_model=DatasetInstance, status_code=status.HTTP_201_CREATED)
+async def add_dataset_instance(
+    dataset_id: str,
+    db: DBSessionDep,
+    ws_client: WorkspaceClientDep,
+    current_user: CurrentUserDep,
+    instance_data: DatasetInstanceCreate = Body(...),
+    _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
+):
+    """
+    Add a physical instance to a dataset.
+    
+    Links the dataset to a specific physical implementation in a system/environment.
+    Each instance references a contract version and server entry from that contract.
+    """
+    logger.info(f"Add instance to dataset {dataset_id} by user {current_user.username}")
+    
+    manager = get_datasets_manager(db, ws_client)
+    
+    try:
+        return manager.add_instance(
+            dataset_id=dataset_id,
+            data=instance_data,
+            created_by=current_user.username,
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Error adding instance to dataset {dataset_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to add instance",
+        )
+
+
+@router.put("/datasets/{dataset_id}/instances/{instance_id}", response_model=DatasetInstance)
+async def update_dataset_instance(
+    dataset_id: str,
+    instance_id: str,
+    db: DBSessionDep,
+    ws_client: WorkspaceClientDep,
+    current_user: CurrentUserDep,
+    instance_data: DatasetInstanceUpdate = Body(...),
+    _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
+):
+    """
+    Update an existing instance.
+    """
+    logger.info(f"Update instance {instance_id} in dataset {dataset_id} by user {current_user.username}")
+    
+    manager = get_datasets_manager(db, ws_client)
+    
+    try:
+        instance = manager.update_instance(
+            instance_id=instance_id,
+            data=instance_data,
+            updated_by=current_user.username,
+        )
+        
+        if not instance:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Instance {instance_id} not found",
+            )
+        
+        # Verify instance belongs to the dataset
+        if instance.dataset_id != dataset_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Instance {instance_id} not found in dataset {dataset_id}",
+            )
+        
+        return instance
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating instance {instance_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update instance",
+        )
+
+
+@router.delete("/datasets/{dataset_id}/instances/{instance_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_dataset_instance(
+    dataset_id: str,
+    instance_id: str,
+    db: DBSessionDep,
+    ws_client: WorkspaceClientDep,
+    current_user: CurrentUserDep,
+    _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
+):
+    """
+    Remove an instance from a dataset.
+    """
+    logger.info(f"Remove instance {instance_id} from dataset {dataset_id} by user {current_user.username}")
+    
+    manager = get_datasets_manager(db, ws_client)
+    
+    # First verify the instance exists and belongs to the dataset
+    instance = manager.get_instance(instance_id)
+    if not instance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Instance {instance_id} not found",
+        )
+    
+    if instance.dataset_id != dataset_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Instance {instance_id} not found in dataset {dataset_id}",
+        )
+    
+    success = manager.remove_instance(instance_id)
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Instance {instance_id} not found",
+        )
 
 
 # =============================================================================

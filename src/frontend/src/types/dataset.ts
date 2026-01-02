@@ -68,6 +68,75 @@ export interface DatasetSubscribersListResponse {
 }
 
 // =============================================================================
+// Instance Types (Physical Implementations)
+// =============================================================================
+
+export type DatasetInstanceStatus = 'active' | 'deprecated' | 'retired';
+
+export interface DatasetInstance {
+  id: string;
+  dataset_id: string;
+
+  // Contract linkage
+  contract_id?: string;
+  contract_name?: string;
+  contract_version?: string;
+
+  // Server linkage (from contract)
+  contract_server_id?: string;
+  server_type?: string;
+  server_environment?: string;
+  server_name?: string;
+
+  // Physical location
+  physical_path: string;
+
+  // Instance status
+  status: DatasetInstanceStatus;
+  notes?: string;
+
+  // Audit
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
+  updated_by?: string;
+}
+
+export interface DatasetInstanceCreate {
+  contract_id?: string;
+  contract_server_id?: string;
+  physical_path: string;
+  status?: DatasetInstanceStatus;
+  notes?: string;
+}
+
+export interface DatasetInstanceUpdate {
+  contract_id?: string;
+  contract_server_id?: string;
+  physical_path?: string;
+  status?: DatasetInstanceStatus;
+  notes?: string;
+}
+
+export interface DatasetInstanceListResponse {
+  dataset_id: string;
+  instance_count: number;
+  instances: DatasetInstance[];
+}
+
+export const DATASET_INSTANCE_STATUS_LABELS: Record<DatasetInstanceStatus, string> = {
+  active: 'Active',
+  deprecated: 'Deprecated',
+  retired: 'Retired',
+};
+
+export const DATASET_INSTANCE_STATUS_COLORS: Record<DatasetInstanceStatus, string> = {
+  active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+  deprecated: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+  retired: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+};
+
+// =============================================================================
 // Dataset List Item (Lightweight for list views)
 // =============================================================================
 
@@ -89,6 +158,7 @@ export interface DatasetListItem {
   created_at?: string;
   updated_at?: string;
   subscriber_count?: number;
+  instance_count?: number;
 }
 
 // =============================================================================
@@ -127,7 +197,9 @@ export interface Dataset {
   // Related data
   tags?: DatasetTag[];
   custom_properties?: DatasetCustomProperty[];
+  instances?: DatasetInstance[];
   subscriber_count?: number;
+  instance_count?: number;
 
   // Audit
   created_at?: string;

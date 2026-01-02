@@ -45,6 +45,8 @@ import type {
   DatasetAssetType,
   DatasetSubscriptionResponse,
   DatasetSubscribersListResponse,
+  DatasetInstance,
+  DatasetInstanceListResponse,
 } from '@/types/dataset';
 import {
   DATASET_STATUS_LABELS,
@@ -52,9 +54,13 @@ import {
   DATASET_ENVIRONMENT_LABELS,
   DATASET_ENVIRONMENT_COLORS,
   DATASET_ASSET_TYPE_LABELS,
+  DATASET_INSTANCE_STATUS_LABELS,
+  DATASET_INSTANCE_STATUS_COLORS,
 } from '@/types/dataset';
+import type { DatasetInstanceStatus } from '@/types/dataset';
 import { RelativeDate } from '@/components/common/relative-date';
 import DatasetFormDialog from '@/components/datasets/dataset-form-dialog';
+import DatasetInstanceFormDialog from '@/components/datasets/dataset-instance-form-dialog';
 import EntityMetadataPanel from '@/components/metadata/entity-metadata-panel';
 import TagChip from '@/components/ui/tag-chip';
 import { CommentSidebar } from '@/components/comments';
@@ -62,7 +68,7 @@ import ConceptSelectDialog from '@/components/semantic/concept-select-dialog';
 import LinkedConceptChips from '@/components/semantic/linked-concept-chips';
 import type { EntitySemanticLink } from '@/types/semantic-link';
 import { Label } from '@/components/ui/label';
-import { Plus, MessageSquare } from 'lucide-react';
+import { Plus, MessageSquare, Server, Database } from 'lucide-react';
 
 export default function DatasetDetails() {
   const { datasetId } = useParams<{ datasetId: string }>();
@@ -85,9 +91,15 @@ export default function DatasetDetails() {
   const [openEditDialog, setOpenEditDialog] = useState(false);
   const [isCommentSidebarOpen, setIsCommentSidebarOpen] = useState(false);
   const [conceptDialogOpen, setConceptDialogOpen] = useState(false);
+  const [openInstanceDialog, setOpenInstanceDialog] = useState(false);
+  const [editingInstance, setEditingInstance] = useState<DatasetInstance | null>(null);
 
   // Semantic links state
   const [semanticLinks, setSemanticLinks] = useState<EntitySemanticLink[]>([]);
+
+  // Instances state
+  const [instances, setInstances] = useState<DatasetInstance[]>([]);
+  const [instancesLoading, setInstancesLoading] = useState(false);
 
   // Fetch dataset
   const fetchDataset = useCallback(async () => {
@@ -158,12 +170,32 @@ export default function DatasetDetails() {
     }
   }, [datasetId]);
 
+  // Fetch instances
+  const fetchInstances = useCallback(async () => {
+    if (!datasetId) return;
+
+    try {
+      setInstancesLoading(true);
+      const response = await fetch(`/api/datasets/${datasetId}/instances`);
+      if (response.ok) {
+        const data: DatasetInstanceListResponse = await response.json();
+        setInstances(data.instances || []);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch instances:', err);
+      setInstances([]);
+    } finally {
+      setInstancesLoading(false);
+    }
+  }, [datasetId]);
+
   useEffect(() => {
     fetchDataset();
     fetchSubscriptionStatus();
     fetchSubscribers();
     fetchSemanticLinks();
-  }, [fetchDataset, fetchSubscriptionStatus, fetchSubscribers, fetchSemanticLinks]);
+    fetchInstances();
+  }, [fetchDataset, fetchSubscriptionStatus, fetchSubscribers, fetchSemanticLinks, fetchInstances]);
 
   useEffect(() => {
     // Set breadcrumbs
@@ -276,6 +308,43 @@ export default function DatasetDetails() {
         variant: 'destructive',
       });
     }
+  };
+
+  // Delete instance
+  const handleDeleteInstance = async (instanceId: string) => {
+    if (!datasetId) return;
+    if (!confirm('Are you sure you want to remove this instance?')) return;
+
+    try {
+      const response = await fetch(`/api/datasets/${datasetId}/instances/${instanceId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to remove instance');
+
+      toast({
+        title: 'Success',
+        description: 'Instance removed successfully',
+      });
+      fetchInstances();
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to remove instance',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  // Edit instance
+  const handleEditInstance = (instance: DatasetInstance) => {
+    setEditingInstance(instance);
+    setOpenInstanceDialog(true);
+  };
+
+  // Add new instance
+  const handleAddInstance = () => {
+    setEditingInstance(null);
+    setOpenInstanceDialog(true);
   };
 
   if (loading) {
@@ -486,6 +555,137 @@ export default function DatasetDetails() {
             </CardContent>
           </Card>
 
+          {/* Physical Instances */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Server className="h-5 w-5" />
+                    Physical Instances
+                    {instances.length > 0 && (
+                      <Badge variant="secondary">{instances.length}</Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    Physical implementations across different systems and environments
+                  </CardDescription>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleAddInstance}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Instance
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {instancesLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              ) : instances.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>System</TableHead>
+                      <TableHead>Environment</TableHead>
+                      <TableHead>Physical Path</TableHead>
+                      <TableHead>Contract Version</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {instances.map((instance) => {
+                      const instStatus = instance.status as DatasetInstanceStatus;
+                      return (
+                        <TableRow key={instance.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Database className="h-4 w-4 text-muted-foreground" />
+                              <span className="capitalize">
+                                {instance.server_type || 'Unknown'}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">
+                              {instance.server_environment || '-'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <code className="text-sm bg-muted px-2 py-1 rounded">
+                              {instance.physical_path}
+                            </code>
+                          </TableCell>
+                          <TableCell>
+                            {instance.contract_name ? (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Link
+                                      to={`/data-contracts/${instance.contract_id}`}
+                                      className="text-sm hover:underline text-blue-600 dark:text-blue-400"
+                                    >
+                                      {instance.contract_version || 'View'}
+                                    </Link>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{instance.contract_name}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={DATASET_INSTANCE_STATUS_COLORS[instStatus] || 'bg-gray-100'}
+                            >
+                              {DATASET_INSTANCE_STATUS_LABELS[instStatus] || instStatus}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEditInstance(instance)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteInstance(instance.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Server className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p>No physical instances</p>
+                  <p className="text-sm">
+                    Add instances to track where this dataset is physically implemented
+                  </p>
+                  <Button variant="outline" size="sm" className="mt-4" onClick={handleAddInstance}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add First Instance
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Subscribers */}
           <Card>
             <CardHeader>
@@ -677,6 +877,24 @@ export default function DatasetDetails() {
         onOpenChange={setConceptDialogOpen}
         onSelect={addSemanticLink}
       />
+
+      {/* Instance Form Dialog */}
+      {datasetId && (
+        <DatasetInstanceFormDialog
+          open={openInstanceDialog}
+          onOpenChange={(open) => {
+            setOpenInstanceDialog(open);
+            if (!open) setEditingInstance(null);
+          }}
+          datasetId={datasetId}
+          instance={editingInstance}
+          onSuccess={() => {
+            fetchInstances();
+            setOpenInstanceDialog(false);
+            setEditingInstance(null);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -18,12 +18,14 @@ from src.db_models.datasets import (
     DatasetDb,
     DatasetTagDb,
     DatasetCustomPropertyDb,
+    DatasetInstanceDb,
 )
 from src.repositories.datasets_repository import (
     dataset_repo,
     dataset_subscription_repo,
     dataset_tag_repo,
     dataset_custom_property_repo,
+    dataset_instance_repo,
 )
 from src.models.datasets import (
     Dataset,
@@ -35,6 +37,10 @@ from src.models.datasets import (
     DatasetSubscriptionResponse,
     DatasetSubscriberInfo,
     DatasetSubscribersListResponse,
+    DatasetInstance,
+    DatasetInstanceCreate,
+    DatasetInstanceUpdate,
+    DatasetInstanceListResponse,
 )
 
 logger = get_logger(__name__)
@@ -532,6 +538,225 @@ class DatasetsManager(SearchableAsset):
             raise
 
     # =========================================================================
+    # Instance Operations (Physical Implementations)
+    # =========================================================================
+
+    def list_instances(
+        self,
+        dataset_id: str,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> DatasetInstanceListResponse:
+        """List all instances for a dataset."""
+        try:
+            # Verify dataset exists
+            db_dataset = dataset_repo.get(db=self._db, id=dataset_id)
+            if not db_dataset:
+                raise ValueError(f"Dataset {dataset_id} not found")
+            
+            instances = dataset_instance_repo.get_by_dataset(
+                db=self._db,
+                dataset_id=dataset_id,
+                skip=skip,
+                limit=limit,
+            )
+            
+            count = dataset_instance_repo.count_by_dataset(db=self._db, dataset_id=dataset_id)
+            
+            return DatasetInstanceListResponse(
+                dataset_id=dataset_id,
+                instance_count=count,
+                instances=[self._instance_to_api_model(inst) for inst in instances],
+            )
+        except Exception as e:
+            logger.error(f"Error listing instances for dataset {dataset_id}: {e}", exc_info=True)
+            raise
+
+    def get_instance(self, instance_id: str) -> Optional[DatasetInstance]:
+        """Get a single instance by ID."""
+        try:
+            db_instance = dataset_instance_repo.get_with_relations(db=self._db, id=instance_id)
+            if not db_instance:
+                return None
+            return self._instance_to_api_model(db_instance)
+        except Exception as e:
+            logger.error(f"Error getting instance {instance_id}: {e}", exc_info=True)
+            raise
+
+    def add_instance(
+        self,
+        dataset_id: str,
+        data: DatasetInstanceCreate,
+        created_by: Optional[str] = None,
+    ) -> DatasetInstance:
+        """Add a new instance to a dataset."""
+        try:
+            # Verify dataset exists
+            db_dataset = dataset_repo.get(db=self._db, id=dataset_id)
+            if not db_dataset:
+                raise ValueError(f"Dataset {dataset_id} not found")
+            
+            # Validate contract_server_id belongs to contract_id (if both provided)
+            if data.contract_id and data.contract_server_id:
+                self._validate_server_belongs_to_contract(data.contract_id, data.contract_server_id)
+            
+            # Check for duplicate (dataset + server)
+            if data.contract_server_id:
+                existing = dataset_instance_repo.get_by_dataset_and_server(
+                    db=self._db,
+                    dataset_id=dataset_id,
+                    contract_server_id=data.contract_server_id,
+                )
+                if existing:
+                    raise ValueError(f"Instance already exists for this dataset and server")
+            
+            db_instance = dataset_instance_repo.create_instance(
+                db=self._db,
+                dataset_id=dataset_id,
+                contract_id=data.contract_id,
+                contract_server_id=data.contract_server_id,
+                physical_path=data.physical_path,
+                status=data.status or "active",
+                notes=data.notes,
+                created_by=created_by,
+            )
+            
+            # Refresh to load relationships
+            self._db.refresh(db_instance)
+            
+            logger.info(f"Added instance {db_instance.id} to dataset {dataset_id}")
+            return self._instance_to_api_model(db_instance)
+            
+        except Exception as e:
+            logger.error(f"Error adding instance to dataset {dataset_id}: {e}", exc_info=True)
+            self._db.rollback()
+            raise
+
+    def update_instance(
+        self,
+        instance_id: str,
+        data: DatasetInstanceUpdate,
+        updated_by: Optional[str] = None,
+    ) -> Optional[DatasetInstance]:
+        """Update an existing instance."""
+        try:
+            db_instance = dataset_instance_repo.get_with_relations(db=self._db, id=instance_id)
+            if not db_instance:
+                return None
+            
+            # Validate contract_server_id belongs to contract_id (if both provided)
+            contract_id = data.contract_id if data.contract_id is not None else db_instance.contract_id
+            server_id = data.contract_server_id if data.contract_server_id is not None else db_instance.contract_server_id
+            if contract_id and server_id:
+                self._validate_server_belongs_to_contract(contract_id, server_id)
+            
+            db_instance = dataset_instance_repo.update_instance(
+                db=self._db,
+                instance=db_instance,
+                contract_id=data.contract_id,
+                contract_server_id=data.contract_server_id,
+                physical_path=data.physical_path,
+                status=data.status,
+                notes=data.notes,
+                updated_by=updated_by,
+            )
+            
+            logger.info(f"Updated instance {instance_id}")
+            return self._instance_to_api_model(db_instance)
+            
+        except Exception as e:
+            logger.error(f"Error updating instance {instance_id}: {e}", exc_info=True)
+            self._db.rollback()
+            raise
+
+    def remove_instance(self, instance_id: str) -> bool:
+        """Remove an instance."""
+        try:
+            db_instance = dataset_instance_repo.get(db=self._db, id=instance_id)
+            if not db_instance:
+                return False
+            
+            self._db.delete(db_instance)
+            self._db.flush()
+            
+            logger.info(f"Removed instance {instance_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error removing instance {instance_id}: {e}", exc_info=True)
+            self._db.rollback()
+            raise
+
+    def get_instances_by_contract(
+        self,
+        contract_id: str,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[DatasetInstance]:
+        """Get all instances implementing a specific contract version."""
+        try:
+            instances = dataset_instance_repo.get_by_contract(
+                db=self._db,
+                contract_id=contract_id,
+                skip=skip,
+                limit=limit,
+            )
+            return [self._instance_to_api_model(inst) for inst in instances]
+        except Exception as e:
+            logger.error(f"Error getting instances for contract {contract_id}: {e}", exc_info=True)
+            raise
+
+    def _validate_server_belongs_to_contract(self, contract_id: str, server_id: str) -> None:
+        """Validate that a server entry belongs to the specified contract."""
+        from src.db_models.data_contracts import DataContractServerDb
+        
+        server = self._db.query(DataContractServerDb).filter(
+            DataContractServerDb.id == server_id
+        ).first()
+        
+        if not server:
+            raise ValueError(f"Server {server_id} not found")
+        
+        if server.contract_id != contract_id:
+            raise ValueError(f"Server {server_id} does not belong to contract {contract_id}")
+
+    def _instance_to_api_model(self, db_instance: DatasetInstanceDb) -> DatasetInstance:
+        """Convert DB instance model to API model."""
+        contract_name = None
+        contract_version = None
+        server_type = None
+        server_environment = None
+        server_name = None
+        
+        if db_instance.contract:
+            contract_name = db_instance.contract.name
+            contract_version = db_instance.contract.version
+        
+        if db_instance.contract_server:
+            server_type = db_instance.contract_server.type
+            server_environment = db_instance.contract_server.environment
+            server_name = db_instance.contract_server.server
+        
+        return DatasetInstance(
+            id=db_instance.id,
+            dataset_id=db_instance.dataset_id,
+            contract_id=db_instance.contract_id,
+            contract_name=contract_name,
+            contract_version=contract_version,
+            contract_server_id=db_instance.contract_server_id,
+            server_type=server_type,
+            server_environment=server_environment,
+            server_name=server_name,
+            physical_path=db_instance.physical_path,
+            status=db_instance.status,
+            notes=db_instance.notes,
+            created_at=db_instance.created_at,
+            updated_at=db_instance.updated_at,
+            created_by=db_instance.created_by,
+            updated_by=db_instance.updated_by,
+        )
+
+    # =========================================================================
     # Asset Validation
     # =========================================================================
 
@@ -578,6 +803,7 @@ class DatasetsManager(SearchableAsset):
     def _to_list_item(self, db_dataset: DatasetDb) -> DatasetListItem:
         """Convert DB model to list item API model."""
         subscriber_count = len(db_dataset.subscriptions) if db_dataset.subscriptions else 0
+        instance_count = len(db_dataset.instances) if db_dataset.instances else 0
         
         return DatasetListItem(
             id=db_dataset.id,
@@ -597,6 +823,7 @@ class DatasetsManager(SearchableAsset):
             created_at=db_dataset.created_at,
             updated_at=db_dataset.updated_at,
             subscriber_count=subscriber_count,
+            instance_count=instance_count,
         )
 
     def _to_api_model(self, db_dataset: DatasetDb) -> Dataset:
@@ -604,6 +831,7 @@ class DatasetsManager(SearchableAsset):
         from src.models.datasets import DatasetTag, DatasetCustomProperty
         
         subscriber_count = len(db_dataset.subscriptions) if db_dataset.subscriptions else 0
+        instance_count = len(db_dataset.instances) if db_dataset.instances else 0
         
         tags = [
             DatasetTag(id=tag.id, name=tag.name)
@@ -613,6 +841,11 @@ class DatasetsManager(SearchableAsset):
         custom_properties = [
             DatasetCustomProperty(id=prop.id, property=prop.property, value=prop.value)
             for prop in (db_dataset.custom_properties or [])
+        ]
+        
+        instances = [
+            self._instance_to_api_model(inst)
+            for inst in (db_dataset.instances or [])
         ]
         
         return Dataset(
@@ -635,7 +868,9 @@ class DatasetsManager(SearchableAsset):
             published=db_dataset.published,
             tags=tags,
             custom_properties=custom_properties,
+            instances=instances,
             subscriber_count=subscriber_count,
+            instance_count=instance_count,
             created_at=db_dataset.created_at,
             updated_at=db_dataset.updated_at,
             created_by=db_dataset.created_by,

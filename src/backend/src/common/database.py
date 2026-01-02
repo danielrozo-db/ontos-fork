@@ -455,22 +455,22 @@ def ensure_database_and_schema_exist(settings: Settings):
     if not is_local_mode:
         refresh_oauth_token(settings)
     
-    # Build URL for default postgres database (for DB creation in OAuth mode)
-    # or target database (for LOCAL mode - DB should already exist)
-    db_for_connection = target_db if is_local_mode else "postgres"
+    # Build connection URL
+    # In OAuth mode, connect directly to the target database (must be pre-created)
+    # In LOCAL mode, connect to the target database (should already exist)
     connection_url = URL.create(
         drivername="postgresql+psycopg2",
         username=username,
         password=settings.POSTGRES_PASSWORD if is_local_mode else "",
         host=settings.POSTGRES_HOST,
         port=settings.POSTGRES_PORT,
-        database=db_for_connection,
+        database=target_db,
     )
     
-    # Create temporary engine
+    # Create temporary engine for schema setup
     temp_engine = create_engine(
         connection_url.render_as_string(hide_password=False),
-        isolation_level="AUTOCOMMIT"  # Needed for CREATE DATABASE/SCHEMA
+        isolation_level="AUTOCOMMIT"  # Needed for CREATE SCHEMA
     )
     
     # Inject OAuth token for connections in OAuth mode
@@ -482,58 +482,28 @@ def ensure_database_and_schema_exist(settings: Settings):
                 cparams["password"] = _oauth_token
     
     try:
-        # In OAuth mode, check/create database first
+        # In OAuth mode, verify we can connect to the target database
+        # The database must be pre-created by an admin with: 
+        #   CREATE DATABASE "app_ontos"; GRANT CREATE ON DATABASE "app_ontos" TO PUBLIC;
         if not is_local_mode:
-            with temp_engine.connect() as conn:
-                # Check if target database exists (using parameterized query)
-                result = conn.execute(
-                    text("SELECT 1 FROM pg_database WHERE datname = :dbname"),
-                    {"dbname": target_db}
-                )
-                db_exists = result.scalar() is not None
-                
-                if not db_exists:
-                    logger.info(f"Database does not exist, attempting to create: {target_db}")
-                    try:
-                        # CREATE DATABASE cannot be parameterized, but identifier is validated
-                        conn.execute(text(f'CREATE DATABASE "{target_db}"'))
-                        logger.info(f"✓ Database created: {target_db} (owner: {username})")
-                    except Exception as e:
-                        if "permission denied" in str(e).lower():
-                            logger.warning(f"Cannot create database (insufficient privileges). "
-                                         f"Database '{target_db}' must be created manually.")
-                            logger.warning(f"Run this as a Lakebase admin: CREATE DATABASE \"{target_db}\";")
-                            raise RuntimeError(
-                                f"Database '{target_db}' does not exist and service principal lacks CREATEDB privilege. "
-                                f"Please create the database manually first."
-                            ) from e
-                        else:
-                            raise
-                else:
-                    logger.info(f"✓ Database already exists: {target_db}")
-            
-            # Dispose temp engine and create new one for target database
-            temp_engine.dispose()
-            
-            target_db_url = URL.create(
-                drivername="postgresql+psycopg2",
-                username=username,
-                password="",
-                host=settings.POSTGRES_HOST,
-                port=settings.POSTGRES_PORT,
-                database=target_db,
-            )
-            
-            temp_engine = create_engine(
-                target_db_url.render_as_string(hide_password=False),
-                isolation_level="AUTOCOMMIT"
-            )
-            
-            @event.listens_for(temp_engine, "do_connect")
-            def inject_token_target(dialect, conn_rec, cargs, cparams):
-                global _oauth_token
-                if _oauth_token:
-                    cparams["password"] = _oauth_token
+            try:
+                with temp_engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                    logger.info(f"✓ Connected to database: {target_db}")
+            except Exception as e:
+                error_msg = str(e).lower()
+                if "does not exist" in error_msg or "database" in error_msg:
+                    raise RuntimeError(
+                        f"Database '{target_db}' does not exist.\n\n"
+                        f"SETUP REQUIRED: Before deploying the app, create the database:\n"
+                        f"  1. Connect to your Lakebase instance as an admin\n"
+                        f"  2. Run these SQL commands:\n"
+                        f'     CREATE DATABASE "{target_db}";\n'
+                        f'     GRANT CREATE ON DATABASE "{target_db}" TO PUBLIC;\n'
+                        f"  3. Restart the app\n\n"
+                        f"See the README for detailed setup instructions."
+                    ) from e
+                raise
         
         # Now handle schema (works for both LOCAL and OAuth modes)
         with temp_engine.connect() as conn:
