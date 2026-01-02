@@ -286,77 +286,87 @@ If you want to use a local PostgreSQL instance for development, here are the ste
 
 When deploying to production with Lakebase, the application uses **OAuth token authentication** instead of passwords. The application automatically generates and refreshes OAuth tokens every 50 minutes.
 
-**Setup is mostly automated** - you only need to create the database once with the correct owner, then the app handles schema creation and table setup automatically.
+**Setup is straightforward** - create the database once with open permissions, then deploy the app. The app handles schema creation and table setup automatically on first start.
 
 #### Setup Steps
 
 1. **Set up a new [Lakebase instance](https://docs.databricks.com/aws/en/oltp/instances/instance)** (Note: Wait for it to start!)
 
-2. **Configure your `app.yaml`** with the Lakebase instance details:
+2. **Create the database with open permissions** (one-time setup, before deploying):
 
-    ```yaml
-    - name: "POSTGRES_HOST"
-        valueFrom: "database_host"  # References your Lakebase instance
-    - name: "POSTGRES_PORT"
-        value: "5432"
-    # POSTGRES_USER is auto-detected from service principal - do not set
-    - name: "POSTGRES_DB"
-        value: "app_ontos"
-    - name: "POSTGRES_DB_SCHEMA"
-        value: "app_ontos"
-    - name: "DATABRICKS_APP_NAME"
-        value: "ontos"  # Used to fetch Lakebase instance name dynamically
-    - name: "ENV"
-        value: "PROD"  # Triggers OAuth mode (not LOCAL)
+    Connect to your Lakebase instance and create the database:
+
+    ```sh
+    # Connect with your OAuth token (get it from Databricks UI or CLI)
+    psql "host=instance-xxx.database.cloud.databricks.com user=<your_email> dbname=postgres port=5432 sslmode=require"
+    Password: <paste OAuth token>
     ```
 
-3. **Deploy your app for the first time** (this will fail, but that's expected):
+    Run these SQL commands:
+
+    ```sql
+    -- Create the database
+    CREATE DATABASE "app_ontos";
+    
+    -- Grant CREATE to PUBLIC so the app's service principal can create schemas
+    -- (The SP doesn't exist yet, but will inherit this permission when created)
+    GRANT CREATE ON DATABASE "app_ontos" TO PUBLIC;
+    \q
+    ```
+
+    **Why grant to PUBLIC?** The app's service principal is created automatically when the app first connects. By granting to `PUBLIC`, any authenticated role (including the future SP) can create schemas in the database. This avoids the chicken-and-egg problem of needing to know the SP ID before the app is deployed.
+
+3. **Deploy your app**:
 
     ```sh
     databricks apps deploy <app-name>
     ```
-    
-    The deployment will fail with a "database does not exist" error. **This is normal!** 
-    Check the error logs - they will show the **service principal ID** (a UUID like `150d07c5-159c-4656-ab3a-8db778804b6b`). Copy this ID.
 
-4. **Create the database and grant CREATE privilege to the service principal** (one-time setup):
+    On first startup, the app will:
+    - Authenticate as its service principal using OAuth
+    - Connect to the `app_ontos` database
+    - Create the `app_ontos` schema (becomes schema owner automatically)
+    - Set default privileges for future tables/sequences
+    - Create all application tables
 
-    ```sh
-    # Connect with your OAuth token
-    psql "host=instance-xxx.database.cloud.databricks.com user=<your_email> dbname=postgres port=5432 sslmode=require"
-    Password: <paste OAuth token>
-    
-    # Create the database and grant CREATE privilege (replace UUID with your service principal ID from logs)
-    DROP DATABASE IF EXISTS "app_ontos";
-    CREATE DATABASE "app_ontos";
-    GRANT CREATE ON DATABASE "app_ontos" TO "150d07c5-159c-4656-ab3a-8db778804b6b";
-    \q
+4. **(Optional) Tighten permissions after first successful deploy**:
+
+    For enhanced security, you can revoke the broad `PUBLIC` grant and grant only to the app's service principal:
+
+    ```sql
+    -- Get the SP ID from the app logs, then run:
+    REVOKE CREATE ON DATABASE "app_ontos" FROM PUBLIC;
+    GRANT CREATE ON DATABASE "app_ontos" TO "<service_principal_uuid>";
     ```
-    
-    **Important:** Make sure to use the exact service principal UUID from the error logs, including quotes.
 
-5. **Restart your app** - That's it!
+#### Configuration Reference
 
-   ```sh
-   databricks apps restart <app-name>
-   ```
+The `app.yaml` should reference the Lakebase instance:
 
-   On startup, the app will now:
-   - Authenticate as its service principal using OAuth
-   - Verify the `app_ontos` database exists (with CREATE privilege granted)
-   - Create the `app_ontos` schema (becomes schema owner automatically)
-   - Set default privileges for future tables/sequences
-   - Create all application tables
+```yaml
+- name: "POSTGRES_HOST"
+    valueFrom: "database"  # References your Lakebase instance resource
+- name: "POSTGRES_PORT"
+    value: "5432"
+# POSTGRES_USER is auto-detected from service principal - do not set
+- name: "POSTGRES_DB"
+    value: "app_ontos"
+- name: "POSTGRES_DB_SCHEMA"
+    value: "app_ontos"
+- name: "ENV"
+    value: "PROD"  # Triggers OAuth mode (not LOCAL)
+```
 
 #### How It Works
 
-- **One-time manual setup:** Only the database needs to be created once with CREATE privilege granted to the service principal (Lakebase limitation: service principals can't create databases, and auto-deployed service principals don't exist until first deployment)
+- **One-time database setup:** Create the database and grant `CREATE` to `PUBLIC` before deploying. This allows any authenticated role (including the app's future service principal) to create schemas.
 - **Zero manual grants after setup:** The app creates and owns its schema (full privileges automatically as schema owner)
 - **Username detection:** Service principal username is auto-detected at runtime
 - **Token generation:** OAuth tokens are automatically generated using the Databricks SDK
 - **Token refresh:** Tokens refresh every 50 minutes in the background (before 60-minute expiry)
 - **Connection pooling:** Fresh tokens are automatically injected into database connections
 - **No hardcoding:** Service principal names are never hardcoded in configuration files
+- **Security:** The `PUBLIC` grant only allows schema creation in the app database. Only authenticated Databricks principals can connect. You can optionally tighten permissions after first deploy.
 
 ## Installation
 
