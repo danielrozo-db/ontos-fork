@@ -391,6 +391,7 @@ def set_current_project(
     project_context: ProjectContext,
     db: DBSessionDep,
     current_user: CurrentUserDep,
+    settings: Settings = Depends(get_settings),
     manager = Depends(get_projects_manager)
 ):
     """Sets the current project context for the user session."""
@@ -399,17 +400,22 @@ def set_current_project(
         # Verify user has access to the project if project_id is provided
         if project_context.project_id:
             user_groups = current_user.groups or []
-            has_access = manager.check_user_project_access(
-                db=db,
-                user_identifier=current_user.email,
-                user_groups=user_groups,
-                project_id=project_context.project_id
-            )
-            if not has_access:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="User does not have access to this project"
+            
+            # Admins can access any project
+            if is_user_admin(user_groups, settings):
+                logger.debug(f"User {current_user.email} is admin, allowing project switch")
+            else:
+                has_access = manager.check_user_project_access(
+                    db=db,
+                    user_identifier=current_user.email,
+                    user_groups=user_groups,
+                    project_id=project_context.project_id
                 )
+                if not has_access:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="User does not have access to this project"
+                    )
 
         # TODO: Store project context in session or user preferences
         # For now, this is a placeholder - actual implementation would depend on session management

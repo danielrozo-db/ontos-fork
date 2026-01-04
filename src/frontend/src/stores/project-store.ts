@@ -54,6 +54,11 @@ const apiCall = async (endpoint: string, options?: RequestInit) => {
     throw new Error(errorText || `HTTP ${response.status}`);
   }
 
+  // Handle 204 No Content responses
+  if (response.status === 204) {
+    return null;
+  }
+
   return response.json();
 };
 
@@ -164,7 +169,7 @@ export const useProjectStore = create<ProjectState>()(
           }
 
           // Call backend to switch project context
-          await apiCall('/user/project-context', {
+          await apiCall('/user/current-project', {
             method: 'POST',
             body: JSON.stringify({ project_id: projectId }),
           });
@@ -173,7 +178,9 @@ export const useProjectStore = create<ProjectState>()(
           setCurrentProject(project);
         } catch (error) {
           console.error('Failed to switch project:', error);
-          setError(error instanceof Error ? error.message : 'Failed to switch project');
+          const errorMessage = error instanceof Error ? error.message : 'Failed to switch project';
+          setError(errorMessage);
+          throw error; // Re-throw so UI can catch and show Toast
         } finally {
           setLoading(false);
         }
@@ -186,7 +193,7 @@ export const useProjectStore = create<ProjectState>()(
         });
 
         // Call backend to clear project context
-        apiCall('/user/project-context', {
+        apiCall('/user/current-project', {
           method: 'POST',
           body: JSON.stringify({ project_id: null }),
         }).catch(error => {

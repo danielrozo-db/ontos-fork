@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronDown, FolderOpen, Plus, X, UserPlus } from 'lucide-react';
+import { Check, ChevronDown, FolderOpen, Plus, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -134,29 +134,27 @@ export function ProjectChooser() {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="start" className="w-[280px]">
-        <DropdownMenuLabel className="flex items-center justify-between">
-          <span>Project Context</span>
-          {hasProjectContext && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearProject}
-              className="h-6 w-6 p-0"
-            >
-              <X className="h-3 w-3" />
-              <span className="sr-only">Clear project</span>
-            </Button>
-          )}
+        <DropdownMenuLabel>
+          <span>{t('projectContext')}</span>
         </DropdownMenuLabel>
 
         <DropdownMenuSeparator />
 
-        {!hasProjectContext && (
-          <DropdownMenuItem className="text-muted-foreground">
-            <Check className="mr-2 h-4 w-4" />
-            {t('projectMenu.allProjects')} ({t('projectMenu.noFilter')})
-          </DropdownMenuItem>
-        )}
+        {/* All Projects option - always visible, clickable when a project is selected */}
+        <DropdownMenuItem
+          onClick={hasProjectContext ? handleClearProject : undefined}
+          className={!hasProjectContext ? 'text-muted-foreground' : ''}
+          disabled={!hasProjectContext}
+        >
+          {!hasProjectContext ? (
+            <Check className="mr-2 h-4 w-4 text-primary" />
+          ) : (
+            <div className="mr-6" />
+          )}
+          {t('projectMenu.allProjects')} ({t('projectMenu.noFilter')})
+        </DropdownMenuItem>
+
+        {availableProjects.length > 0 && <DropdownMenuSeparator />}
 
         {availableProjects.length > 0 && (
           <>
