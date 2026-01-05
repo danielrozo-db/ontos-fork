@@ -303,6 +303,113 @@ class DatasetsManager(SearchableAsset):
             raise
 
     # =========================================================================
+    # Publish Operations
+    # =========================================================================
+
+    def publish_dataset(self, dataset_id: str, current_user: Optional[str] = None) -> Dataset:
+        """
+        Publish a dataset to make it available in the marketplace.
+        
+        Validates:
+        - Dataset status is 'active', 'approved', or 'certified'
+        - If linked to a contract, contract status must be 'approved' or higher
+        
+        Args:
+            dataset_id: ID of the dataset to publish
+            current_user: Username for audit trail
+            
+        Returns:
+            Updated dataset with published=True
+            
+        Raises:
+            ValueError: If validation fails
+        """
+        try:
+            db_dataset = dataset_repo.get(db=self._db, id=dataset_id)
+            if not db_dataset:
+                raise ValueError(f"Dataset {dataset_id} not found")
+            
+            # Already published?
+            if db_dataset.published:
+                logger.info(f"Dataset {dataset_id} is already published")
+                return self._to_api_model(db_dataset)
+            
+            # Validate status
+            valid_statuses = ['active', 'approved', 'certified']
+            if db_dataset.status not in valid_statuses:
+                raise ValueError(
+                    f"Cannot publish dataset in status '{db_dataset.status}'. "
+                    f"Must be one of: {', '.join(valid_statuses)}"
+                )
+            
+            # Validate linked contract status (if any)
+            if db_dataset.contract_id and db_dataset.contract:
+                contract = db_dataset.contract
+                contract_valid_statuses = ['approved', 'active', 'certified']
+                contract_status = (contract.status or '').lower()
+                if contract_status not in contract_valid_statuses:
+                    raise ValueError(
+                        f"Cannot publish: linked contract '{contract.name}' is in status '{contract.status}'. "
+                        f"Contract must be one of: {', '.join(contract_valid_statuses)}"
+                    )
+            
+            # Set published flag
+            db_dataset.published = True
+            db_dataset.updated_by = current_user
+            self._db.flush()
+            self._db.refresh(db_dataset)
+            
+            logger.info(f"Published dataset {dataset_id} to marketplace")
+            return self._to_api_model(db_dataset)
+            
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"Error publishing dataset {dataset_id}: {e}", exc_info=True)
+            self._db.rollback()
+            raise
+
+    def unpublish_dataset(self, dataset_id: str, current_user: Optional[str] = None) -> Dataset:
+        """
+        Remove a dataset from the marketplace.
+        
+        Args:
+            dataset_id: ID of the dataset to unpublish
+            current_user: Username for audit trail
+            
+        Returns:
+            Updated dataset with published=False
+            
+        Raises:
+            ValueError: If dataset not found
+        """
+        try:
+            db_dataset = dataset_repo.get(db=self._db, id=dataset_id)
+            if not db_dataset:
+                raise ValueError(f"Dataset {dataset_id} not found")
+            
+            # Already unpublished?
+            if not db_dataset.published:
+                logger.info(f"Dataset {dataset_id} is already unpublished")
+                return self._to_api_model(db_dataset)
+            
+            # Remove from marketplace
+            db_dataset.published = False
+            db_dataset.updated_by = current_user
+            self._db.flush()
+            self._db.refresh(db_dataset)
+            
+            logger.info(f"Unpublished dataset {dataset_id} from marketplace")
+            return self._to_api_model(db_dataset)
+            
+        except ValueError:
+            raise
+        except Exception as e:
+            logger.error(f"Error unpublishing dataset {dataset_id}: {e}", exc_info=True)
+            self._db.rollback()
+            raise
+
+    # =========================================================================
     # Contract Operations
     # =========================================================================
 

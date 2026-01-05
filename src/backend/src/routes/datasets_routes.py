@@ -329,6 +329,84 @@ async def delete_dataset(
 
 
 # =============================================================================
+# Publish/Unpublish Endpoints
+# =============================================================================
+
+@router.post("/datasets/{dataset_id}/publish")
+async def publish_dataset(
+    dataset_id: str,
+    db: DBSessionDep,
+    ws_client: WorkspaceClientDep,
+    current_user: CurrentUserDep,
+    _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
+):
+    """
+    Publish a dataset to make it available in the marketplace.
+    
+    Validates that the dataset is in a publishable status (active/approved/certified)
+    and any linked contract is at least approved.
+    """
+    logger.info(f"Publish dataset {dataset_id} by user {current_user.username}")
+    
+    manager = get_datasets_manager(db, ws_client)
+    
+    try:
+        dataset = manager.publish_dataset(
+            dataset_id=dataset_id,
+            current_user=current_user.username,
+        )
+        return {"status": dataset.status, "published": dataset.published}
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Error publishing dataset {dataset_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to publish dataset",
+        )
+
+
+@router.post("/datasets/{dataset_id}/unpublish")
+async def unpublish_dataset(
+    dataset_id: str,
+    db: DBSessionDep,
+    ws_client: WorkspaceClientDep,
+    current_user: CurrentUserDep,
+    _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
+):
+    """
+    Remove a dataset from the marketplace.
+    
+    The dataset will no longer appear in marketplace views but remains
+    accessible to existing subscribers.
+    """
+    logger.info(f"Unpublish dataset {dataset_id} by user {current_user.username}")
+    
+    manager = get_datasets_manager(db, ws_client)
+    
+    try:
+        dataset = manager.unpublish_dataset(
+            dataset_id=dataset_id,
+            current_user=current_user.username,
+        )
+        return {"status": dataset.status, "published": dataset.published}
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"Error unpublishing dataset {dataset_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to unpublish dataset",
+        )
+
+
+# =============================================================================
 # Contract Assignment Endpoints
 # =============================================================================
 

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { useApi } from '@/hooks/use-api';
 import { useNotificationsStore } from '@/stores/notifications-store';
-import { Loader2, AlertCircle, FileText, Eye, Rocket, Database, ShieldCheck, Info, RefreshCw } from 'lucide-react';
+import { Loader2, AlertCircle, FileText, Eye, Database, ShieldCheck, Info, RefreshCw } from 'lucide-react';
 import type { DeploymentPolicy } from '@/types/deployment-policy';
 import {
   getAllowedTransitions,
@@ -17,7 +17,7 @@ import {
   getRecommendedAction,
 } from '@/lib/odcs-lifecycle';
 
-type RequestType = 'access' | 'review' | 'publish' | 'deploy' | 'status_change';
+type RequestType = 'access' | 'review' | 'deploy' | 'status_change';
 
 interface RequestContractActionDialogProps {
   isOpen: boolean;
@@ -75,14 +75,6 @@ export default function RequestContractActionDialog({
           enabled: contractStatus?.toLowerCase() === 'draft',
           endpoint: `/api/data-contracts/${contractId}/request-review`,
         };
-      case 'publish':
-        return {
-          icon: <Rocket className="h-5 w-5" />,
-          title: 'Request Publish to Marketplace',
-          description: 'Request to publish this approved contract to the organization-wide marketplace.',
-          enabled: contractStatus?.toLowerCase() === 'approved',
-          endpoint: `/api/data-contracts/${contractId}/request-publish`,
-        };
       case 'deploy':
         return {
           icon: <Database className="h-5 w-5" />,
@@ -123,10 +115,6 @@ export default function RequestContractActionDialog({
     
     if (requestType === 'review') {
       // Message is optional for review
-    }
-    
-    if (requestType === 'publish') {
-      // Justification is optional but recommended
     }
     
     if (requestType === 'deploy') {
@@ -181,10 +169,6 @@ export default function RequestContractActionDialog({
       } else if (requestType === 'review') {
         payload = {
           message: message.trim() || undefined,
-        };
-      } else if (requestType === 'publish') {
-        payload = {
-          justification: justification.trim() || undefined,
         };
       } else if (requestType === 'deploy') {
         payload = {
@@ -345,7 +329,7 @@ export default function RequestContractActionDialog({
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {(['status_change', 'deploy', 'review', 'publish', 'access'] as RequestType[]).map((type) => {
+                {(['status_change', 'deploy', 'review', 'access'] as RequestType[]).map((type) => {
                   const config = getRequestTypeConfig(type);
                   return (
                     <SelectItem key={type} value={type} disabled={!config.enabled}>
@@ -398,22 +382,6 @@ export default function RequestContractActionDialog({
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder="Add any notes for the data steward reviewing this contract..."
-                className="min-h-[80px] resize-none"
-                disabled={submitting}
-              />
-            </div>
-          )}
-
-          {requestType === 'publish' && (
-            <div className="space-y-2">
-              <Label htmlFor="publish-justification" className="text-sm font-medium">
-                Justification (Optional)
-              </Label>
-              <Textarea
-                id="publish-justification"
-                value={justification}
-                onChange={(e) => setJustification(e.target.value)}
-                placeholder="Explain why this contract should be published to the marketplace..."
                 className="min-h-[80px] resize-none"
                 disabled={submitting}
               />

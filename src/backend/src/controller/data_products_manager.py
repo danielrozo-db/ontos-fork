@@ -535,6 +535,28 @@ class DataProductsManager(SearchableAsset):
                         f"must have data contracts assigned"
                     )
 
+                # Validate that all linked contracts are in an approved status
+                from src.repositories.data_contracts_repository import data_contract_repo
+                
+                valid_contract_statuses = ['approved', 'active', 'certified']
+                contracts_not_approved = []
+                
+                for port in product_db.output_ports:
+                    if port.data_contract_id:
+                        contract = data_contract_repo.get(db=self._db, id=port.data_contract_id)
+                        if contract:
+                            contract_status = (contract.status or '').lower()
+                            if contract_status not in valid_contract_statuses:
+                                contracts_not_approved.append(
+                                    f"{port.name} -> {contract.name} (status: {contract.status})"
+                                )
+                
+                if contracts_not_approved:
+                    raise ValueError(
+                        f"Cannot publish product: These output ports have unapproved contracts: "
+                        f"{', '.join(contracts_not_approved)}. Contracts must be approved first."
+                    )
+
             # Use transition_status for validation and update
             return self.transition_status(product_id, 'active', current_user)
 

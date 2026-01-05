@@ -31,6 +31,9 @@ import {
   Calendar,
   User,
   FolderOpen,
+  Rocket,
+  XCircle,
+  Loader2,
 } from 'lucide-react';
 import {
   Tooltip,
@@ -86,6 +89,9 @@ export default function DatasetDetails() {
   const [subscriptionStatus, setSubscriptionStatus] = useState<DatasetSubscriptionResponse | null>(null);
   const [subscribers, setSubscribers] = useState<DatasetSubscribersListResponse | null>(null);
   const [subscribing, setSubscribing] = useState(false);
+
+  // Publishing state
+  const [publishing, setPublishing] = useState(false);
 
   // Dialog state
   const [openEditDialog, setOpenEditDialog] = useState(false);
@@ -268,6 +274,68 @@ export default function DatasetDetails() {
     }
   };
 
+  // Publish dataset to marketplace
+  const handlePublish = async () => {
+    if (!datasetId) return;
+    
+    setPublishing(true);
+    try {
+      const response = await fetch(`/api/datasets/${datasetId}/publish`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.detail || 'Failed to publish dataset');
+      }
+      
+      toast({
+        title: 'Success',
+        description: 'Dataset published to marketplace',
+      });
+      fetchDataset();
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to publish dataset',
+        variant: 'destructive',
+      });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  // Unpublish dataset from marketplace
+  const handleUnpublish = async () => {
+    if (!datasetId) return;
+    
+    setPublishing(true);
+    try {
+      const response = await fetch(`/api/datasets/${datasetId}/unpublish`, {
+        method: 'POST',
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.detail || 'Failed to unpublish dataset');
+      }
+      
+      toast({
+        title: 'Success',
+        description: 'Dataset removed from marketplace',
+      });
+      fetchDataset();
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to unpublish dataset',
+        variant: 'destructive',
+      });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   // Add semantic link
   const addSemanticLink = async (iri: string) => {
     if (!datasetId) return;
@@ -442,6 +510,27 @@ export default function DatasetDetails() {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
+          {/* Publish/Unpublish buttons */}
+          {!dataset.published && ['active', 'approved', 'certified'].includes(dataset.status) && (
+            <Button onClick={handlePublish} disabled={publishing}>
+              {publishing ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Rocket className="h-4 w-4 mr-2" />
+              )}
+              Publish to Marketplace
+            </Button>
+          )}
+          {dataset.published && (
+            <Button variant="outline" onClick={handleUnpublish} disabled={publishing}>
+              {publishing ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <XCircle className="h-4 w-4 mr-2" />
+              )}
+              Unpublish
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setOpenEditDialog(true)}>
             <Pencil className="h-4 w-4 mr-2" />
             Edit
