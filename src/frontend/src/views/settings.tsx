@@ -15,6 +15,7 @@ import RolesSettings from '@/components/settings/roles-settings';
 import SemanticModelsSettings from '@/components/settings/semantic-models-settings';
 import TagsSettings from '@/components/settings/tags-settings';
 import JobsSettings from '@/components/settings/jobs-settings';
+import SearchConfigEditor from '@/components/settings/search-config-editor';
 import { usePermissions } from '@/stores/permissions-store';
 import { FeatureAccessLevel } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
@@ -220,6 +221,7 @@ export default function Settings() {
           <TabsTrigger value="roles">{t('settings:tabs.roles')}</TabsTrigger>
           <TabsTrigger value="tags">{t('settings:tabs.tags')}</TabsTrigger>
           <TabsTrigger value="semantic-models">{t('settings:tabs.semanticModels')}</TabsTrigger>
+          <TabsTrigger value="search">{t('settings:tabs.search', 'Search')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -530,6 +532,9 @@ export default function Settings() {
         </TabsContent>
         <TabsContent value="semantic-models">
             <SemanticModelsSettings />
+        </TabsContent>
+        <TabsContent value="search">
+            <SearchConfigEditor />
         </TabsContent>
       </Tabs>
 

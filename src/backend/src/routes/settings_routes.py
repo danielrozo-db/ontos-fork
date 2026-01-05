@@ -9,11 +9,13 @@ from sqlalchemy.orm import Session
 from ..common.workspace_client import get_workspace_client
 from ..controller.settings_manager import SettingsManager
 from ..models.settings import AppRole, AppRoleCreate, JobCluster
+from ..models.search_config import SearchConfig, SearchConfigResponse, SearchConfigUpdate
 from ..common.database import get_db
 from ..common.dependencies import (
     get_settings_manager,
     get_notifications_manager,
     get_change_log_manager,
+    get_search_manager,
     AuditManagerDep,
     AuditCurrentUserDep,
     DBSessionDep,
@@ -23,6 +25,7 @@ from ..models.notifications import Notification, NotificationType
 from ..controller.notifications_manager import NotificationsManager
 from ..common.config import get_settings
 from ..common.sanitization import sanitize_markdown_input
+from ..common.search_config_loader import get_search_config_loader
 
 # Configure logging
 from src.common.logging import get_logger
@@ -690,3 +693,188 @@ async def get_database_schema(manager: SettingsManager = Depends(get_settings_ma
     except Exception as e:
         logger.error("Error extracting database schema", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to extract database schema")
+
+
+# --- Search Configuration ---
+
+@router.get('/settings/search-config', response_model=SearchConfigResponse)
+async def get_search_config():
+    """
+    Get the current search configuration.
+    
+    Returns the search configuration including:
+    - Default field settings (title, description, tags)
+    - Per-asset-type configurations
+    - Ranking/sorting behavior
+    """
+    try:
+        loader = get_search_config_loader()
+        config = loader.load()
+        return SearchConfigResponse.from_config(config)
+    except Exception as e:
+        logger.error("Error getting search config", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get search configuration")
+
+
+@router.put('/settings/search-config', response_model=SearchConfigResponse)
+async def update_search_config(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
+    config_update: SearchConfigUpdate = Body(...),
+    manager: SettingsManager = Depends(get_settings_manager)
+):
+    """
+    Update the search configuration.
+    
+    Accepts partial updates - only provided fields will be updated.
+    Requires Admin permissions.
+    
+    After updating, the search index should be rebuilt to apply changes.
+    """
+    success = False
+    details = {"action": "update_search_config"}
+    
+    try:
+        loader = get_search_config_loader()
+        
+        # Build updates dict from the Pydantic model
+        updates = {}
+        if config_update.defaults is not None:
+            updates["defaults"] = {
+                "fields": {
+                    "title": _field_config_to_dict(config_update.defaults.fields.title),
+                    "description": _field_config_to_dict(config_update.defaults.fields.description),
+                    "tags": _field_config_to_dict(config_update.defaults.fields.tags),
+                }
+            }
+        
+        if config_update.asset_types is not None:
+            updates["asset_types"] = {}
+            for asset_type, asset_config in config_update.asset_types.items():
+                asset_dict = {
+                    "enabled": asset_config.enabled,
+                    "inherit_defaults": asset_config.inherit_defaults,
+                }
+                if asset_config.fields:
+                    asset_dict["fields"] = {
+                        k: _field_config_to_dict(v) 
+                        for k, v in asset_config.fields.items()
+                    }
+                if asset_config.extra_fields:
+                    asset_dict["extra_fields"] = {
+                        k: _field_config_to_dict(v) 
+                        for k, v in asset_config.extra_fields.items()
+                    }
+                updates["asset_types"][asset_type] = asset_dict
+        
+        if config_update.ranking is not None:
+            updates["ranking"] = {
+                "primary_sort": config_update.ranking.primary_sort.value,
+                "secondary_sort": config_update.ranking.secondary_sort.value,
+                "tertiary_sort": config_update.ranking.tertiary_sort.value,
+            }
+        
+        # Apply updates
+        updated_config = loader.update(updates)
+        
+        success = True
+        details["updated_sections"] = list(updates.keys())
+        
+        return SearchConfigResponse.from_config(updated_config)
+        
+    except ValueError as e:
+        logger.warning("Validation error updating search config: %s", e)
+        details["exception"] = str(e)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error("Error updating search config", exc_info=True)
+        details["exception"] = str(e)
+        raise HTTPException(status_code=500, detail="Failed to update search configuration")
+    finally:
+        background_tasks.add_task(
+            audit_manager.log_action_background,
+            username=current_user.username,
+            ip_address=request.client.host if request.client else None,
+            feature=SETTINGS_FEATURE_ID,
+            action="UPDATE_SEARCH_CONFIG",
+            success=success,
+            details=details
+        )
+
+
+@router.post('/settings/search-config/rebuild-index', status_code=status.HTTP_200_OK)
+async def rebuild_search_index(
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
+    manager: SettingsManager = Depends(get_settings_manager)
+):
+    """
+    Rebuild the search index.
+    
+    This reloads the search configuration and rebuilds the entire search index
+    from all registered searchable asset managers.
+    
+    Use this after updating the search configuration to apply changes.
+    """
+    success = False
+    details = {"action": "rebuild_search_index"}
+    
+    try:
+        search_manager = get_search_manager(request)
+        if search_manager is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Search manager not available"
+            )
+        
+        # Reload config and rebuild index
+        search_manager.reload_config()
+        search_manager.build_index()
+        
+        success = True
+        details["index_size"] = len(search_manager.index)
+        
+        return {
+            "status": "success",
+            "message": f"Search index rebuilt with {len(search_manager.index)} items",
+            "index_size": len(search_manager.index)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Error rebuilding search index", exc_info=True)
+        details["exception"] = str(e)
+        raise HTTPException(status_code=500, detail="Failed to rebuild search index")
+    finally:
+        background_tasks.add_task(
+            audit_manager.log_action_background,
+            username=current_user.username,
+            ip_address=request.client.host if request.client else None,
+            feature=SETTINGS_FEATURE_ID,
+            action="REBUILD_SEARCH_INDEX",
+            success=success,
+            details=details
+        )
+
+
+def _field_config_to_dict(field) -> dict:
+    """Helper to convert FieldConfig to dict for loader."""
+    from ..models.search_config import FieldConfig
+    if isinstance(field, FieldConfig):
+        result = {
+            "indexed": field.indexed,
+            "match_type": field.match_type.value,
+            "priority": field.priority,
+            "boost": field.boost,
+        }
+        if field.source:
+            result["source"] = field.source
+        return result
+    return field
