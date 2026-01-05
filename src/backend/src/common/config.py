@@ -6,9 +6,8 @@ from typing import Any, Dict, List, Optional
 import json
 
 import yaml
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import model_validator
 
 from .logging import get_logger
 
@@ -32,13 +31,13 @@ class Settings(BaseSettings):
     # Database settings
     DATABASE_URL: Optional[str] = Field(None, env='DATABASE_URL')
 
-    # Postgres connection settings
-    POSTGRES_HOST: Optional[str] = None
-    POSTGRES_PORT: int = 5432
-    POSTGRES_USER: Optional[str] = None
-    POSTGRES_PASSWORD: Optional[str] = None
-    POSTGRES_DB: Optional[str] = None
-    POSTGRES_DB_SCHEMA: Optional[str] = "public" # Default schema for Postgres
+    # PostgreSQL connection settings - PG* naming with POSTGRES_* fallback for local dev
+    PGHOST: Optional[str] = Field(None, validation_alias=AliasChoices('PGHOST', 'POSTGRES_HOST'))
+    PGPORT: int = Field(5432, validation_alias=AliasChoices('PGPORT', 'POSTGRES_PORT'))
+    PGUSER: Optional[str] = Field(None, validation_alias=AliasChoices('PGUSER', 'POSTGRES_USER'))
+    PGPASSWORD: Optional[str] = Field(None, validation_alias=AliasChoices('PGPASSWORD', 'POSTGRES_PASSWORD'))
+    PGDATABASE: Optional[str] = Field(None, validation_alias=AliasChoices('PGDATABASE', 'POSTGRES_DB'))
+    PGSCHEMA: Optional[str] = Field("public", validation_alias=AliasChoices('PGSCHEMA', 'POSTGRES_DB_SCHEMA'))
     LAKEBASE_INSTANCE_NAME: Optional[str] = None  # Instance name for Lakebase OAuth authentication
     
     # Database connection pool settings

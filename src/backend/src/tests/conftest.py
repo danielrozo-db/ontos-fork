@@ -186,8 +186,8 @@ def test_settings(temp_audit_log_dir: str) -> Settings:
         ENV="TEST",
         DEBUG=True,
         # Provide other required fields from your Settings model or ones with impactful defaults
-        # For example, if POSTGRES_HOST is used conditionally, provide it or ensure logic handles its absence
-        POSTGRES_HOST="localhost_test_db", # Or None if that's handled
+        # For example, if PGHOST is used conditionally, provide it or ensure logic handles its absence
+        PGHOST="localhost_test_db", # Or None if that's handled
         # Ensure all fields without defaults in Pydantic Settings model are covered
     )
 

@@ -335,18 +335,18 @@ def get_db_url(settings: Settings) -> str:
     """Construct the PostgreSQL SQLAlchemy URL with appropriate auth method."""
     
     # Validate required settings
-    if not all([settings.POSTGRES_HOST, settings.POSTGRES_DB]):
-        raise ValueError("PostgreSQL connection details (Host, DB) are missing in settings.")
+    if not all([settings.PGHOST, settings.PGDATABASE]):
+        raise ValueError("PostgreSQL connection details (PGHOST, PGDATABASE) are missing in settings.")
     
     # Determine authentication mode based on ENV
     use_password_auth = settings.ENV.upper().startswith("LOCAL")
     
     if use_password_auth:
         logger.info("Database: Using password authentication (LOCAL mode)")
-        if not settings.POSTGRES_PASSWORD or not settings.POSTGRES_USER:
-            raise ValueError("POSTGRES_PASSWORD and POSTGRES_USER required for LOCAL mode")
-        username = settings.POSTGRES_USER
-        password = settings.POSTGRES_PASSWORD
+        if not settings.PGPASSWORD or not settings.PGUSER:
+            raise ValueError("PGPASSWORD and PGUSER required for LOCAL mode")
+        username = settings.PGUSER
+        password = settings.PGPASSWORD
     else:
         logger.info("Database: Using OAuth authentication (Lakebase mode)")
         # Dynamically determine username from authenticated principal
@@ -366,13 +366,13 @@ def get_db_url(settings: Settings) -> str:
     options_list = []
     
     # Add schema to search_path if specified
-    if settings.POSTGRES_DB_SCHEMA:
+    if settings.PGSCHEMA:
         # Validate schema name for connection options to prevent injection
         try:
-            validated_schema = sanitize_postgres_identifier(settings.POSTGRES_DB_SCHEMA)
+            validated_schema = sanitize_postgres_identifier(settings.PGSCHEMA)
         except ValueError as e:
             raise ValueError(
-                f"Invalid PostgreSQL schema identifier in POSTGRES_DB_SCHEMA: {e}. "
+                f"Invalid PostgreSQL schema identifier in PGSCHEMA: {e}. "
                 "Please check configuration."
             ) from e
         options_list.append(f"-csearch_path={validated_schema}")
@@ -392,9 +392,9 @@ def get_db_url(settings: Settings) -> str:
         drivername="postgresql+psycopg2",
         username=username,
         password=password,
-        host=settings.POSTGRES_HOST,
-        port=settings.POSTGRES_PORT,
-        database=settings.POSTGRES_DB,
+        host=settings.PGHOST,
+        port=settings.PGPORT,
+        database=settings.PGDATABASE,
         query=query_params if query_params else None
     )
     url_str = db_url_obj.render_as_string(hide_password=False)
@@ -425,7 +425,7 @@ def ensure_database_and_schema_exist(settings: Settings):
     
     # Determine username based on mode
     if is_local_mode:
-        username = settings.POSTGRES_USER
+        username = settings.PGUSER
     else:
         # Get service principal username for OAuth mode
         ws_client = get_workspace_client(settings)
@@ -439,13 +439,13 @@ def ensure_database_and_schema_exist(settings: Settings):
     
     # Validate all PostgreSQL identifiers to prevent SQL injection
     try:
-        target_db = sanitize_postgres_identifier(settings.POSTGRES_DB)
-        target_schema = sanitize_postgres_identifier(settings.POSTGRES_DB_SCHEMA) if settings.POSTGRES_DB_SCHEMA else None
+        target_db = sanitize_postgres_identifier(settings.PGDATABASE)
+        target_schema = sanitize_postgres_identifier(settings.PGSCHEMA) if settings.PGSCHEMA else None
         username = sanitize_postgres_identifier(username)
     except ValueError as e:
         raise ValueError(
             f"Invalid PostgreSQL identifier in configuration: {e}. "
-            "Please check POSTGRES_DB, POSTGRES_DB_SCHEMA, and username."
+            "Please check PGDATABASE, PGSCHEMA, and username."
         ) from e
     
     logger.info(f"Username: {username}")
@@ -461,9 +461,9 @@ def ensure_database_and_schema_exist(settings: Settings):
     connection_url = URL.create(
         drivername="postgresql+psycopg2",
         username=username,
-        password=settings.POSTGRES_PASSWORD if is_local_mode else "",
-        host=settings.POSTGRES_HOST,
-        port=settings.POSTGRES_PORT,
+        password=settings.PGPASSWORD if is_local_mode else "",
+        host=settings.PGHOST,
+        port=settings.PGPORT,
         database=target_db,
     )
     
@@ -701,14 +701,14 @@ def init_db() -> None:
 
         # Explicitly enforce search_path at connection time to ensure correct schema usage in environments
         # where connection options may be ignored.
-        if settings.POSTGRES_DB_SCHEMA:
+        if settings.PGSCHEMA:
             # Validate schema name to prevent SQL injection in SET command
             try:
-                target_schema = sanitize_postgres_identifier(settings.POSTGRES_DB_SCHEMA)
+                target_schema = sanitize_postgres_identifier(settings.PGSCHEMA)
             except ValueError as e:
-                logger.error(f"Invalid PostgreSQL schema name in POSTGRES_DB_SCHEMA: {e}")
+                logger.error(f"Invalid PostgreSQL schema name in PGSCHEMA: {e}")
                 raise ValueError(
-                    f"Invalid PostgreSQL schema identifier in POSTGRES_DB_SCHEMA: {e}. "
+                    f"Invalid PostgreSQL schema identifier in PGSCHEMA: {e}. "
                     "Please check configuration."
                 ) from e
 
@@ -859,8 +859,8 @@ def init_db() -> None:
         logger.info("Verifying/creating tables based on SQLAlchemy models...")
         # Schema for create_all if PostgreSQL
         schema_to_create_in = None
-        if settings.POSTGRES_DB_SCHEMA:
-            schema_to_create_in = settings.POSTGRES_DB_SCHEMA
+        if settings.PGSCHEMA:
+            schema_to_create_in = settings.PGSCHEMA
             # We need to ensure this schema exists before calling create_all if it's not 'public'
             # and if tables don't explicitly define their schema.
             # SQLAlchemy create_all does not create schemas.
@@ -881,7 +881,7 @@ def init_db() -> None:
         # Once Alembic is tracking the schema, migrations handle all schema changes
         if db_revision is None:
             logger.info("Fresh database detected (no Alembic version). Using create_all() for initial setup...")
-            target_schema = settings.POSTGRES_DB_SCHEMA or 'public'
+            target_schema = settings.PGSCHEMA or 'public'
             
             # Create all tables in the target schema
             with _engine.begin() as connection:

@@ -487,10 +487,10 @@ class JobsManager:
             
             db_params = {
                 'lakebase_instance_name': lakebase_instance,
-                'postgres_host': str(getattr(self._settings, 'POSTGRES_HOST', '') or ''),
-                'postgres_db': str(getattr(self._settings, 'POSTGRES_DB', '') or ''),
-                'postgres_port': str(getattr(self._settings, 'POSTGRES_PORT', '5432') or '5432'),
-                'postgres_schema': str(getattr(self._settings, 'POSTGRES_DB_SCHEMA', 'public') or 'public'),
+                'postgres_host': str(getattr(self._settings, 'PGHOST', '') or ''),
+                'postgres_db': str(getattr(self._settings, 'PGDATABASE', '') or ''),
+                'postgres_port': str(getattr(self._settings, 'PGPORT', '5432') or '5432'),
+                'postgres_schema': str(getattr(self._settings, 'PGSCHEMA', 'public') or 'public'),
             }
             # Only inject if workflow YAML defines these parameters
             try:
