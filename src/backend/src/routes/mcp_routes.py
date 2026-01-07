@@ -2,15 +2,20 @@
 FastAPI routes for MCP (Model Context Protocol) server.
 
 Implements a JSON-RPC 2.0 endpoint for MCP clients to interact with application tools.
+Supports both standard HTTP POST/JSON responses and SSE (Server-Sent Events) transport.
 """
 
+import asyncio
 import json
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+import secrets
+from datetime import datetime, timezone
+from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
-from fastapi import APIRouter, Depends, Header, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
+from sse_starlette.sse import EventSourceResponse
 
 from src.common.config import Settings, get_settings
 from src.common.database import get_db
@@ -39,6 +44,12 @@ JSONRPC_INTERNAL_ERROR = -32603
 # Custom MCP Error Codes
 MCP_AUTH_FAILED = -32001
 MCP_AUTH_MISSING_SCOPE = -32002
+
+# MCP Protocol Version
+MCP_PROTOCOL_VERSION = "2024-11-05"
+
+# Session storage (in-memory for now, could be moved to Redis/DB for production)
+_sessions: Dict[str, Dict[str, Any]] = {}
 
 
 class JSONRPCRequest(BaseModel):
@@ -85,6 +96,37 @@ def make_success_response(
     return JSONRPCResponse(result=result, id=request_id)
 
 
+def generate_session_id() -> str:
+    """Generate a cryptographically secure session ID."""
+    return secrets.token_urlsafe(32)
+
+
+def generate_event_id() -> str:
+    """Generate a unique event ID for SSE resumability."""
+    return f"evt_{secrets.token_urlsafe(16)}"
+
+
+def wants_sse(request: Request) -> bool:
+    """Check if client wants SSE response based on Accept header."""
+    accept = request.headers.get("accept", "")
+    return "text/event-stream" in accept
+
+
+def format_sse_event(
+    data: Dict[str, Any],
+    event_id: Optional[str] = None,
+    event_type: str = "message"
+) -> Dict[str, Any]:
+    """Format data as an SSE event dict for sse-starlette."""
+    event = {
+        "event": event_type,
+        "data": json.dumps(data, default=str),
+    }
+    if event_id:
+        event["id"] = event_id
+    return event
+
+
 class MCPHandler:
     """Handler for MCP JSON-RPC methods."""
     
@@ -93,12 +135,14 @@ class MCPHandler:
         db: Session,
         settings: Settings,
         token_info: MCPTokenInfo,
-        request: Request
+        request: Request,
+        session_id: Optional[str] = None
     ):
         self._db = db
         self._settings = settings
         self._token_info = token_info
         self._request = request
+        self._session_id = session_id
         self._tool_registry = create_default_registry()
     
     async def handle(self, rpc_request: JSONRPCRequest) -> JSONRPCResponse:
@@ -138,8 +182,13 @@ class MCPHandler:
     
     async def _handle_initialize(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle initialize request."""
+        # Store client info in session if available
+        if self._session_id and self._session_id in _sessions:
+            _sessions[self._session_id]["client_info"] = params.get("clientInfo", {})
+            _sessions[self._session_id]["initialized"] = True
+        
         return {
-            "protocolVersion": "2024-11-05",
+            "protocolVersion": MCP_PROTOCOL_VERSION,
             "serverInfo": {
                 "name": "ontos-mcp-server",
                 "version": "1.0.0"
@@ -155,7 +204,7 @@ class MCPHandler:
     
     async def _handle_ping(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle ping request."""
-        return {"pong": True, "timestamp": datetime.utcnow().isoformat()}
+        return {"pong": True, "timestamp": datetime.now(timezone.utc).isoformat()}
     
     async def _handle_tools_list(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle tools/list request, filtering by token scopes."""
@@ -281,67 +330,209 @@ class MCPError(Exception):
         super().__init__(message)
 
 
+def validate_api_key(
+    db: Session,
+    x_api_key: Optional[str]
+) -> Optional[MCPTokenInfo]:
+    """Validate the API key and return token info if valid."""
+    if not x_api_key:
+        return None
+    
+    token_manager = MCPTokensManager(db=db)
+    return token_manager.validate_token(x_api_key)
+
+
+async def sse_event_generator(
+    response_data: Dict[str, Any],
+    session_id: Optional[str] = None
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """Generate SSE events for a single response."""
+    # Send initial event with empty data to prime the connection (per MCP spec)
+    event_id = generate_event_id()
+    yield format_sse_event({}, event_id=event_id, event_type="open")
+    
+    # Send the actual response
+    event_id = generate_event_id()
+    yield format_sse_event(response_data, event_id=event_id, event_type="message")
+
+
+async def sse_stream_generator(
+    token_info: MCPTokenInfo,
+    session_id: str,
+    request: Request
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """Generate SSE events for an open stream (GET endpoint)."""
+    # Send initial connection event
+    event_id = generate_event_id()
+    yield format_sse_event(
+        {"type": "connection", "session_id": session_id},
+        event_id=event_id,
+        event_type="open"
+    )
+    
+    # Keep the connection alive with periodic pings
+    # This allows server-initiated messages in the future
+    try:
+        while True:
+            # Check if client disconnected
+            if await request.is_disconnected():
+                logger.info(f"SSE client disconnected: session={session_id}")
+                break
+            
+            # Send a keepalive ping every 30 seconds
+            await asyncio.sleep(30)
+            
+            if session_id in _sessions:
+                event_id = generate_event_id()
+                yield format_sse_event(
+                    {"type": "ping", "timestamp": datetime.now(timezone.utc).isoformat()},
+                    event_id=event_id,
+                    event_type="ping"
+                )
+    except asyncio.CancelledError:
+        logger.info(f"SSE stream cancelled: session={session_id}")
+    finally:
+        # Clean up session on disconnect
+        if session_id in _sessions:
+            logger.info(f"Cleaning up session: {session_id}")
+
+
+@router.get("")
+async def mcp_sse_stream(
+    request: Request,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    mcp_session_id: Optional[str] = Header(None, alias="MCP-Session-Id"),
+):
+    """
+    MCP SSE stream endpoint (GET).
+    
+    Opens a Server-Sent Events stream for server-to-client messages.
+    Requires Accept: text/event-stream header.
+    """
+    # Check Accept header
+    if not wants_sse(request):
+        raise HTTPException(
+            status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+            detail="GET requires Accept: text/event-stream header"
+        )
+    
+    # Validate API key
+    token_info = validate_api_key(db, x_api_key)
+    if not token_info:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key"
+        )
+    
+    # Get or create session
+    session_id = mcp_session_id
+    if session_id and session_id not in _sessions:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found"
+        )
+    
+    if not session_id:
+        session_id = generate_session_id()
+        _sessions[session_id] = {
+            "created_at": datetime.now(timezone.utc),
+            "token_name": token_info.name,
+            "initialized": False
+        }
+        logger.info(f"Created new MCP session: {session_id}")
+    
+    # Return SSE stream
+    return EventSourceResponse(
+        sse_stream_generator(token_info, session_id, request),
+        headers={
+            "MCP-Session-Id": session_id,
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        }
+    )
+
+
 @router.post("")
 async def mcp_handler(
     request: Request,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
-    x_api_key: Optional[str] = Header(None, alias="X-API-Key")
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    mcp_session_id: Optional[str] = Header(None, alias="MCP-Session-Id"),
+    mcp_protocol_version: Optional[str] = Header(None, alias="MCP-Protocol-Version"),
 ):
     """
-    MCP JSON-RPC 2.0 endpoint.
+    MCP JSON-RPC 2.0 endpoint (POST).
     
     Requires X-API-Key header with a valid MCP token.
     Supports methods: initialize, notifications/initialized, ping, tools/list, tools/call
+    
+    Response format depends on Accept header:
+    - Accept: text/event-stream -> SSE stream response
+    - Accept: application/json (or default) -> JSON response
     """
+    use_sse = wants_sse(request)
+    session_id = mcp_session_id
+    
+    # Helper to create error response in the appropriate format
+    async def error_response(code: int, message: str, request_id: Any = None):
+        response_data = JSONRPCResponse(
+            error=JSONRPCError(code=code, message=message),
+            id=request_id
+        ).model_dump()
+        
+        if use_sse:
+            return EventSourceResponse(
+                sse_event_generator(response_data, session_id),
+                headers={"MCP-Session-Id": session_id} if session_id else {}
+            )
+        return JSONResponse(content=response_data)
+    
     # Validate API key
-    if not x_api_key:
-        return JSONRPCResponse(
-            error=JSONRPCError(
-                code=MCP_AUTH_FAILED,
-                message="Missing X-API-Key header"
-            )
-        ).model_dump()
-    
-    # Validate token
-    token_manager = MCPTokensManager(db=db)
-    token_info = token_manager.validate_token(x_api_key)
-    
+    token_info = validate_api_key(db, x_api_key)
     if not token_info:
-        return JSONRPCResponse(
-            error=JSONRPCError(
-                code=MCP_AUTH_FAILED,
-                message="Invalid or expired API key"
-            )
-        ).model_dump()
+        return await error_response(MCP_AUTH_FAILED, "Invalid or missing API key")
     
     # Parse request body
     try:
         body = await request.json()
     except Exception as e:
-        return JSONRPCResponse(
-            error=JSONRPCError(
-                code=JSONRPC_PARSE_ERROR,
-                message=f"Failed to parse JSON: {str(e)}"
-            )
-        ).model_dump()
+        return await error_response(JSONRPC_PARSE_ERROR, f"Failed to parse JSON: {str(e)}")
     
     # Validate JSON-RPC format
     try:
         rpc_request = JSONRPCRequest(**body)
     except Exception as e:
-        return JSONRPCResponse(
-            error=JSONRPCError(
-                code=JSONRPC_INVALID_REQUEST,
-                message=f"Invalid request: {str(e)}"
+        return await error_response(JSONRPC_INVALID_REQUEST, f"Invalid request: {str(e)}")
+    
+    # Handle session management
+    is_initialize = rpc_request.method == "initialize"
+    
+    if is_initialize:
+        # Create new session on initialize
+        session_id = generate_session_id()
+        _sessions[session_id] = {
+            "created_at": datetime.now(timezone.utc),
+            "token_name": token_info.name,
+            "initialized": False
+        }
+        logger.info(f"Created new MCP session on initialize: {session_id}")
+    elif session_id:
+        # Validate existing session
+        if session_id not in _sessions:
+            return await error_response(
+                JSONRPC_INVALID_REQUEST,
+                "Session not found",
+                rpc_request.id
             )
-        ).model_dump()
     
     # Log the request
-    logger.info(f"MCP request: method={rpc_request.method}, token={token_info.name}")
+    logger.info(f"MCP request: method={rpc_request.method}, token={token_info.name}, sse={use_sse}")
     
     # Handle the request
-    handler = MCPHandler(db, settings, token_info, request)
+    handler = MCPHandler(db, settings, token_info, request, session_id)
     response = await handler.handle(rpc_request)
     
     # Commit any changes
@@ -351,11 +542,67 @@ async def mcp_handler(
         logger.error(f"Error committing MCP changes: {e}")
         db.rollback()
     
-    return response.model_dump()
+    response_data = response.model_dump()
+    
+    # Build response headers
+    response_headers = {}
+    if session_id:
+        response_headers["MCP-Session-Id"] = session_id
+    
+    # Return in appropriate format
+    if use_sse:
+        return EventSourceResponse(
+            sse_event_generator(response_data, session_id),
+            headers=response_headers
+        )
+    
+    return JSONResponse(content=response_data, headers=response_headers)
+
+
+@router.delete("")
+async def mcp_delete_session(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    mcp_session_id: Optional[str] = Header(None, alias="MCP-Session-Id"),
+):
+    """
+    Delete an MCP session.
+    
+    Clients should call this when they no longer need the session.
+    """
+    # Validate API key
+    token_info = validate_api_key(db, x_api_key)
+    if not token_info:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key"
+        )
+    
+    if not mcp_session_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="MCP-Session-Id header required"
+        )
+    
+    if mcp_session_id in _sessions:
+        del _sessions[mcp_session_id]
+        logger.info(f"Deleted MCP session: {mcp_session_id}")
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Session not found"
+    )
 
 
 @router.get("/health")
 async def mcp_health():
     """Health check endpoint for MCP server."""
-    return {"status": "ok", "server": "ontos-mcp-server", "version": "1.0.0"}
-
+    return {
+        "status": "ok",
+        "server": "ontos-mcp-server",
+        "version": "1.0.0",
+        "protocol_version": MCP_PROTOCOL_VERSION,
+        "active_sessions": len(_sessions)
+    }
