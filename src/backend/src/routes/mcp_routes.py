@@ -13,7 +13,6 @@ from typing import Any, AsyncGenerator, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
@@ -21,6 +20,7 @@ from src.common.config import Settings, get_settings
 from src.common.database import get_db
 from src.common.logging import get_logger
 from src.controller.mcp_tokens_manager import MCPTokensManager, MCPTokenInfo
+from src.models.mcp import JSONRPCRequest, JSONRPCError, JSONRPCResponse
 from src.tools.base import ToolContext, ToolResult
 from src.tools.registry import create_default_registry
 
@@ -50,29 +50,6 @@ MCP_PROTOCOL_VERSION = "2024-11-05"
 
 # Session storage (in-memory for now, could be moved to Redis/DB for production)
 _sessions: Dict[str, Dict[str, Any]] = {}
-
-
-class JSONRPCRequest(BaseModel):
-    """JSON-RPC 2.0 request."""
-    jsonrpc: str = Field(default="2.0")
-    method: str
-    params: Optional[Dict[str, Any]] = None
-    id: Optional[Union[str, int]] = None
-
-
-class JSONRPCError(BaseModel):
-    """JSON-RPC 2.0 error."""
-    code: int
-    message: str
-    data: Optional[Any] = None
-
-
-class JSONRPCResponse(BaseModel):
-    """JSON-RPC 2.0 response."""
-    jsonrpc: str = "2.0"
-    result: Optional[Any] = None
-    error: Optional[JSONRPCError] = None
-    id: Optional[Union[str, int]] = None
 
 
 def make_error_response(
