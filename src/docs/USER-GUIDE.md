@@ -204,7 +204,7 @@ Navigate to **Domains** in the sidebar.
 
 #### Example Domain Hierarchy
 
-```
+```text
 Core (root)
 ├── Finance
 │   ├── Accounting
@@ -322,7 +322,7 @@ Navigate to **Compliance** in the sidebar.
 
 #### Example Starter Policy
 
-```
+```text
 MATCH (obj:Object)
 WHERE obj.type IN ['table', 'view'] AND obj.catalog = 'prod'
 ASSERT HAS_TAG('data-product') OR HAS_TAG('excluded-from-products')
@@ -343,17 +343,17 @@ Ontos is designed to support your data governance journey at any stage. Whether 
 ```plaintext
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                                                                             │
-│   1. DISCOVER          2. FORMALIZE         3. PRODUCTIZE     4. GOVERN    │
-│   ───────────          ────────────         ─────────────     ─────────    │
+│   1. DISCOVER          2. FORMALIZE         3. PRODUCTIZE     4. GOVERN     │
+│   ───────────          ────────────         ─────────────     ─────────     │
 │                                                                             │
-│   ┌─────────┐         ┌─────────────┐       ┌───────────┐    ┌──────────┐  │
-│   │ Datasets│   →     │   Data      │   →   │   Data    │ →  │Compliance│  │
-│   │         │         │  Contracts  │       │ Products  │    │  Checks  │  │
-│   └─────────┘         └─────────────┘       └───────────┘    └──────────┘  │
+│   ┌─────────┐         ┌─────────────┐       ┌───────────┐    ┌──────────┐   │
+│   │ Datasets│   →     │   Data      │   →   │   Data    │ →  │Compliance│   │
+│   │         │         │  Contracts  │       │ Products  │    │  Checks  │   │
+│   └─────────┘         └─────────────┘       └───────────┘    └──────────┘   │
 │                                                                             │
-│   Register your       Define specs         Package for       Automate      │
-│   existing tables     and quality          business value    quality       │
-│   and views           guarantees           delivery          monitoring    │
+│   Register your       Define specs         Package for       Automate       │
+│   existing tables     and quality          business value    quality        │
+│   and views           guarantees           delivery          monitoring     │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -507,7 +507,7 @@ Output Ports:
 **Example Policies**:
 
 **Policy 1: All Production Assets Must Have Contracts**
-```
+```text
 MATCH (obj:Object)
 WHERE obj.type IN ['table', 'view'] AND obj.catalog = 'prod'
 ASSERT HAS_TAG('data-contract')
@@ -516,7 +516,7 @@ ON_FAIL ASSIGN_TAG compliance_issue: 'missing_contract'
 ```
 
 **Policy 2: Dataset Ownership Required**
-```
+```text
 MATCH (ds:dataset)
 WHERE ds.status = 'active'
 ASSERT ds.owner_team != '' AND ds.owner_team != null
@@ -525,7 +525,7 @@ ON_FAIL NOTIFY 'data-governance@company.com'
 ```
 
 **Policy 3: Contract Quality SLOs**
-```
+```text
 MATCH (contract:data_contract)
 WHERE contract.status = 'active'
 ASSERT HAS_TAG('slo_defined') AND TAG('slo_freshness') != ''
@@ -875,7 +875,7 @@ A key strength of Datasets is grouping related tables:
 
 **Example: Customer Master Dataset**
 
-```
+```text
 Customer Master Data (Dataset)
 ├── Main Table
 │   ├── prod_catalog.crm.customers_master (Production)
@@ -1527,7 +1527,7 @@ Data Products follow a structured lifecycle aligned with Data Contracts (ODPS al
 
 #### Complete Lifecycle Flow
 
-```
+```text
 Draft → [Sandbox] → Proposed → Under Review → Approved → Active → Certified → Deprecated → Retired
 ```
 
@@ -1858,7 +1858,7 @@ The Compliance Domain-Specific Language (DSL) enables you to write declarative r
 
 #### DSL Structure
 
-```
+```text
 MATCH (entity:Type)
 WHERE filter_condition
 ASSERT compliance_condition
@@ -1933,7 +1933,7 @@ You can write rules for:
 
 **Requirement**: All tables use lowercase_snake_case; views must start with `v_`
 
-```
+```text
 MATCH (obj:Object)
 WHERE obj.type IN ['table', 'view']
 ASSERT
@@ -1955,7 +1955,7 @@ ON_FAIL ASSIGN_TAG compliance_issue: 'naming_violation'
 
 **Requirement**: All PII data must be encrypted with AES256
 
-```
+```text
 MATCH (tbl:table)
 WHERE HAS_TAG('contains_pii') AND TAG('contains_pii') = 'true'
 ASSERT TAG('encryption') = 'AES256'
@@ -1975,7 +1975,7 @@ ON_PASS ASSIGN_TAG last_compliance_check: '2025-01-15'
 
 **Requirement**: All active data products must have a valid owner
 
-```
+```text
 MATCH (prod:data_product)
 WHERE prod.status IN ['active', 'certified']
 ASSERT prod.owner != 'unknown' AND LENGTH(prod.owner) > 0
@@ -1989,7 +1989,7 @@ ON_PASS REMOVE_TAG needs_attention
 
 **Requirement**: All production assets must be tagged with a data product
 
-```
+```text
 MATCH (obj:Object)
 WHERE obj.type IN ['table', 'view'] AND obj.catalog = 'prod'
 ASSERT HAS_TAG('data-product') OR HAS_TAG('excluded-from-products')
@@ -2002,7 +2002,7 @@ ON_PASS REMOVE_TAG compliance_status
 
 **Requirement**: All schemas must have meaningful descriptions
 
-```
+```text
 MATCH (sch:schema)
 WHERE sch.catalog != 'temp'
 ASSERT
@@ -2140,7 +2140,7 @@ Asset Review is a governance workflow where:
 5. Click **Submit Request**
 
 **Example Request**:
-```
+```text
 Reviewer: data.steward@company.com
 Notes: Pre-production review for Q4 sales dashboard assets. 
        Please verify schema consistency and data quality.
@@ -2560,7 +2560,7 @@ The MCP endpoint uses JSON-RPC 2.0 over HTTP.
 
 #### Endpoint URL
 
-```
+```text
 POST /api/mcp
 ```
 
