@@ -52,6 +52,8 @@ This guide is intended for:
 
 Understanding these foundational concepts will help you effectively use Ontos.
 
+![Ontos Object Model](/ontos-obj-model.svg)
+
 ### Domains
 
 **Domains** represent logical groupings of data based on business areas or organizational structure. They provide high-level organization for your data assets.
@@ -338,7 +340,7 @@ Ontos is designed to support your data governance journey at any stage. Whether 
 
 ### The Growth Journey
 
-```
+```plaintext
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                                                                             │
 │   1. DISCOVER          2. FORMALIZE         3. PRODUCTIZE     4. GOVERN    │
@@ -541,7 +543,7 @@ ON_FAIL FAIL 'Active contracts must have freshness SLOs defined'
 
 When all stages are in place, you have a complete data governance ecosystem:
 
-```
+```plaintext
 ┌──────────────────────────────────────────────────────────────────┐
 │                        DATA GOVERNANCE                           │
 ├──────────────────────────────────────────────────────────────────┤
