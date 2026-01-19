@@ -29,6 +29,8 @@ from src.db_models.projects import ProjectDb
 from src.controller.catalog_commander_manager import CatalogCommanderManager
 from src.controller.data_contracts_manager import DataContractsManager
 from src.repositories.data_contracts_repository import data_contract_repo
+from src.common.workflow_triggers import get_trigger_registry, TriggerEvent
+from src.models.process_workflows import TriggerType, EntityType, ExecutionStatus
 
 
 logger = get_logger(__name__)
@@ -233,16 +235,92 @@ async def self_service_create(
             # Enforce sandbox allowlist for catalog creation
             if not _is_sandbox_allowed(get_settings(), requested_catalog, requested_schema or (get_settings().sandbox_default_schema or 'sandbox')):
                 raise HTTPException(status_code=403, detail="Catalog not allowed by sandbox policy")
+            
+            # Run pre-creation workflow validation (before_create trigger)
+            workflow_results: List[Dict[str, Any]] = []
+            try:
+                trigger_registry = get_trigger_registry(db)
+                pre_passed, pre_executions = trigger_registry.before_create(
+                    entity_type=EntityType.CATALOG,
+                    entity_id=requested_catalog,
+                    entity_name=requested_catalog,
+                    entity_data=obj,
+                    user_email=getattr(current_user, 'email', None),
+                )
+                for exe in pre_executions:
+                    workflow_results.append({
+                        'workflow_name': exe.workflow_name,
+                        'status': exe.status.value,
+                        'success_count': exe.success_count,
+                        'failure_count': exe.failure_count,
+                        'error': exe.error_message,
+                        'step_results': [
+                            {
+                                'step_id': se.step_id,
+                                'passed': se.passed,
+                                'message': se.result_data.get('message') if se.result_data else None,
+                                'policy_name': se.result_data.get('policy_name') if se.result_data else None,
+                            }
+                            for se in exe.step_executions
+                        ]
+                    })
+                
+                # Block creation if pre-creation validation failed
+                if not pre_passed:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            'message': 'Pre-creation validation failed',
+                            'workflows': workflow_results,
+                        }
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Before-create trigger failed: {e}")
+            
             # Create catalog (idempotent) using shared utility
             requested_catalog = ensure_catalog_exists(
                 ws=ws,
                 catalog_name=requested_catalog,
                 comment=obj.get('tags', {}).get('description')
             )
+            
+            # Fire post-creation workflow triggers (on_create)
+            try:
+                trigger_registry = get_trigger_registry(db)
+                executions = trigger_registry.on_create(
+                    entity_type=EntityType.CATALOG,
+                    entity_id=requested_catalog,
+                    entity_name=requested_catalog,
+                    entity_data=obj,
+                    user_email=getattr(current_user, 'email', None),
+                    blocking=True,
+                )
+                for exe in executions:
+                    workflow_results.append({
+                        'workflow_name': exe.workflow_name,
+                        'status': exe.status.value,
+                        'success_count': exe.success_count,
+                        'failure_count': exe.failure_count,
+                        'error': exe.error_message,
+                    })
+                    # Check if any workflow failed
+                    if exe.status == ExecutionStatus.FAILED:
+                        compliance_results.append({
+                            'type': 'workflow',
+                            'workflow': exe.workflow_name,
+                            'passed': False,
+                            'message': exe.error_message or 'Workflow validation failed',
+                        })
+            except Exception as e:
+                logger.warning(f"Workflow trigger failed: {e}")
+            
             success = True
             details["created_catalog"] = requested_catalog
             details["compliance_count"] = len(compliance_results)
-            return { 'created': {'catalog': requested_catalog}, 'compliance': compliance_results }
+            details["workflow_results"] = workflow_results
+            return { 'created': {'catalog': requested_catalog}, 'compliance': compliance_results, 'workflows': workflow_results }
 
         if obj_type == 'schema':
             if not requested_catalog:
@@ -263,17 +341,93 @@ async def self_service_create(
             # Enforce sandbox allowlist for schema creation
             if not _is_sandbox_allowed(get_settings(), requested_catalog, requested_schema):
                 raise HTTPException(status_code=403, detail="Schema not allowed by sandbox policy")
+            
+            # Run pre-creation workflow validation (before_create trigger)
+            workflow_results: List[Dict[str, Any]] = []
+            full_schema_name = f"{requested_catalog}.{requested_schema}"
+            try:
+                trigger_registry = get_trigger_registry(db)
+                pre_passed, pre_executions = trigger_registry.before_create(
+                    entity_type=EntityType.SCHEMA,
+                    entity_id=full_schema_name,
+                    entity_name=requested_schema,
+                    entity_data=obj,
+                    user_email=getattr(current_user, 'email', None),
+                )
+                for exe in pre_executions:
+                    workflow_results.append({
+                        'workflow_name': exe.workflow_name,
+                        'status': exe.status.value,
+                        'success_count': exe.success_count,
+                        'failure_count': exe.failure_count,
+                        'error': exe.error_message,
+                        'step_results': [
+                            {
+                                'step_id': se.step_id,
+                                'passed': se.passed,
+                                'message': se.result_data.get('message') if se.result_data else None,
+                                'policy_name': se.result_data.get('policy_name') if se.result_data else None,
+                            }
+                            for se in exe.step_executions
+                        ]
+                    })
+                
+                # Block creation if pre-creation validation failed
+                if not pre_passed:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            'message': 'Pre-creation validation failed',
+                            'workflows': workflow_results,
+                        }
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"Before-create trigger failed: {e}")
+            
             # Ensure catalog and schema exist using shared utility
             requested_catalog, full_schema_name = ensure_catalog_and_schema_exist(
                 ws=ws,
                 catalog_name=requested_catalog,
                 schema_name=requested_schema
             )
+            
+            # Fire post-creation workflow triggers (on_create)
+            try:
+                trigger_registry = get_trigger_registry(db)
+                executions = trigger_registry.on_create(
+                    entity_type=EntityType.SCHEMA,
+                    entity_id=full_schema_name,
+                    entity_name=requested_schema,
+                    entity_data=obj,
+                    user_email=getattr(current_user, 'email', None),
+                    blocking=True,
+                )
+                for exe in executions:
+                    workflow_results.append({
+                        'workflow_name': exe.workflow_name,
+                        'status': exe.status.value,
+                        'success_count': exe.success_count,
+                        'failure_count': exe.failure_count,
+                        'error': exe.error_message,
+                    })
+                    if exe.status == ExecutionStatus.FAILED:
+                        compliance_results.append({
+                            'type': 'workflow',
+                            'workflow': exe.workflow_name,
+                            'passed': False,
+                            'message': exe.error_message or 'Workflow validation failed',
+                        })
+            except Exception as e:
+                logger.warning(f"Workflow trigger failed: {e}")
+            
             success = True
             details["created_catalog"] = requested_catalog
             details["created_schema"] = requested_schema
             details["compliance_count"] = len(compliance_results)
-            return { 'created': {'catalog': requested_catalog, 'schema': requested_schema}, 'compliance': compliance_results }
+            details["workflow_results"] = workflow_results
+            return { 'created': {'catalog': requested_catalog, 'schema': requested_schema}, 'compliance': compliance_results, 'workflows': workflow_results }
 
         # table
         table_spec = payload.get('table') or {}
@@ -299,6 +453,50 @@ async def self_service_create(
         # Enforce sandbox allowlist for table creation
         if not _is_sandbox_allowed(get_settings(), requested_catalog, requested_schema):
             raise HTTPException(status_code=403, detail="Table location not allowed by sandbox policy")
+        
+        # Run pre-creation workflow validation (before_create trigger)
+        workflow_results: List[Dict[str, Any]] = []
+        full_name = f"{requested_catalog}.{requested_schema}.{table_name}"
+        try:
+            trigger_registry = get_trigger_registry(db)
+            pre_passed, pre_executions = trigger_registry.before_create(
+                entity_type=EntityType.TABLE,
+                entity_id=full_name,
+                entity_name=table_name,
+                entity_data=obj,
+                user_email=getattr(current_user, 'email', None),
+            )
+            for exe in pre_executions:
+                workflow_results.append({
+                    'workflow_name': exe.workflow_name,
+                    'status': exe.status.value,
+                    'success_count': exe.success_count,
+                    'failure_count': exe.failure_count,
+                    'error': exe.error_message,
+                    'step_results': [
+                        {
+                            'step_id': se.step_id,
+                            'passed': se.passed,
+                            'message': se.result_data.get('message') if se.result_data else None,
+                            'policy_name': se.result_data.get('policy_name') if se.result_data else None,
+                        }
+                        for se in exe.step_executions
+                    ]
+                })
+            
+            # Block creation if pre-creation validation failed
+            if not pre_passed:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        'message': 'Pre-creation validation failed',
+                        'workflows': workflow_results,
+                    }
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.warning(f"Before-create trigger failed: {e}")
 
         # Ensure parent catalog and schema exist using shared utility
         requested_catalog, full_schema_name = ensure_catalog_and_schema_exist(
@@ -355,6 +553,35 @@ async def self_service_create(
             except Exception as e:
                 logger.warning(f"Failed to create data contract for table: {e}", exc_info=True)
 
+        # Fire post-creation workflow triggers (on_create)
+        try:
+            trigger_registry = get_trigger_registry(db)
+            executions = trigger_registry.on_create(
+                entity_type=EntityType.TABLE,
+                entity_id=full_name,
+                entity_name=table_name,
+                entity_data=obj,
+                user_email=getattr(current_user, 'email', None),
+                blocking=True,
+            )
+            for exe in executions:
+                workflow_results.append({
+                    'workflow_name': exe.workflow_name,
+                    'status': exe.status.value,
+                    'success_count': exe.success_count,
+                    'failure_count': exe.failure_count,
+                    'error': exe.error_message,
+                })
+                if exe.status == ExecutionStatus.FAILED:
+                    compliance_results.append({
+                        'type': 'workflow',
+                        'workflow': exe.workflow_name,
+                        'passed': False,
+                        'message': exe.error_message or 'Workflow validation failed',
+                    })
+        except Exception as e:
+            logger.warning(f"Workflow trigger failed: {e}")
+        
         success = True
         details["created_catalog"] = requested_catalog
         details["created_schema"] = requested_schema
@@ -362,6 +589,7 @@ async def self_service_create(
         details["full_name"] = full_name
         details["contract_id"] = created_contract_id
         details["compliance_count"] = len(compliance_results)
+        details["workflow_results"] = workflow_results
 
         return {
             'created': {
@@ -372,6 +600,7 @@ async def self_service_create(
             },
             'contractId': created_contract_id,
             'compliance': compliance_results,
+            'workflows': workflow_results,
         }
     except HTTPException as e:
         details["exception"] = {"type": "HTTPException", "status_code": e.status_code, "detail": e.detail}

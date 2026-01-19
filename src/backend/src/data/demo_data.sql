@@ -64,6 +64,8 @@
 --   027 = tags
 --   028 = tag_namespace_permissions
 --   029 = entity_tag_associations
+--   02a = process_workflows
+--   02b = workflow_steps
 -- ============================================================================
 
 BEGIN;
@@ -1253,6 +1255,149 @@ INSERT INTO entity_tag_associations (id, tag_id, entity_id, entity_type, assigne
 ('02900029-0000-4000-8000-000000000041', '0270000c-0000-4000-8000-000000000012', '02500007-0000-4000-8000-000000000007', 'dataset_instance', NULL, 'system@demo', NOW())
 
 ON CONFLICT (tag_id, entity_id, entity_type) DO NOTHING;
+
+
+-- ============================================================================
+-- 20. PROCESS WORKFLOWS (type=02a)
+-- ============================================================================
+-- Pre-creation validation workflows using policy_check steps that reference
+-- the compliance policies defined above (01100001-01100005)
+
+INSERT INTO process_workflows (id, name, description, trigger_config, scope_config, is_active, is_default, version, created_by, updated_by, created_at, updated_at) VALUES
+-- Pre-creation compliance validation for catalogs/schemas/tables
+('02a00001-0000-4000-8000-000000000001', 'Pre-Creation Compliance Validation', 'Validates naming conventions before asset creation. Blocks creation if validation fails.', 
+'{"type": "before_create", "entity_types": ["catalog", "schema", "table", "view"]}',
+'{"type": "all"}',
+true, true, 1, 'system@demo', 'system@demo', NOW(), NOW()),
+
+-- Data quality validation on updates
+('02a00002-0000-4000-8000-000000000002', 'Data Quality Gate', 'Ensures data quality thresholds are met before allowing dataset updates.', 
+'{"type": "before_update", "entity_types": ["dataset"]}',
+'{"type": "all"}',
+true, true, 1, 'system@demo', 'system@demo', NOW(), NOW()),
+
+-- Security compliance workflow for sensitive data
+('02a00003-0000-4000-8000-000000000003', 'PII Data Security Check', 'Validates PII encryption and access controls for sensitive data products.', 
+'{"type": "on_create", "entity_types": ["data_product", "data_contract"]}',
+'{"type": "all"}',
+true, true, 1, 'system@demo', 'system@demo', NOW(), NOW()),
+
+-- Freshness monitoring workflow
+('02a00004-0000-4000-8000-000000000004', 'Data Freshness Monitor', 'Monitors data freshness and notifies stakeholders when data becomes stale.', 
+'{"type": "scheduled", "schedule": "0 6 * * *"}',
+'{"type": "all"}',
+true, false, 1, 'system@demo', 'system@demo', NOW(), NOW()),
+
+-- Full governance workflow with multiple checks
+('02a00005-0000-4000-8000-000000000005', 'Full Governance Pre-Check', 'Comprehensive pre-creation validation including naming, access control, and PII checks.', 
+'{"type": "before_create", "entity_types": ["table", "view"]}',
+'{"type": "project", "ids": ["00300001-0000-4000-8000-000000000001"]}',
+true, false, 1, 'system@demo', 'system@demo', NOW(), NOW())
+
+ON CONFLICT (id) DO NOTHING;
+
+
+-- ============================================================================
+-- 20b. WORKFLOW STEPS (type=02b)
+-- ============================================================================
+-- Steps reference compliance policies by ID using the policy_check step type
+
+INSERT INTO workflow_steps (id, workflow_id, step_id, name, step_type, config, on_pass, on_fail, "order", position, created_at, updated_at) VALUES
+-- Pre-Creation Compliance Validation workflow steps (02a00001)
+-- Uses policy 01100001 (Naming Conventions)
+('02b00001-0000-4000-8000-000000000001', '02a00001-0000-4000-8000-000000000001', 'check-naming', 'Check Naming Conventions', 'policy_check', 
+'{"policy_id": "01100001-0000-4000-8000-000000000001"}',
+'naming-pass', 'naming-fail', 1, '{"x": 250, "y": 150}', NOW(), NOW()),
+
+('02b00002-0000-4000-8000-000000000002', '02a00001-0000-4000-8000-000000000001', 'naming-pass', 'Naming Valid', 'pass', 
+'{}',
+NULL, NULL, 2, '{"x": 150, "y": 300}', NOW(), NOW()),
+
+('02b00003-0000-4000-8000-000000000003', '02a00001-0000-4000-8000-000000000001', 'naming-fail', 'Naming Invalid', 'fail', 
+'{"message": "Asset name does not follow naming conventions"}',
+NULL, NULL, 3, '{"x": 350, "y": 300}', NOW(), NOW()),
+
+-- Data Quality Gate workflow steps (02a00002)
+-- Uses policy 01100003 (Data Quality Thresholds)
+('02b00004-0000-4000-8000-000000000004', '02a00002-0000-4000-8000-000000000002', 'check-quality', 'Check Data Quality', 'policy_check', 
+'{"policy_id": "01100003-0000-4000-8000-000000000003"}',
+'quality-pass', 'quality-fail', 1, '{"x": 250, "y": 150}', NOW(), NOW()),
+
+('02b00005-0000-4000-8000-000000000005', '02a00002-0000-4000-8000-000000000002', 'quality-pass', 'Quality Check Passed', 'pass', 
+'{}',
+NULL, NULL, 2, '{"x": 150, "y": 300}', NOW(), NOW()),
+
+('02b00006-0000-4000-8000-000000000006', '02a00002-0000-4000-8000-000000000002', 'quality-fail', 'Quality Check Failed', 'notification', 
+'{"recipients": "owner", "template": "validation_failed"}',
+NULL, NULL, 3, '{"x": 350, "y": 300}', NOW(), NOW()),
+
+-- PII Data Security Check workflow steps (02a00003)
+-- Uses policies 01100002 (PII Encryption) and 01100004 (Access Control)
+('02b00007-0000-4000-8000-000000000007', '02a00003-0000-4000-8000-000000000003', 'check-pii', 'Check PII Encryption', 'policy_check', 
+'{"policy_id": "01100002-0000-4000-8000-000000000002"}',
+'check-access', 'notify-pii-fail', 1, '{"x": 250, "y": 100}', NOW(), NOW()),
+
+('02b00008-0000-4000-8000-000000000008', '02a00003-0000-4000-8000-000000000003', 'check-access', 'Check Access Control', 'policy_check', 
+'{"policy_id": "01100004-0000-4000-8000-000000000004"}',
+'security-pass', 'notify-access-fail', 2, '{"x": 250, "y": 220}', NOW(), NOW()),
+
+('02b00009-0000-4000-8000-000000000009', '02a00003-0000-4000-8000-000000000003', 'security-pass', 'Security Validated', 'pass', 
+'{}',
+NULL, NULL, 3, '{"x": 150, "y": 340}', NOW(), NOW()),
+
+('02b0000a-0000-4000-8000-000000000010', '02a00003-0000-4000-8000-000000000003', 'notify-pii-fail', 'Notify PII Failure', 'notification', 
+'{"recipients": "domain_owners", "template": "validation_failed"}',
+NULL, NULL, 4, '{"x": 350, "y": 340}', NOW(), NOW()),
+
+('02b0000b-0000-4000-8000-000000000011', '02a00003-0000-4000-8000-000000000003', 'notify-access-fail', 'Notify Access Failure', 'notification', 
+'{"recipients": "domain_owners", "template": "validation_failed"}',
+NULL, NULL, 5, '{"x": 450, "y": 340}', NOW(), NOW()),
+
+-- Data Freshness Monitor workflow steps (02a00004)
+-- Uses policy 01100005 (Data Freshness)
+('02b0000c-0000-4000-8000-000000000012', '02a00004-0000-4000-8000-000000000004', 'check-freshness', 'Check Data Freshness', 'policy_check', 
+'{"policy_id": "01100005-0000-4000-8000-000000000005"}',
+'freshness-ok', 'freshness-stale', 1, '{"x": 250, "y": 150}', NOW(), NOW()),
+
+('02b0000d-0000-4000-8000-000000000013', '02a00004-0000-4000-8000-000000000004', 'freshness-ok', 'Data is Fresh', 'pass', 
+'{}',
+NULL, NULL, 2, '{"x": 150, "y": 300}', NOW(), NOW()),
+
+('02b0000e-0000-4000-8000-000000000014', '02a00004-0000-4000-8000-000000000004', 'freshness-stale', 'Notify Stale Data', 'notification', 
+'{"recipients": "owner", "template": "validation_failed"}',
+NULL, NULL, 3, '{"x": 350, "y": 300}', NOW(), NOW()),
+
+-- Full Governance Pre-Check workflow steps (02a00005)
+-- Uses multiple policies: Naming (01100001), PII (01100002), Access (01100004)
+('02b0000f-0000-4000-8000-000000000015', '02a00005-0000-4000-8000-000000000005', 'step-naming', 'Check Naming', 'policy_check', 
+'{"policy_id": "01100001-0000-4000-8000-000000000001"}',
+'step-pii', 'fail-naming', 1, '{"x": 250, "y": 80}', NOW(), NOW()),
+
+('02b00010-0000-4000-8000-000000000016', '02a00005-0000-4000-8000-000000000005', 'step-pii', 'Check PII Encryption', 'policy_check', 
+'{"policy_id": "01100002-0000-4000-8000-000000000002"}',
+'step-access', 'fail-pii', 2, '{"x": 250, "y": 180}', NOW(), NOW()),
+
+('02b00011-0000-4000-8000-000000000017', '02a00005-0000-4000-8000-000000000005', 'step-access', 'Check Access Control', 'policy_check', 
+'{"policy_id": "01100004-0000-4000-8000-000000000004"}',
+'all-passed', 'fail-access', 3, '{"x": 250, "y": 280}', NOW(), NOW()),
+
+('02b00012-0000-4000-8000-000000000018', '02a00005-0000-4000-8000-000000000005', 'all-passed', 'All Checks Passed', 'pass', 
+'{}',
+NULL, NULL, 4, '{"x": 150, "y": 400}', NOW(), NOW()),
+
+('02b00013-0000-4000-8000-000000000019', '02a00005-0000-4000-8000-000000000005', 'fail-naming', 'Naming Failed', 'fail', 
+'{"message": "Asset does not follow naming conventions"}',
+NULL, NULL, 5, '{"x": 400, "y": 130}', NOW(), NOW()),
+
+('02b00014-0000-4000-8000-000000000020', '02a00005-0000-4000-8000-000000000005', 'fail-pii', 'PII Check Failed', 'fail', 
+'{"message": "PII data must be encrypted"}',
+NULL, NULL, 6, '{"x": 400, "y": 230}', NOW(), NOW()),
+
+('02b00015-0000-4000-8000-000000000021', '02a00005-0000-4000-8000-000000000005', 'fail-access', 'Access Check Failed', 'fail', 
+'{"message": "Access controls must be properly configured"}',
+NULL, NULL, 7, '{"x": 400, "y": 330}', NOW(), NOW())
+
+ON CONFLICT (id) DO NOTHING;
 
 
 COMMIT;

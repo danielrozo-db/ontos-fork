@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +20,7 @@ import MCPTokensSettings from '@/components/settings/mcp-tokens-settings';
 import { usePermissions } from '@/stores/permissions-store';
 import { FeatureAccessLevel } from '@/types/settings';
 import { useToast } from '@/hooks/use-toast';
+import useBreadcrumbStore from '@/stores/breadcrumb-store';
 
 interface AppSettings {
   id: string;
@@ -52,10 +53,28 @@ export default function Settings() {
   const { isLoading: permissionsLoading, hasPermission } = usePermissions();
   const { toast } = useToast();
   const { tab: urlTab } = useParams<{ tab?: string }>();
+  const navigate = useNavigate();
+  
+  const setStaticSegments = useBreadcrumbStore((state) => state.setStaticSegments);
+  const setDynamicTitle = useBreadcrumbStore((state) => state.setDynamicTitle);
   
   // Determine the active tab from URL param or default to 'general'
+  // Note: Workflows tab moved to Compliance view
   const validTabs = ['general', 'databricks', 'git', 'jobs', 'roles', 'tags', 'semantic-models', 'search', 'mcp-tokens'];
   const activeTab = urlTab && validTabs.includes(urlTab) ? urlTab : 'general';
+  
+  // Tab display names for breadcrumbs
+  const tabNames: Record<string, string> = {
+    'general': t('settings:tabs.general', 'General'),
+    'databricks': t('settings:tabs.databricks', 'Databricks'),
+    'git': t('settings:tabs.git', 'Git'),
+    'jobs': t('settings:tabs.jobs', 'Jobs'),
+    'roles': t('settings:tabs.roles', 'Roles'),
+    'tags': t('settings:tabs.tags', 'Tags'),
+    'semantic-models': t('settings:tabs.semanticModels', 'Semantic Models'),
+    'search': t('settings:tabs.search', 'Search'),
+    'mcp-tokens': t('settings:tabs.mcpTokens', 'MCP Tokens'),
+  };
 
   // Check if user has at least READ_ONLY access to settings
   const hasSettingsAccess = hasPermission('settings', FeatureAccessLevel.READ_ONLY);
@@ -89,6 +108,19 @@ export default function Settings() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Set up breadcrumbs
+  useEffect(() => {
+    setStaticSegments([
+      { label: t('settings:title', 'Settings'), path: '/settings' },
+    ]);
+    setDynamicTitle(tabNames[activeTab] || 'General');
+    
+    return () => {
+      setStaticSegments([]);
+      setDynamicTitle(null);
+    };
+  }, [activeTab, setStaticSegments, setDynamicTitle, t]);
 
   // Fetch current settings on mount
   useEffect(() => {
@@ -212,13 +244,17 @@ export default function Settings() {
     setSettings({ ...settings, enableBackgroundJobs: checked });
   };
 
+  const handleTabChange = (value: string) => {
+    navigate(`/settings/${value}`);
+  };
+
   return (
     <div className="py-6">
       <h1 className="text-3xl font-bold mb-6 flex items-center gap-2">
         <SettingsIcon className="w-8 h-8" /> {t('settings:title')}
       </h1>
 
-      <Tabs defaultValue={activeTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList>
           <TabsTrigger value="general">{t('settings:tabs.general')}</TabsTrigger>
           <TabsTrigger value="databricks">{t('settings:tabs.databricks')}</TabsTrigger>

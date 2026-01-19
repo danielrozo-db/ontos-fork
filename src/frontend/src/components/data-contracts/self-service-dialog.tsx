@@ -5,11 +5,31 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2 } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, AlertCircle, XCircle, CheckCircle } from 'lucide-react';
 import SchemaPropertyEditor from '@/components/data-contracts/schema-property-editor';
 import type { ColumnProperty } from '@/types/data-contract';
 import { useProjectContext } from '@/stores/project-store';
+
+interface WorkflowStepResult {
+  step_id: string;
+  passed: boolean;
+  message?: string;
+  policy_name?: string;
+}
+
+interface WorkflowResult {
+  workflow_name: string;
+  status: string;
+  error?: string;
+  step_results?: WorkflowStepResult[];
+}
+
+interface PreCreationError {
+  message: string;
+  workflows: WorkflowResult[];
+}
 
 type CreateType = 'catalog' | 'schema' | 'table';
 
@@ -31,6 +51,7 @@ export default function SelfServiceDialog({ isOpen, onOpenChange, initialType }:
   const [createContract, setCreateContract] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [workflowErrors, setWorkflowErrors] = useState<PreCreationError | null>(null);
   const [success, setSuccess] = useState<any | null>(null);
 
   // Bootstrap defaults
@@ -69,6 +90,7 @@ export default function SelfServiceDialog({ isOpen, onOpenChange, initialType }:
     try {
       setLoading(true);
       setError(null);
+      setWorkflowErrors(null);
       setSuccess(null);
       const payload: any = {
         type: createType,
@@ -87,7 +109,19 @@ export default function SelfServiceDialog({ isOpen, onOpenChange, initialType }:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      
       if (!res.ok) {
+        // Try to parse as JSON for workflow errors
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await res.json();
+          // Check if it's a pre-creation validation error
+          if (errorData.detail?.workflows) {
+            setWorkflowErrors(errorData.detail as PreCreationError);
+            return;
+          }
+          throw new Error(errorData.detail?.message || errorData.detail || `HTTP ${res.status}`);
+        }
         const txt = await res.text();
         throw new Error(txt || `HTTP ${res.status}`);
       }
@@ -163,10 +197,57 @@ export default function SelfServiceDialog({ isOpen, onOpenChange, initialType }:
           </div>
 
           {error && (
-            <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
+          
+          {workflowErrors && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Pre-creation validation failed</AlertTitle>
+              <AlertDescription>
+                <p className="mb-2">{workflowErrors.message}</p>
+                <div className="space-y-2">
+                  {workflowErrors.workflows.map((wf, i) => (
+                    <div key={i} className="border rounded p-2 bg-destructive/5">
+                      <div className="flex items-center gap-2 font-medium">
+                        <XCircle className="h-4 w-4" />
+                        {wf.workflow_name}
+                        <Badge variant="outline" className="ml-auto">{wf.status}</Badge>
+                      </div>
+                      {wf.step_results && wf.step_results.filter(s => !s.passed).length > 0 && (
+                        <div className="mt-2 pl-6 space-y-1">
+                          {wf.step_results.filter(s => !s.passed).map((step, j) => (
+                            <div key={j} className="text-sm flex items-start gap-2">
+                              <XCircle className="h-3 w-3 mt-0.5 text-destructive" />
+                              <div>
+                                {step.policy_name && (
+                                  <span className="font-medium">{step.policy_name}: </span>
+                                )}
+                                {step.message || 'Validation failed'}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {wf.error && !wf.step_results?.length && (
+                        <p className="mt-1 text-sm pl-6">{wf.error}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-sm">Please fix the issues above and try again.</p>
+              </AlertDescription>
+            </Alert>
+          )}
+          
           {success && (
-            <Alert><AlertDescription>Created: {JSON.stringify(success.created)}{success.contractId ? `, contract ${success.contractId}` : ''}</AlertDescription></Alert>
+            <Alert>
+              <CheckCircle className="h-4 w-4" />
+              <AlertDescription>Created: {JSON.stringify(success.created)}{success.contractId ? `, contract ${success.contractId}` : ''}</AlertDescription>
+            </Alert>
           )}
 
           <div className="flex justify-end gap-2">

@@ -31,6 +31,12 @@ documents:
     description: Complete reference for Compliance DSL syntax
     category: reference
 
+  process-workflows-guide:
+    file: process-workflows-guide.md
+    title: Process Workflows Guide
+    description: Complete guide for configuring automated workflows for validation, approval, and notifications
+    category: reference
+
 # Future document examples (uncomment and modify as needed):
 #
 #  deployment-guide:

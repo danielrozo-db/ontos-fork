@@ -353,6 +353,18 @@ async def startup_event_handler(app: FastAPI):
         except Exception as e:
             logger.error(f"Failed initializing or building search index: {e}", exc_info=True)
 
+        # Step 4: Load default workflows
+        try:
+            logger.info("Loading default process workflows...")
+            from src.controller.workflows_manager import WorkflowsManager
+            session_factory = get_session_factory()
+            with session_factory() as db_session:
+                workflows_manager = WorkflowsManager(db_session)
+                count = workflows_manager.load_from_yaml()
+                logger.info(f"Loaded {count} default process workflow(s)")
+        except Exception as e:
+            logger.warning(f"Failed loading default workflows: {e}", exc_info=True)
+
         logger.info("Application startup event handler finished successfully.")
     except Exception as e:
         logger.critical(f"CRITICAL ERROR during application startup: {e}", exc_info=True)

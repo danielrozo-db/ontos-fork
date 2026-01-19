@@ -150,7 +150,14 @@ export const useApi = () => {
               errorMsg = errorBody.detail;
             } else if (typeof errorBody.detail === 'object') {
               // Structured error object (e.g., {message: "...", errors: [...]})
-              errorMsg = errorBody.detail.message || JSON.stringify(errorBody.detail);
+              if (Array.isArray(errorBody.detail.errors)) {
+                // Handle {errors: ["error1", "error2"]} format
+                errorMsg = errorBody.detail.errors.join('. ');
+              } else if (errorBody.detail.message) {
+                errorMsg = errorBody.detail.message;
+              } else {
+                errorMsg = JSON.stringify(errorBody.detail);
+              }
             } else {
               errorMsg = String(errorBody.detail);
             }

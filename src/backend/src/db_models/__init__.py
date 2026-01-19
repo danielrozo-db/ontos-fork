@@ -13,6 +13,7 @@ from .llm_sessions import LLMSessionDb, LLMMessageDb
 from .data_quality_checks import DataQualityCheckRunDb, DataQualityCheckResultDb
 from .data_contract_validations import DataContractValidationRunDb, DataContractValidationResultDb
 from .datasets import DatasetDb, DatasetSubscriptionDb, DatasetCustomPropertyDb, DatasetInstanceDb
+from .process_workflows import ProcessWorkflowDb, WorkflowStepDb, WorkflowExecutionDb, WorkflowStepExecutionDb
 
 __all__ = [
     "DataProductDb",
@@ -40,4 +41,8 @@ __all__ = [
     "DatasetSubscriptionDb",
     "DatasetCustomPropertyDb",
     "DatasetInstanceDb",
+    "ProcessWorkflowDb",
+    "WorkflowStepDb",
+    "WorkflowExecutionDb",
+    "WorkflowStepExecutionDb",
 ] 

@@ -43,6 +43,7 @@ import SearchView from './views/search';
 import TeamsView from './views/teams';
 import ProjectsView from './views/projects';
 import AuditTrail from './views/audit-trail';
+import WorkflowDesignerView from './views/workflow-designer';
 
 export default function App() {
   const fetchUserInfo = useUserStore((state: any) => state.fetchUserInfo);
@@ -93,6 +94,7 @@ export default function App() {
               <Route path="/catalog-commander" element={<CatalogCommander />} />
               <Route path="/create-uc" element={<CreateUcObject />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/compliance/workflows/:workflowId" element={<WorkflowDesignerView />} />
               <Route path="/settings/:tab" element={<Settings />} />
               <Route path="/teams" element={<TeamsView />} />
               <Route path="/projects" element={<ProjectsView />} />

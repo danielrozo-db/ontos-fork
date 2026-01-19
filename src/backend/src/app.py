@@ -55,6 +55,7 @@ from src.routes import (
     teams_routes,
     projects_routes,
     costs_routes,
+    workflows_routes,
 )
 
 from src.common.database import init_db, get_session_factory, SQLAlchemySession
@@ -275,6 +276,7 @@ audit_routes.register_routes(app)
 change_log_routes.register_routes(app)
 mcp_routes.register_routes(app)
 mcp_tokens_routes.register_routes(app)
+workflows_routes.register_routes(app)
 settings_routes.register_routes(app)
 
 # Define other specific API routes BEFORE the catch-all

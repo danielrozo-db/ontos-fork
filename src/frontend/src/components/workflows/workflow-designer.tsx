@@ -1,0 +1,832 @@
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import ReactFlow, {
+  Node,
+  Edge,
+  Controls,
+  Background,
+  MiniMap,
+  useNodesState,
+  useEdgesState,
+  addEdge,
+  Connection,
+  NodeChange,
+  EdgeChange,
+  MarkerType,
+  Panel,
+} from 'reactflow';
+import 'reactflow/dist/style.css';
+import dagre from 'dagre';
+
+import { useApi } from '@/hooks/use-api';
+import { useToast } from '@/hooks/use-toast';
+import useBreadcrumbStore from '@/stores/breadcrumb-store';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Save, 
+  ArrowLeft, 
+  Plus, 
+  Trash2, 
+  Loader2,
+  Shield,
+  Bell,
+  Tag,
+  GitBranch,
+  Code,
+  CheckCircle,
+  XCircle,
+  UserCheck,
+  Play,
+  ClipboardCheck,
+} from 'lucide-react';
+
+import {
+  TriggerNode,
+  ValidationNode,
+  ApprovalNode,
+  NotificationNode,
+  AssignTagNode,
+  ConditionalNode,
+  ScriptNode,
+  EndNode,
+  PolicyCheckNode,
+} from './workflow-nodes';
+
+import type {
+  ProcessWorkflow,
+  ProcessWorkflowCreate,
+  ProcessWorkflowUpdate,
+  WorkflowStep,
+  WorkflowStepCreate,
+  StepType,
+  TriggerType,
+  EntityType,
+  StepTypeSchema,
+  CompliancePolicyRef,
+} from '@/types/process-workflow';
+
+// Node types registry
+const nodeTypes = {
+  trigger: TriggerNode,
+  validation: ValidationNode,
+  approval: ApprovalNode,
+  notification: NotificationNode,
+  assign_tag: AssignTagNode,
+  conditional: ConditionalNode,
+  script: ScriptNode,
+  pass: EndNode,
+  fail: EndNode,
+  policy_check: PolicyCheckNode,
+};
+
+// Layout helper
+const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
+  dagreGraph.setGraph({ rankdir: direction, nodesep: 50, ranksep: 80 });
+
+  const nodeWidth = 250;
+  const nodeHeight = 100;
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+  });
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(dagreGraph);
+
+  const layoutedNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    return {
+      ...node,
+      position: {
+        x: nodeWithPosition.x - nodeWidth / 2,
+        y: nodeWithPosition.y - nodeHeight / 2,
+      },
+    };
+  });
+
+  return { nodes: layoutedNodes, edges };
+};
+
+// Convert workflow to React Flow elements
+const workflowToElements = (workflow: ProcessWorkflow | null) => {
+  if (!workflow) return { nodes: [], edges: [] };
+
+  const nodes: Node[] = [];
+  const edges: Edge[] = [];
+
+  // Add trigger node
+  nodes.push({
+    id: 'trigger',
+    type: 'trigger',
+    data: { trigger: workflow.trigger },
+    position: { x: 0, y: 0 },
+  });
+
+  // Add step nodes
+  workflow.steps.forEach((step, index) => {
+    nodes.push({
+      id: step.step_id,
+      type: step.step_type,
+      data: { step },
+      position: step.position || { x: 0, y: (index + 1) * 120 },
+    });
+  });
+
+  // Connect trigger to first step
+  if (workflow.steps.length > 0) {
+    edges.push({
+      id: 'trigger-to-first',
+      source: 'trigger',
+      target: workflow.steps[0].step_id,
+      markerEnd: { type: MarkerType.ArrowClosed },
+    });
+  }
+
+  // Add step edges
+  workflow.steps.forEach((step) => {
+    if (step.on_pass) {
+      edges.push({
+        id: `${step.step_id}-pass`,
+        source: step.step_id,
+        sourceHandle: 'pass',
+        target: step.on_pass,
+        label: 'Pass',
+        labelStyle: { fill: '#22c55e', fontWeight: 500 },
+        markerEnd: { type: MarkerType.ArrowClosed },
+        style: { stroke: '#22c55e' },
+      });
+    }
+    if (step.on_fail) {
+      edges.push({
+        id: `${step.step_id}-fail`,
+        source: step.step_id,
+        sourceHandle: 'fail',
+        target: step.on_fail,
+        label: 'Fail',
+        labelStyle: { fill: '#ef4444', fontWeight: 500 },
+        markerEnd: { type: MarkerType.ArrowClosed },
+        style: { stroke: '#ef4444' },
+      });
+    }
+  });
+
+  return getLayoutedElements(nodes, edges);
+};
+
+interface WorkflowDesignerProps {
+  workflowId?: string;
+}
+
+export default function WorkflowDesigner({ workflowId }: WorkflowDesignerProps) {
+  const navigate = useNavigate();
+  const params = useParams();
+  const id = workflowId || params.workflowId;
+  const isNew = !id || id === 'new';
+  
+  const { get, post, put } = useApi();
+  const { toast } = useToast();
+  
+  const setStaticSegments = useBreadcrumbStore((state) => state.setStaticSegments);
+  const setDynamicTitle = useBreadcrumbStore((state) => state.setDynamicTitle);
+
+  const [workflow, setWorkflow] = useState<ProcessWorkflow | null>(null);
+  const [isLoading, setIsLoading] = useState(!isNew);
+  const [isSaving, setIsSaving] = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [stepTypes, setStepTypes] = useState<StepTypeSchema[]>([]);
+  const [compliancePolicies, setCompliancePolicies] = useState<CompliancePolicyRef[]>([]);
+  
+  // Form state
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [triggerType, setTriggerType] = useState<TriggerType>('on_create');
+  const [entityTypes, setEntityTypes] = useState<EntityType[]>(['table']);
+  const [isActive, setIsActive] = useState(true);
+  const [steps, setSteps] = useState<WorkflowStepCreate[]>([]);
+
+  // React Flow state
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+
+  // Set up breadcrumbs
+  useEffect(() => {
+    setStaticSegments([
+      { label: 'Compliance', path: '/compliance' },
+      { label: 'Workflows', path: '/compliance#workflows' },
+    ]);
+    setDynamicTitle(isNew ? 'New Workflow' : 'Loading...');
+    
+    return () => {
+      setStaticSegments([]);
+      setDynamicTitle(null);
+    };
+  }, [setStaticSegments, setDynamicTitle, isNew]);
+
+  // Update breadcrumb title when name changes
+  useEffect(() => {
+    if (name) {
+      setDynamicTitle(name);
+    }
+  }, [name, setDynamicTitle]);
+
+  // Load workflow
+  useEffect(() => {
+    const loadData = async () => {
+      // Load step types
+      try {
+        const typesResponse = await get<StepTypeSchema[]>('/api/workflows/step-types');
+        if (typesResponse.data) {
+          setStepTypes(typesResponse.data);
+        }
+      } catch (error) {
+        console.error('Failed to load step types:', error);
+      }
+      
+      // Load compliance policies for policy_check step selector
+      try {
+        const policiesResponse = await get<CompliancePolicyRef[]>('/api/workflows/compliance-policies');
+        if (policiesResponse.data && Array.isArray(policiesResponse.data)) {
+          setCompliancePolicies(policiesResponse.data);
+        } else {
+          setCompliancePolicies([]);
+        }
+      } catch (error) {
+        console.error('Failed to load compliance policies:', error);
+        setCompliancePolicies([]);
+      }
+
+      // Load workflow if editing
+      if (!isNew) {
+        setIsLoading(true);
+        try {
+          const response = await get<ProcessWorkflow>(`/api/workflows/${id}`);
+          if (response.data) {
+            setWorkflow(response.data);
+            setName(response.data.name);
+            setDynamicTitle(response.data.name);
+            setDescription(response.data.description || '');
+            setTriggerType(response.data.trigger.type);
+            setEntityTypes(response.data.trigger.entity_types);
+            setIsActive(response.data.is_active);
+            setSteps(response.data.steps.map(s => ({
+              step_id: s.step_id,
+              name: s.name,
+              step_type: s.step_type,
+              config: s.config,
+              on_pass: s.on_pass,
+              on_fail: s.on_fail,
+              order: s.order,
+              position: s.position,
+            })));
+            
+            // Convert to flow elements
+            const { nodes: flowNodes, edges: flowEdges } = workflowToElements(response.data);
+            setNodes(flowNodes);
+            setEdges(flowEdges);
+          }
+        } catch (error) {
+          toast({
+            title: 'Error',
+            description: 'Failed to load workflow',
+            variant: 'destructive',
+          });
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        // Initialize with trigger node for new workflow
+        setNodes([{
+          id: 'trigger',
+          type: 'trigger',
+          data: { trigger: { type: 'on_create', entity_types: ['table'] } },
+          position: { x: 100, y: 50 },
+        }]);
+      }
+    };
+
+    loadData();
+  }, [id, isNew, get, toast, setNodes, setEdges]);
+
+  // Handle node selection
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    setSelectedNodeId(node.id);
+  }, []);
+
+  // Add new step
+  const addStep = (type: StepType) => {
+    const stepId = `step-${Date.now()}`;
+    const newStep: WorkflowStepCreate = {
+      step_id: stepId,
+      name: `New ${type} Step`,
+      step_type: type,
+      config: {},
+      order: steps.length,
+    };
+    
+    setSteps(prev => [...prev, newStep]);
+    
+    // Add node
+    const newNode: Node = {
+      id: stepId,
+      type: type,
+      data: { step: newStep },
+      position: { x: 100, y: (nodes.length + 1) * 120 },
+    };
+    setNodes(prev => [...prev, newNode]);
+    
+    // Connect to previous step or trigger
+    if (nodes.length > 0) {
+      const lastNode = nodes[nodes.length - 1];
+      const newEdge: Edge = {
+        id: `${lastNode.id}-to-${stepId}`,
+        source: lastNode.id,
+        sourceHandle: lastNode.id === 'trigger' ? undefined : 'pass',
+        target: stepId,
+        markerEnd: { type: MarkerType.ArrowClosed },
+      };
+      setEdges(prev => [...prev, newEdge]);
+      
+      // Update previous step's on_pass
+      if (lastNode.id !== 'trigger') {
+        setSteps(prev => prev.map(s => 
+          s.step_id === lastNode.id ? { ...s, on_pass: stepId } : s
+        ));
+      }
+    }
+    
+    setSelectedNodeId(stepId);
+  };
+
+  // Delete step
+  const deleteStep = (stepId: string) => {
+    setSteps(prev => prev.filter(s => s.step_id !== stepId));
+    setNodes(prev => prev.filter(n => n.id !== stepId));
+    setEdges(prev => prev.filter(e => e.source !== stepId && e.target !== stepId));
+    setSelectedNodeId(null);
+  };
+
+  // Update step
+  const updateStep = (stepId: string, updates: Partial<WorkflowStepCreate>) => {
+    setSteps(prev => prev.map(s => 
+      s.step_id === stepId ? { ...s, ...updates } : s
+    ));
+    
+    // Update node data
+    setNodes(prev => prev.map(n => 
+      n.id === stepId ? { ...n, data: { ...n.data, step: { ...n.data.step, ...updates } } } : n
+    ));
+  };
+
+  // Save workflow
+  const handleSave = async () => {
+    if (!name.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Workflow name is required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const workflowData: ProcessWorkflowCreate = {
+        name,
+        description,
+        trigger: {
+          type: triggerType,
+          entity_types: entityTypes,
+        },
+        is_active: isActive,
+        steps: steps.map((s, i) => ({ ...s, order: i })),
+      };
+
+      let response;
+      if (isNew) {
+        response = await post<ProcessWorkflow>('/api/workflows', workflowData);
+      } else {
+        response = await put<ProcessWorkflow>(`/api/workflows/${id}`, workflowData as ProcessWorkflowUpdate);
+      }
+
+      if (response.error) {
+        toast({
+          title: 'Validation Error',
+          description: response.error,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (response.data && response.data.id) {
+        toast({
+          title: 'Success',
+          description: `Workflow ${isNew ? 'created' : 'updated'} successfully`,
+        });
+        navigate('/compliance#workflows');
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: `Failed to ${isNew ? 'create' : 'update'} workflow: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Get selected step
+  const selectedStep = useMemo(() => {
+    if (!selectedNodeId || selectedNodeId === 'trigger') return null;
+    return steps.find(s => s.step_id === selectedNodeId);
+  }, [selectedNodeId, steps]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-6 space-y-4 h-[calc(100vh-120px)] flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={() => navigate('/settings/workflows')}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          {workflow?.is_default && (
+            <Badge variant="secondary">Default</Badge>
+          )}
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Workflow name"
+            className="text-lg font-semibold border-none shadow-none px-2 h-8 min-w-[200px]"
+            style={{ width: `${Math.max(200, name.length * 12 + 20)}px` }}
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mr-2">
+            <Switch checked={isActive} onCheckedChange={setIsActive} />
+            <span className="text-sm">{isActive ? 'Active' : 'Inactive'}</span>
+          </div>
+          <Button onClick={handleSave} disabled={isSaving} size="sm">
+            {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            Save
+          </Button>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Flow canvas */}
+        <div className="flex-1">
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onNodeClick={onNodeClick}
+            nodeTypes={nodeTypes}
+            fitView
+            fitViewOptions={{ maxZoom: 1, padding: 0.2 }}
+            minZoom={0.3}
+            maxZoom={2}
+            defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+            className="bg-slate-50 dark:bg-slate-900"
+          >
+            <Background />
+            <Controls />
+            <MiniMap />
+            
+            {/* Step type toolbar */}
+            <Panel position="top-left" className="bg-background border rounded-lg shadow-lg p-2">
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground px-2 mb-1">Add Step</span>
+                <Button variant="ghost" size="sm" className="justify-start" onClick={() => addStep('policy_check')}>
+                  <ClipboardCheck className="h-4 w-4 mr-2" /> Policy Check
+                </Button>
+                <Button variant="ghost" size="sm" className="justify-start" onClick={() => addStep('validation')}>
+                  <Shield className="h-4 w-4 mr-2" /> Validation
+                </Button>
+                <Button variant="ghost" size="sm" className="justify-start" onClick={() => addStep('approval')}>
+                  <UserCheck className="h-4 w-4 mr-2" /> Approval
+                </Button>
+                <Button variant="ghost" size="sm" className="justify-start" onClick={() => addStep('notification')}>
+                  <Bell className="h-4 w-4 mr-2" /> Notification
+                </Button>
+                <Button variant="ghost" size="sm" className="justify-start" onClick={() => addStep('assign_tag')}>
+                  <Tag className="h-4 w-4 mr-2" /> Assign Tag
+                </Button>
+                <Button variant="ghost" size="sm" className="justify-start" onClick={() => addStep('conditional')}>
+                  <GitBranch className="h-4 w-4 mr-2" /> Conditional
+                </Button>
+                <Button variant="ghost" size="sm" className="justify-start" onClick={() => addStep('script')}>
+                  <Code className="h-4 w-4 mr-2" /> Script
+                </Button>
+                <Separator className="my-1" />
+                <Button variant="ghost" size="sm" className="justify-start" onClick={() => addStep('pass')}>
+                  <CheckCircle className="h-4 w-4 mr-2 text-green-500" /> Pass
+                </Button>
+                <Button variant="ghost" size="sm" className="justify-start" onClick={() => addStep('fail')}>
+                  <XCircle className="h-4 w-4 mr-2 text-red-500" /> Fail
+                </Button>
+              </div>
+            </Panel>
+          </ReactFlow>
+        </div>
+
+        {/* Properties panel */}
+        <Sheet open={!!selectedNodeId} onOpenChange={() => setSelectedNodeId(null)}>
+          <SheetContent className="w-[400px]">
+            <SheetHeader>
+              <SheetTitle>
+                {selectedNodeId === 'trigger' ? 'Trigger Configuration' : 'Step Configuration'}
+              </SheetTitle>
+            </SheetHeader>
+            
+            <div className="mt-6 space-y-4">
+              {selectedNodeId === 'trigger' ? (
+                // Trigger configuration
+                <>
+                  <div>
+                    <Label>Trigger Type</Label>
+                    <Select value={triggerType} onValueChange={(v) => setTriggerType(v as TriggerType)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="before_create">Before Create (Inline)</SelectItem>
+                        <SelectItem value="before_update">Before Update (Inline)</SelectItem>
+                        <SelectItem value="on_create">On Create</SelectItem>
+                        <SelectItem value="on_update">On Update</SelectItem>
+                        <SelectItem value="on_delete">On Delete</SelectItem>
+                        <SelectItem value="on_status_change">On Status Change</SelectItem>
+                        <SelectItem value="scheduled">Scheduled</SelectItem>
+                        <SelectItem value="manual">Manual</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Entity Types</Label>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {(['catalog', 'schema', 'table', 'data_contract', 'data_product', 'dataset'] as EntityType[]).map(et => (
+                        <Badge
+                          key={et}
+                          variant={entityTypes.includes(et) ? 'default' : 'outline'}
+                          className="cursor-pointer"
+                          onClick={() => {
+                            if (entityTypes.includes(et)) {
+                              setEntityTypes(prev => prev.filter(e => e !== et));
+                            } else {
+                              setEntityTypes(prev => [...prev, et]);
+                            }
+                          }}
+                        >
+                          {et.replace('_', ' ')}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <Label>Description</Label>
+                    <Textarea
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Workflow description"
+                      rows={3}
+                    />
+                  </div>
+                  
+                  <Separator />
+                  
+                  <Button 
+                    className="w-full"
+                    onClick={() => setSelectedNodeId(null)}
+                  >
+                    Done
+                  </Button>
+                </>
+              ) : selectedStep ? (
+                // Step configuration
+                <>
+                  <div>
+                    <Label>Step Name</Label>
+                    <Input
+                      value={selectedStep.name || ''}
+                      onChange={(e) => updateStep(selectedStep.step_id, { name: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label>Step Type</Label>
+                    <Input value={selectedStep.step_type} disabled />
+                  </div>
+                  
+                  {/* Type-specific config */}
+                  {selectedStep.step_type === 'policy_check' && (
+                    <div>
+                      <Label>Compliance Policy</Label>
+                      <Select 
+                        value={(selectedStep.config as { policy_id?: string })?.policy_id || ''}
+                        onValueChange={(v) => {
+                          const policy = compliancePolicies.find(p => p.id === v);
+                          updateStep(selectedStep.step_id, { 
+                            config: { 
+                              ...selectedStep.config, 
+                              policy_id: v,
+                              policy_name: policy?.name || '',
+                            }
+                          });
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a compliance policy" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {compliancePolicies.length === 0 ? (
+                            <div className="px-2 py-3 text-sm text-muted-foreground">
+                              No active policies found
+                            </div>
+                          ) : (
+                            compliancePolicies.map((policy) => (
+                              <SelectItem key={policy.id} value={policy.id}>
+                                {policy.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        This step will evaluate the selected compliance policy's DSL rule at runtime.
+                      </p>
+                    </div>
+                  )}
+                  
+                  {selectedStep.step_type === 'validation' && (
+                    <div>
+                      <Label>DSL Rule</Label>
+                      <Textarea
+                        value={(selectedStep.config as { rule?: string })?.rule || ''}
+                        onChange={(e) => updateStep(selectedStep.step_id, { 
+                          config: { ...selectedStep.config, rule: e.target.value }
+                        })}
+                        placeholder="MATCH (obj:Object)&#10;ASSERT obj.name MATCHES '^[a-z_]+$'"
+                        rows={6}
+                        className="font-mono text-sm"
+                      />
+                    </div>
+                  )}
+                  
+                  {selectedStep.step_type === 'notification' && (
+                    <>
+                      <div>
+                        <Label>Recipients</Label>
+                        <Select 
+                          value={(selectedStep.config as { recipients?: string })?.recipients || ''}
+                          onValueChange={(v) => updateStep(selectedStep.step_id, { 
+                            config: { ...selectedStep.config, recipients: v }
+                          })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select recipients" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="requester">Requester</SelectItem>
+                            <SelectItem value="owner">Owner</SelectItem>
+                            <SelectItem value="domain_owners">Domain Owners</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Template</Label>
+                        <Select 
+                          value={(selectedStep.config as { template?: string })?.template || ''}
+                          onValueChange={(v) => updateStep(selectedStep.step_id, { 
+                            config: { ...selectedStep.config, template: v }
+                          })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select template" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="validation_failed">Validation Failed</SelectItem>
+                            <SelectItem value="validation_passed">Validation Passed</SelectItem>
+                            <SelectItem value="product_approved">Product Approved</SelectItem>
+                            <SelectItem value="product_rejected">Product Rejected</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
+                  
+                  {selectedStep.step_type === 'assign_tag' && (
+                    <>
+                      <div>
+                        <Label>Tag Key</Label>
+                        <Input
+                          value={(selectedStep.config as { key?: string })?.key || ''}
+                          onChange={(e) => updateStep(selectedStep.step_id, { 
+                            config: { ...selectedStep.config, key: e.target.value }
+                          })}
+                          placeholder="e.g., owner"
+                        />
+                      </div>
+                      <div>
+                        <Label>Value Source</Label>
+                        <Select 
+                          value={(selectedStep.config as { value_source?: string })?.value_source || ''}
+                          onValueChange={(v) => updateStep(selectedStep.step_id, { 
+                            config: { ...selectedStep.config, value_source: v }
+                          })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select source" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="current_user">Current User</SelectItem>
+                            <SelectItem value="project_name">Project Name</SelectItem>
+                            <SelectItem value="timestamp">Timestamp</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
+                  
+                  {selectedStep.step_type === 'approval' && (
+                    <>
+                      <div>
+                        <Label>Approvers</Label>
+                        <Select 
+                          value={(selectedStep.config as { approvers?: string })?.approvers || ''}
+                          onValueChange={(v) => updateStep(selectedStep.step_id, { 
+                            config: { ...selectedStep.config, approvers: v }
+                          })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select approvers" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="domain_owners">Domain Owners</SelectItem>
+                            <SelectItem value="project_owners">Project Owners</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Timeout (days)</Label>
+                        <Input
+                          type="number"
+                          value={(selectedStep.config as { timeout_days?: number })?.timeout_days || 7}
+                          onChange={(e) => updateStep(selectedStep.step_id, { 
+                            config: { ...selectedStep.config, timeout_days: parseInt(e.target.value) }
+                          })}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <Separator />
+                  
+                  <div className="flex gap-2">
+                    <Button 
+                      className="flex-1"
+                      onClick={() => setSelectedNodeId(null)}
+                    >
+                      Done
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      size="icon"
+                      onClick={() => deleteStep(selectedStep.step_id)}
+                      title="Delete Step"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
+    </div>
+  );
+}
+
