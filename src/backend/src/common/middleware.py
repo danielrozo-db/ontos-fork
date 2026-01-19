@@ -16,7 +16,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         start_time = time.time()
         response = await call_next(request)
         process_time = time.time() - start_time
-        logger.info(f"{request.method} {request.url.path} completed in {process_time:.3f}s")
+        logger.debug(f"{request.method} {request.url.path} completed in {process_time:.3f}s")
         return response
 
 class ErrorHandlingMiddleware(BaseHTTPMiddleware):
