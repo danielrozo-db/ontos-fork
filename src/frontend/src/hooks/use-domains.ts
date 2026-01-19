@@ -1,10 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-
-export interface DataDomain {
-  id: string
-  name: string
-  description?: string
-}
+import { DataDomain } from '@/types/data-domain'
 
 interface DomainsState {
   domains: DataDomain[]

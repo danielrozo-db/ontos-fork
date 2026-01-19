@@ -24,7 +24,6 @@ export default function DiscoverySection({ maxItems = 12 }: DiscoverySectionProp
   const [domainLoading, setDomainLoading] = useState<boolean>(false);
   const [domainError, setDomainError] = useState<string | null>(null);
   const [exactMatchesOnly, setExactMatchesOnly] = useState<boolean>(false);
-  const [matchesLoading, setMatchesLoading] = useState<boolean>(false);
   const [matchSets, setMatchSets] = useState<{ ids: Set<string>; namesLower: Set<string> } | null>(null);
   const [graphFadeIn, setGraphFadeIn] = useState<boolean>(false);
   const [allProducts, setAllProducts] = useState<DataProduct[]>([]);
@@ -96,6 +95,7 @@ export default function DiscoverySection({ maxItems = 12 }: DiscoverySectionProp
     }
   }, [domainsLoading, domains, selectedDomainId]);
 
+  // Fetch full domain details via API (includes children_info needed for graph)
   const loadDomainDetails = useCallback(async (domainId: string) => {
     try {
       setDomainLoading(true);
@@ -129,9 +129,9 @@ export default function DiscoverySection({ maxItems = 12 }: DiscoverySectionProp
     return () => cancelAnimationFrame(raf);
   }, [selectedDomainDetails?.id]);
 
-  // Build match sets depending on exact/children selection
+  // Build match sets depending on exact/children selection (using cached domains)
   useEffect(() => {
-    const buildSets = async () => {
+    const buildSets = () => {
       if (!selectedDomainId) { setMatchSets(null); return; }
       const selected = domains.find(d => d.id === selectedDomainId);
       if (exactMatchesOnly) {
@@ -141,42 +141,43 @@ export default function DiscoverySection({ maxItems = 12 }: DiscoverySectionProp
         setMatchSets({ ids, namesLower });
         return;
       }
-      setMatchesLoading(true);
-      try {
-        const ids = new Set<string>();
-        const namesLower = new Set<string>();
-        const enqueue = (id?: string | null, name?: string | null) => {
-          if (id) ids.add(String(id));
-          if (name) namesLower.add(String(name).toLowerCase());
-        };
+      // Build descendant tree using already-fetched domains (no API calls needed)
+      const ids = new Set<string>();
+      const namesLower = new Set<string>();
+      const enqueue = (id?: string | null, name?: string | null) => {
+        if (id) ids.add(String(id));
+        if (name) namesLower.add(String(name).toLowerCase());
+      };
 
-        // Start from the selected domain and walk all descendants via API
-        try {
-          const rootResp = await fetch(`/api/data-domains/${selectedDomainId}`);
-          if (rootResp.ok) {
-            const root: DataDomain = await rootResp.json();
-            enqueue(root.id, root.name);
-            const queue: { id: string; name?: string | null }[] = [...(root.children_info || []).map(c => ({ id: c.id, name: c.name }))];
-            while (queue.length > 0) {
-              const { id, name } = queue.shift()!;
-              enqueue(id, name);
-              try {
-                const resp = await fetch(`/api/data-domains/${id}`);
-                if (resp.ok) {
-                  const data: DataDomain = await resp.json();
-                  (data.children_info || []).forEach(ch => queue.push({ id: ch.id, name: ch.name }));
-                }
-              } catch { /* ignore child fetch errors */ }
-            }
-          }
-        } catch { /* ignore root fetch errors; fallback to just selected id */
-          enqueue(String(selectedDomainId), selected?.name || null);
+      // Build a parent->children map from the cached domains
+      const childrenMap = new Map<string, DataDomain[]>();
+      const domainById = new Map<string, DataDomain>();
+      domains.forEach(d => {
+        domainById.set(d.id, d);
+        if (d.parent_id) {
+          const siblings = childrenMap.get(d.parent_id) || [];
+          siblings.push(d);
+          childrenMap.set(d.parent_id, siblings);
         }
+      });
 
-        setMatchSets({ ids, namesLower });
-      } finally {
-        setMatchesLoading(false);
+      // BFS to collect all descendants
+      const root = domainById.get(selectedDomainId);
+      if (root) {
+        enqueue(root.id, root.name);
+        const queue = [...(childrenMap.get(root.id) || [])];
+        while (queue.length > 0) {
+          const child = queue.shift()!;
+          enqueue(child.id, child.name);
+          const grandchildren = childrenMap.get(child.id) || [];
+          queue.push(...grandchildren);
+        }
+      } else {
+        // Fallback if domain not found in cache
+        enqueue(String(selectedDomainId), selected?.name || null);
       }
+
+      setMatchSets({ ids, namesLower });
     };
     buildSets();
   }, [selectedDomainId, exactMatchesOnly, domains]);
@@ -301,7 +302,7 @@ export default function DiscoverySection({ maxItems = 12 }: DiscoverySectionProp
 
       <div>
         <div className="flex items-center gap-2 mb-3"><Star className="h-5 w-5 text-primary" /><span className="font-medium">{t('discoverySection.popularProducts')}</span></div>
-        {productsLoading || matchesLoading ? (
+        {productsLoading ? (
           <div className="flex items-center justify-center h-32"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
         ) : productsError ? (
           <Alert variant="destructive" className="mb-4"><AlertCircle className="h-4 w-4" /><AlertDescription>{productsError}</AlertDescription></Alert>
