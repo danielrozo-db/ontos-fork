@@ -172,6 +172,20 @@ class CachingWorkspaceClient(WorkspaceClient):
                     lambda: list(self._parent._client.catalogs.list())
                 )()
 
+            def get(self, name: str):
+                """Get a catalog by name - cached."""
+                cache_key = f'catalogs.get::{name}'
+                return self._parent._cache_result(cache_key)(
+                    lambda: self._parent._client.catalogs.get(name)
+                )()
+
+            def create(self, name: str, **kwargs):
+                """Create a catalog - delegates to client and clears list cache."""
+                result = self._parent._client.catalogs.create(name=name, **kwargs)
+                # Invalidate the list cache since we added a new catalog
+                self._parent.clear_cache('catalogs.list')
+                return result
+
         return CachedCatalogs(self)
 
     @property
