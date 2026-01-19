@@ -157,6 +157,14 @@ async def bootstrap_self_service(
         raise HTTPException(status_code=500, detail="Failed to bootstrap self-service")
 
 
+def get_data_contracts_manager(request: Request) -> DataContractsManager:
+    """Retrieves the DataContractsManager singleton from app.state."""
+    manager = getattr(request.app.state, 'data_contracts_manager', None)
+    if manager is None:
+        raise HTTPException(status_code=500, detail="DataContractsManager not initialized")
+    return manager
+
+
 @router.post('/self-service/create')
 async def self_service_create(
     request: Request,
@@ -165,6 +173,7 @@ async def self_service_create(
     audit_manager: AuditManagerDep,
     audit_user: AuditCurrentUserDep,
     payload: Dict[str, Any] = Body(...),
+    dc_manager: DataContractsManager = Depends(get_data_contracts_manager),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
     """Create catalog/schema/table with parent auto-creation, apply compliance mapping, optionally create a contract and assign to project.
@@ -193,8 +202,8 @@ async def self_service_create(
 
     try:
         ws = get_workspace_client()
-        catalog_manager = CatalogCommanderManager(ws)
-        dc_manager = DataContractsManager()
+        # For self-service, use the same client for both SP and OBO operations
+        catalog_manager = CatalogCommanderManager(sp_client=ws, obo_client=ws)
 
         if obj_type not in ('catalog', 'schema', 'table'):
             raise HTTPException(status_code=400, detail="Invalid type; expected catalog|schema|table")

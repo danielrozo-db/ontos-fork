@@ -43,6 +43,7 @@ from src.routes import (
     notifications_routes,
     search_routes,
     security_features_routes,
+    self_service_routes,
     settings_routes,
     access_requests_routes,
     semantic_models_routes,
@@ -276,6 +277,7 @@ audit_routes.register_routes(app)
 change_log_routes.register_routes(app)
 mcp_routes.register_routes(app)
 mcp_tokens_routes.register_routes(app)
+self_service_routes.register_routes(app)
 workflows_routes.register_routes(app)
 settings_routes.register_routes(app)
 

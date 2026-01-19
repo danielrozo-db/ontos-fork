@@ -47,7 +47,6 @@ export default function SelfServiceDialog({ isOpen, onOpenChange, initialType }:
   const [schema, setSchema] = useState('');
   const [tableName, setTableName] = useState('');
   const [columns, setColumns] = useState<ColumnProperty[]>([]);
-  const [autoFix, setAutoFix] = useState(true);
   const [createContract, setCreateContract] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,7 +95,6 @@ export default function SelfServiceDialog({ isOpen, onOpenChange, initialType }:
         type: createType,
         catalog,
         schema,
-        autoFix,
         createContract,
         defaultToUserCatalog: true,
         projectId: currentProject?.id,
@@ -183,18 +181,14 @@ export default function SelfServiceDialog({ isOpen, onOpenChange, initialType }:
             </Card>
           )}
 
-          <div className="flex gap-2 items-center">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={autoFix} onChange={(e) => setAutoFix(e.target.checked)} />
-              Auto-fix required tags
-            </label>
-            {createType === 'table' && (
+          {createType === 'table' && (
+            <div className="flex gap-2 items-center">
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={createContract} onChange={(e) => setCreateContract(e.target.checked)} />
                 Create as Data Contract
               </label>
-            )}
-          </div>
+            </div>
+          )}
 
           {error && (
             <Alert variant="destructive">
