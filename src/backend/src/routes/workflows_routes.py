@@ -35,7 +35,7 @@ from src.models.process_workflows import (
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/workflows", tags=["workflows"])
+router = APIRouter(prefix="/api/workflows", tags=["Process Workflows"])
 
 
 def get_workflows_manager(db: Session = Depends(get_db)) -> WorkflowsManager:

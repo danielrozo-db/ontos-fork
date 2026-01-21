@@ -160,15 +160,18 @@ openapi_tags = [
     {"name": "Datasets", "description": "Manage datasets and dataset instances"},
     {"name": "Data Contracts", "description": "Manage data contracts for data products"},
     {"name": "Data Products", "description": "Manage data products and subscriptions"},
-    {"name": "Approvals", "description": "Manage approval workflows"},
     
     # Governance - Standards and approval workflows
+    {"name": "Compliance", "description": "Manage compliance policies and runs"},
+    {"name": "Approvals", "description": "Manage approval workflows"},
+    {"name": "Process Workflows", "description": "Manage process workflows"},
+    {"name": "Data Asset Reviews", "description": "Manage data asset review workflows"},
+
+    # Business Glossary - Semantic models and ontologies
     {"name": "Semantic Models", "description": "Manage semantic models and ontologies"},
     {"name": "Semantic Links", "description": "Manage semantic links between entities"},
-    {"name": "Data Asset Reviews", "description": "Manage data asset review workflows"},
     
     # Operations - Monitoring and technical management
-    {"name": "Compliance", "description": "Manage compliance policies and runs"},
     {"name": "Estates", "description": "Manage data estates"},
     {"name": "Master Data Management", "description": "Master data management features"},
     {"name": "Catalog Commander", "description": "Dual-pane catalog explorer"},
