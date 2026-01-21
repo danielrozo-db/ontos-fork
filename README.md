@@ -1,501 +1,175 @@
 # Ontos
 
-A comprehensive tool for managing Databricks Unity Catalog resources, featuring a React frontend with Tailwind CSS and Shadcn UI, powered by a FastAPI backend.
+A comprehensive data governance and management platform built for Databricks Unity Catalog.
 
 ![Home](docs/images/home.png)
 
 ## Overview
 
-Ontos provides a unified interface for managing various aspects of Databricks Unity Catalog, including:
+**Ontos** provides enterprise teams with the tools to organize, govern, and deliver high-quality data products following Data Mesh principles and industry standards like [ODCS](https://github.com/bitol-io/open-data-contract-standard) (Open Data Contract Standard) and [ODPS](https://github.com/bitol-io/open-data-product-standard) (Open Data Product Specification).
 
-- Data Products management
-- Data Contracts handling
-- Business Glossaries
-- Master Data Management
-- Advanced Catalog operations
+## Key Features
+
+### 📊 Data Products
+Group and manage related Databricks assets (tables, views, functions, models, dashboards) as cohesive, consumable products with clear ownership and lifecycle management.
+
+### 📝 Data Contracts
+Define formal specifications for data assets with schema definitions, quality rules, SLOs, and semantic meaning following the ODCS v3.0.2 standard.
+
+### 📦 Datasets
+Register and group existing data assets across systems (Unity Catalog, Snowflake) and environments (dev, staging, prod), bridging physical assets to formal contracts.
+
+### 🏢 Organizational Structure
+Organize data work using **Domains**, **Teams**, and **Projects** aligned with your organizational structure and data mesh architecture.
+
+### 🧠 Semantic Models
+Link technical data assets to business concepts through a knowledge graph, enabling semantic search and maintaining a shared vocabulary.
+
+### ✅ Compliance Automation
+Define and enforce governance policies using a declarative DSL (Domain-Specific Language). Run automated compliance checks with configurable actions (tagging, notifications, enforcement).
+
+### 🔍 Asset Review Workflows
+Enable Data Stewards to formally review and approve assets before production promotion, with AI-assisted analysis and full audit trails.
+
+### 🤖 AI Integration (MCP)
+Expose your data governance platform to AI assistants via the Model Context Protocol (MCP), enabling natural language queries and automation.
 
 ## Architecture
 
-### Frontend (React + TypeScript)
+Ontos is designed to run as a **Databricks App**:
 
-The frontend is built with React, TypeScript, Tailwind CSS, and Shadcn UI, providing a modern and responsive user interface.
+- **Frontend**: React + TypeScript with Tailwind CSS and Shadcn UI
+- **Backend**: Python + FastAPI with SQLAlchemy ORM
+- **Database**: PostgreSQL (or Databricks Lakebase in production)
+- **Integration**: Native Databricks SDK integration for Unity Catalog operations
 
-Key features:
-- Tab-based navigation
-- Real-time data synchronization
-- Interactive data management interfaces
-- Responsive dashboard with summary metrics
-- Clean, accessible UI components with Shadcn UI
+## Quick Start
 
-### Backend (Python + FastAPI)
+### Prerequisites
 
-The backend API is built with FastAPI, providing RESTful endpoints for all data operations.
-
-#### API Documentation (Swagger UI)
-
-FastAPI automatically generates interactive API documentation using Swagger UI.
-Once the backend server is running (e.g., via `hatch -e dev run dev-backend`), you can access the API documentation in your browser.
-
-- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
-
-This interface allows you to explore all available API endpoints, view their request/response models, and even try them out directly from your browser.
-
-# Getting Started
-
-This project uses Yarn for frontend package management, Vite for the frontend build system, and Hatch for the Python backend.
-
-## Available Scripts
-
-In the project directory, you can run:
-
-### `yarn dev:frontend`
-
-Runs the frontend app in development mode using Vite.
-Open [http://localhost:3000](http://localhost:3000) (or the port Vite chooses) to view it in the browser.
-
-The page will reload if you make edits.
-You will also see any lint errors in the console.
-
-### `yarn dev:backend`
-
-Runs the Python-based FastAPI server in development mode using Hatch.
-(Corresponds to the `dev:backend` script in `package.json` which executes `hatch -e dev run dev-backend`)
-
-### `yarn build`
-
-Builds the frontend app for production to the `static` folder.
-It performs a TypeScript type check, then correctly bundles React in production mode and optimizes the build for the best performance using Vite.
-
-The build is minified and the filenames include the hashes.
-Your app is ready to be deployed!
-
-### License Checking
-
-The project includes license checking tools for both frontend and backend dependencies:
-
-#### `yarn license-check:all`
-
-Runs license checks on both frontend and backend dependencies (from `src/` directory).
-
-#### `yarn license-check:frontend`
-
-Checks licenses for frontend npm packages (summary view).
-
-#### `yarn license-check:backend`
-
-Checks licenses for backend Python packages (markdown format).
-
-For more details and additional options, see [License Checking Guide](docs/LICENSE_CHECKING.md).
-
-## Environment Configuration
-
-The application requires a `.env` file in the root directory for configuration. Create a file named `.env` with the following variables (or set them as environment variables):
-
-| Variable                   | Description                                                                                                   | Example Value                                | Required |
-|----------------------------|---------------------------------------------------------------------------------------------------------------|----------------------------------------------|----------|
-| `DATABRICKS_HOST`          | Your Databricks workspace URL                                                                                 | `https://your-workspace.cloud.databricks.com`| Yes      |
-| `DATABRICKS_WAREHOUSE_ID`  | The ID of the Databricks SQL Warehouse to use (used by features, not DB)                                      | `1234567890abcdef`                           | No    |
-| `DATABRICKS_CATALOG`       | Default Unity Catalog catalog (used by features, not DB)                                                      | `main`                                       | No    |
-| `DATABRICKS_SCHEMA`        | Default Unity Catalog schema (used by features, not DB)                                                       | `default`                                    | No    |
-| `DATABRICKS_VOLUME`        | Default Unity Catalog volume for storing app-related files (e.g., data contract outputs)                      | `app_volume`                                 | Yes      |
-| `APP_AUDIT_LOG_DIR`        | Directory path within the `DATABRICKS_VOLUME` for storing audit logs                                          | `audit_logs`                                 | Yes      |
-| `DATABRICKS_TOKEN`         | Personal access token for Databricks authentication (Optional - SDK can use other methods)                    | `dapi1234567890abcdef`                       | No       |
-| `POSTGRES_HOST`            | Hostname or IP address of the PostgreSQL server                                                               | `localhost` or `your.pg.server.com`          | Cond.    |
-| `POSTGRES_PORT`            | Port number for the PostgreSQL server                                                                         | `5432`                                       | Cond.    |
-| `POSTGRES_USER`            | Username for connecting to PostgreSQL                                                                         | `app_user`                                   | Cond.    |
-| `POSTGRES_PASSWORD`        | Password for the PostgreSQL user (required for `ENV=LOCAL`, not needed for Lakebase OAuth)                    | `your_secure_password`                     | Cond.    |
-| `POSTGRES_DB`              | Name of the PostgreSQL database to use                                                                        | `app_ontos_db`                               | Cond.    |
-| `POSTGRES_DB_SCHEMA`       | Database schema to use for application tables (Optional, defaults to `public` for PostgreSQL)                 | `app_ontos`                                  | No       |
-| `DB_POOL_SIZE`             | Base database connection pool size                                                                            | `5`                                          | No       |
-| `DB_MAX_OVERFLOW`          | Additional database connections under load                                                                    | `10`                                         | No       |
-| `DB_POOL_TIMEOUT`          | Max seconds to wait for a database connection from the pool                                                   | `10`                                         | No       |
-| `DB_POOL_RECYCLE`          | Recycle database connections after this many seconds (prevents stale connections)                             | `3600`                                       | No       |
-| `DB_COMMAND_TIMEOUT`       | Query timeout in seconds                                                                                      | `30`                                         | No       |
-| `ENV`                      | Deployment environment (`LOCAL`, `DEV`, `PROD`)                                                               | `LOCAL`                                      | No       |
-| `DEBUG`                    | Enable debug mode for FastAPI                                                                                 | `True`                                       | No       |
-| `LOG_LEVEL`                | Log level for the application (`DEBUG`, `INFO`, `WARNING`, `ERROR`)                                           | `INFO`                                       | No       |
-| `LOG_FILE`                 | Path to a log file (if logging to file is desired)                                                            | `/path/to/app.log`                           | No       |
-| `APP_ADMIN_DEFAULT_GROUPS` | JSON string array of Databricks group names to assign the default 'Admin' role upon first startup.            | `["admins", "superusers"]`                   | No       |
-| `GIT_REPO_URL`             | URL of the Git repository for optional YAML configuration backup/sync                                         | `https://github.com/user/repo.git`         | No       |
-| `GIT_BRANCH`               | Git branch to use for configuration backup/sync                                                               | `main`                                       | No       |
-| `GIT_USERNAME`             | Username for Git authentication                                                                               | `git_user`                                   | No       |
-| `GIT_PASSWORD`             | Password or Personal Access Token for Git authentication                                                      | `git_token_or_password`                      | No       |
-| `APP_DEMO_MODE`            | Enable demo mode (loads sample data on startup)                                                               | `False`                                      | No       |
-| `APP_DB_DROP_ON_START`     | **DANGER:** Drop and recreate the application database on startup (for development)                           | `False`                                      | No       |
-| `APP_DB_ECHO`              | Log SQLAlchemy generated SQL statements to the console (for debugging)                                        | `False`                                      | No       |
-
-**Note:** `DATABRICKS_HTTP_PATH` is derived automatically from `DATABRICKS_WAREHOUSE_ID` for Databricks connections and does not need to be set manually.
-
-### Database Configuration
-
-The application stores its metadata (settings, roles, reviews, etc.) in PostgreSQL only.
-
-**Authentication Modes:**
-- **Local Development (`ENV=LOCAL`)**: Uses password authentication with `POSTGRES_PASSWORD`
-- **Production (`ENV=DEV` or `ENV=PROD`)**: Uses OAuth token authentication for Lakebase (instance name is fetched dynamically)
-
-**Required PostgreSQL variables:**
-
-- `POSTGRES_HOST`: Hostname of your PostgreSQL server.
-- `POSTGRES_PORT`: Port of your PostgreSQL server (default `5432`).
-- `POSTGRES_USER`: Username for PostgreSQL connection.
-- `POSTGRES_PASSWORD`: Password for the PostgreSQL user (required for `ENV=LOCAL` only).
-- `POSTGRES_DB`: Database name on the PostgreSQL server.
-- `POSTGRES_DB_SCHEMA`: Optional schema in the PostgreSQL database (defaults to `public`).
-
-#### Connection Pool Settings
-
-The application uses SQLAlchemy connection pooling for efficient database resource management. These settings can be tuned based on your deployment needs:
-
-| Parameter           | Default | Description                                      | Recommended Values       |
-|---------------------|---------|--------------------------------------------------|--------------------------|
-| `DB_POOL_SIZE`      | 5       | Base number of connections maintained in pool   | 5-10 for most apps       |
-| `DB_MAX_OVERFLOW`   | 10      | Additional connections allowed under load        | 2x `DB_POOL_SIZE`        |
-| `DB_POOL_TIMEOUT`   | 10      | Max seconds to wait for available connection     | 10-30 seconds            |
-| `DB_POOL_RECYCLE`   | 3600    | Recycle connections after this many seconds      | 3600 (1 hour)            |
-| `DB_COMMAND_TIMEOUT`| 30      | Query execution timeout in seconds               | 30-60 seconds            |
-
-**Performance Tuning Examples:**
-
-For high-traffic production environments:
-```bash
-DB_POOL_SIZE=10
-DB_MAX_OVERFLOW=20
-DB_POOL_TIMEOUT=30
-```
-
-For local development:
-```bash
-DB_POOL_SIZE=2
-DB_MAX_OVERFLOW=5
-DB_POOL_TIMEOUT=10
-```
-
-**Note:** The `DB_POOL_RECYCLE=3600` (1 hour) default is especially important for Lakebase deployments, as it ensures connections are refreshed before OAuth tokens expire.
-
-## Prerequisites
-
-- Python 3.10 - 3.12 (as defined in `pyproject.toml`)
-- Node.js 16 or higher (which includes npm for installing Yarn)
-- Yarn package manager (Version 1.x - Classic). Install via npm if you don't have it:
-  ```bash
-  npm install --global yarn
-  ```
+- Python 3.10 - 3.12
+- Node.js 18+
+- Yarn (v1.x Classic)
 - Hatch (Python build tool)
+- PostgreSQL (for local development)
 
-If you want to use a local PostgreSQL instance for development, here are the steps:
+### Installation
 
-1. Install PostgreSQL locally, here for MacOS:
-
-    ```
-    ➜  > brew install postgresql@16
-    ==> Downloading https://ghcr.io/v2/homebrew/core/postgresql/16/manifests/16.9
-    ############################################################################################################################################ 100.0%
-    ==> Fetching postgresql@16
-    ==> Downloading https://ghcr.io/v2/homebrew/core/postgresql/16/blobs/sha256:8e883e6e9e7231d49b90965f42ebc53981efb02e6ed7fdcbd1ebfdc2bfb5959a
-    ############################################################################################################################################ 100.0%
-    ==> Pouring postgresql@16--16.9.arm64_sequoia.bottle.tar.gz
-    ==> /opt/homebrew/Cellar/postgresql@16/16.9/bin/initdb --locale=C -E UTF-8 /opt/homebrew/var/postgresql@16
-    ==> Caveats
-    This formula has created a default database cluster with:
-    initdb --locale=C -E UTF-8 /opt/homebrew/var/postgresql@16
-
-    postgresql@16 is keg-only, which means it was not symlinked into /opt/homebrew,
-    because this is an alternate version of another formula.
-
-    If you need to have postgresql@16 first in your PATH, run:
-    echo 'export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"' >> ~/.zshrc
-
-    For compilers to find postgresql@16 you may need to set:
-    export LDFLAGS="-L/opt/homebrew/opt/postgresql@16/lib"
-    export CPPFLAGS="-I/opt/homebrew/opt/postgresql@16/include"
-
-    For pkg-config to find postgresql@16 you may need to set:
-    export PKG_CONFIG_PATH="/opt/homebrew/opt/postgresql@16/lib/pkgconfig"
-
-    To start postgresql@16 now and restart at login:
-    brew services start postgresql@16
-    Or, if you don't want/need a background service you can just run:
-    LC_ALL="C" /opt/homebrew/opt/postgresql@16/bin/postgres -D /opt/homebrew/var/postgresql@16
-    ==> Summary
-    🍺  /opt/homebrew/Cellar/postgresql@16/16.9: 3,811 files, 69MB
-    ==> Running `brew cleanup postgresql@16`...
-    Disable this behaviour by setting HOMEBREW_NO_INSTALL_CLEANUP.
-    Hide these hints with HOMEBREW_NO_ENV_HINTS (see `man brew`).
-    ```
-
-    Read the emitted instructions above, for example, run `brew services start postgresql@16` if you want to run PostgreSQL in the background.
-
-2. Setup the path and start the CLI as superuser
-
-    ```sh
-    > export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
-    > psql -U $(whoami) -d postgres
-    psql (16.9 (Homebrew))
-    Type "help" for help.
-    ```
-
-3. Run the necessary commands to create resources
-
-    ```sql
-    CREATE ROLE ontos_app_user WITH LOGIN PASSWORD '<my_password>';
-    GRANT ontos_app_user TO "<your_user_id>";
-
-    CREATE DATABASE app_ontos;
-    GRANT ALL PRIVILEGES ON DATABASE app_ontos TO ontos_app_user;
-    GRANT USAGE ON SCHEMA public TO ontos_app_user;
-    GRANT CREATE ON SCHEMA public TO ontos_app_user;
-    \q
-    ```
-
-    Reconnect to switch the database:
-
-    ```sh
-    ucapp git:(main) ✗ psql -U $(whoami) -d app_ontos
-    psql (16.9 (Homebrew))
-    Type "help" for help.
-    ```
-
-    Run the remaining commands:
-
-    ```sql
-    CREATE SCHEMA app_ontos;
-    ALTER SCHEMA app_ontos OWNER TO ontos_app_user;
-    GRANT USAGE ON SCHEMA app_ontos TO ontos_app_user;
-    GRANT ALL ON SCHEMA app_ontos TO ontos_app_user;
-    \q
-    ```
-
-    Note: Replace `<my_password>` with your password of choice, and `<your_user_id>` with the Postgres user ID you logged into the server.
-
-4. Configure app to use local database 
-
-    ```env
-    POSTGRES_HOST=localhost
-    POSTGRES_PORT=5432
-    POSTGRES_USER=ontos_app_user
-    POSTGRES_PASSWORD=<my_password>
-    POSTGRES_DB=app_ontos
-    POSTGRES_DB_SCHEMA=app_ontos
-    ```
-
-    Note: Use the above `<my_password>` here
-    
-### Setting up Lakebase (Production)
-
-When deploying to production with Lakebase, the application uses **OAuth token authentication** instead of passwords. The application automatically generates and refreshes OAuth tokens every 50 minutes.
-
-**Setup is straightforward** - create the database once with open permissions, then deploy the app. The app handles schema creation and table setup automatically on first start.
-
-#### Setup Steps
-
-1. **Set up a new [Lakebase instance](https://docs.databricks.com/aws/en/oltp/instances/instance)** (Note: Wait for it to start!)
-
-2. **Create the database with open permissions** (one-time setup, before deploying):
-
-    Connect to your Lakebase instance and create the database:
-
-    ```sh
-    # Connect with your OAuth token (get it from Databricks UI or CLI)
-    psql "host=instance-xxx.database.cloud.databricks.com user=<your_email> dbname=postgres port=5432 sslmode=require"
-    Password: <paste OAuth token>
-    ```
-
-    Run these SQL commands:
-
-    ```sql
-    -- Create the database
-    CREATE DATABASE "app_ontos";
-    
-    -- Grant CREATE to PUBLIC so the app's service principal can create schemas
-    -- (The SP doesn't exist yet, but will inherit this permission when created)
-    GRANT CREATE ON DATABASE "app_ontos" TO PUBLIC;
-    \q
-    ```
-
-    **Why grant to PUBLIC?** The app's service principal is created automatically when the app first connects. By granting to `PUBLIC`, any authenticated role (including the future SP) can create schemas in the database. This avoids the chicken-and-egg problem of needing to know the SP ID before the app is deployed.
-
-3. **Deploy your app**:
-
-    ```sh
-    databricks apps deploy <app-name>
-    ```
-
-    On first startup, the app will:
-    - Authenticate as its service principal using OAuth
-    - Connect to the `app_ontos` database
-    - Create the `app_ontos` schema (becomes schema owner automatically)
-    - Set default privileges for future tables/sequences
-    - Create all application tables
-
-4. **(Optional) Tighten permissions after first successful deploy**:
-
-    For enhanced security, you can revoke the broad `PUBLIC` grant and grant only to the app's service principal:
-
-    ```sql
-    -- Get the SP ID from the app logs, then run:
-    REVOKE CREATE ON DATABASE "app_ontos" FROM PUBLIC;
-    GRANT CREATE ON DATABASE "app_ontos" TO "<service_principal_uuid>";
-    ```
-
-#### Configuration Reference
-
-The `app.yaml` should reference the Lakebase instance:
-
-```yaml
-- name: "POSTGRES_HOST"
-    valueFrom: "database"  # References your Lakebase instance resource
-- name: "POSTGRES_PORT"
-    value: "5432"
-# POSTGRES_USER is auto-detected from service principal - do not set
-- name: "POSTGRES_DB"
-    value: "app_ontos"
-- name: "POSTGRES_DB_SCHEMA"
-    value: "app_ontos"
-- name: "ENV"
-    value: "PROD"  # Triggers OAuth mode (not LOCAL)
-```
-
-#### How It Works
-
-- **One-time database setup:** Create the database and grant `CREATE` to `PUBLIC` before deploying. This allows any authenticated role (including the app's future service principal) to create schemas.
-- **Zero manual grants after setup:** The app creates and owns its schema (full privileges automatically as schema owner)
-- **Username detection:** Service principal username is auto-detected at runtime
-- **Token generation:** OAuth tokens are automatically generated using the Databricks SDK
-- **Token refresh:** Tokens refresh every 50 minutes in the background (before 60-minute expiry)
-- **Connection pooling:** Fresh tokens are automatically injected into database connections
-- **No hardcoding:** Service principal names are never hardcoded in configuration files
-- **Security:** The `PUBLIC` grant only allows schema creation in the app database. Only authenticated Databricks principals can connect. You can optionally tighten permissions after first deploy.
-
-## Installation
-
-1. Install Hatch (if you haven't already):
 ```bash
-pip install hatch
-```
+# Clone the repository
+git clone https://github.com/larsgeorge/ontos.git
+cd ontos
 
-2. Install Frontend Dependencies:
-Navigate to the project root directory and run:
-```bash
+# Install frontend dependencies
+cd src/frontend
 yarn install
+
+# Copy and configure environment
+cd ../..
+cp .env.example .env
+# Edit .env with your configuration
 ```
 
-3. Backend Dependencies:
-Python dependencies for the backend are managed by Hatch. They will be installed automatically when you run backend commands within the Hatch environment (e.g., `hatch run ...` or `hatch shell`).
+### Running Locally
 
-**Note on Dependencies:** Since this application is designed to run as a Databricks App, which utilizes a standard Python environment, the backend dependencies are listed in `requirements.txt`. The `pyproject.toml` file is configured (using the `hatch-requirements-txt` plugin) to dynamically read its dependencies from `requirements.txt`. This ensures that the dependencies used in local development with Hatch are consistent with those installed in the Databricks App environment.
-
-# Development
-
-To run both frontend and backend servers in development mode:
-
-**1. Start the Frontend Development Server:**
-
-Open a terminal and run:
+**Terminal 1 - Frontend:**
 ```bash
-yarn install && yarn dev:frontend
+cd src/frontend
+yarn dev:frontend
 ```
-This will install frontend dependencies (if needed) and start the Vite development server, typically on port 3000.
 
-**2. Start the Backend Development Server:**
-
-Open a separate terminal and run:
+**Terminal 2 - Backend:**
 ```bash
+cd src
 yarn dev:backend
 ```
-This command uses Yarn to execute the `dev:backend` script from `package.json`, which in turn uses Hatch to run the FastAPI backend in the development environment (`-e dev`), usually starting it on port 8000.
 
-Both servers support hot reloading for a smoother development experience.
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
 
-## Building for Production
-
-**1. Build the Frontend:**
-
-```bash
-yarn build
-```
-This command builds the React application using Vite. The output files will be placed in the `./static/` directory at the project root. It also performs a TypeScript type check (`tsc --noEmit`).
-
-**2. Build the Backend:**
+### Deploying to Databricks
 
 ```bash
-hatch build
+databricks bundle deploy --var="catalog=app_data" --var="schema=app_ontos"
+databricks apps deploy <app-name>
 ```
-This command uses Hatch to build the Python backend package (typically a wheel file) according to the configuration in `pyproject.toml`.
 
-## Default Application Roles
+## Documentation
 
-On first startup, if no roles exist in the database, the application creates a set of default roles with predefined permissions:
+| Document | Description |
+|----------|-------------|
+| [User Guide](src/docs/USER-GUIDE.md) | Comprehensive guide for end users |
+| [Configuring](CONFIGURING.md) | Environment variables, database setup, and deployment |
+| [Contributing](CONTRIBUTING.md) | Development setup, commit guidelines, and release process |
+| [API Docs](http://localhost:8000/docs) | Interactive API documentation (when running locally) |
+| [Compliance DSL Guide](src/docs/compliance-dsl-guide.md) | Quick start for writing compliance rules |
+| [Compliance DSL Reference](src/docs/compliance-dsl-reference.md) | Complete DSL syntax reference |
 
-- **Admin:** Full administrative access to all features. Assigned to groups specified by the `APP_ADMIN_DEFAULT_GROUPS` environment variable.
-- **Data Governance Officer:** Broad administrative access, typically excluding low-level system settings.
-- **Data Steward:** Read/Write access to specific data governance features (Data Products, Contracts, Glossary).
-- **Data Consumer:** Read-only access to data discovery features.
-- **Data Producer:** Read-only access generally, with write access to create/manage Data Products and Contracts.
-- **Security Officer:** Administrative access to security and entitlements features.
+## User Roles
 
-These roles and their permissions can be viewed and modified in the application's Settings -> RBAC section after initial startup.
+Ontos supports role-based access control with predefined roles:
 
-## Environment Variables
-
-For a comprehensive list and explanation of required and optional environment variables, please refer to the **[Environment Configuration](#environment-configuration)** section earlier in this document.
-
-A complete template can also be found in the `.env.example` file in the project root.
+| Role | Description |
+|------|-------------|
+| **Admin** | Full system access |
+| **Data Governance Officer** | Broad governance oversight |
+| **Data Steward** | Review and approve contracts/products |
+| **Data Producer** | Create and manage data products |
+| **Data Consumer** | Discover and use data products |
+| **Security Officer** | Security and entitlements management |
 
 ## Project Structure
 
 ```
-ucapp/
-├── api/                    # Backend FastAPI application
-│   ├── common/
-│   ├── controller/
-│   ├── data/
-│   ├── db_models/
-│   ├── models/
-│   ├── repositories/
-│   ├── routes/
-│   ├── schemas/
-│   ├── utils/
-│   ├── workflows/
-│   ├── app.py            # Main application file
-│   └── app.yaml          # Databricks App config
-├── src/                    # Frontend React application
-│   ├── components/
-│   ├── config/
-│   ├── hooks/
-│   ├── lib/
-│   ├── stores/
-│   ├── types/
-│   ├── views/
-│   ├── App.tsx           # Main app component
-│   └── main.tsx          # Application entry point
-├── static/                 # Static files (frontend build output)
-├── public/                 # Public assets (served by Vite dev server)
-├── vite.config.ts          # Vite configuration
-├── tailwind.config.js      # Tailwind CSS configuration
-├── components.json         # Shadcn UI configuration
-├── tsconfig.json           # TypeScript config for src
-├── tsconfig.node.json      # TypeScript config for build/dev tooling
-├── pyproject.toml          # Hatch configuration & backend dependencies
-├── package.json            # Frontend dependencies & scripts (yarn)
-├── yarn.lock               # Yarn lock file
-├── README.md               # This file
-├── LICENSE                 # Databricks License
-└── .env.example            # Example environment variables
+ontos/
+├── src/
+│   ├── backend/           # FastAPI backend
+│   │   ├── src/
+│   │   │   ├── common/    # Shared utilities
+│   │   │   ├── controller/# Business logic managers
+│   │   │   ├── db_models/ # SQLAlchemy models
+│   │   │   ├── models/    # Pydantic API models
+│   │   │   ├── repositories/ # Database access
+│   │   │   └── routes/    # API endpoints
+│   │   └── alembic/       # Database migrations
+│   ├── frontend/          # React frontend
+│   │   └── src/
+│   │       ├── components/# UI components
+│   │       ├── views/     # Page components
+│   │       ├── hooks/     # Custom React hooks
+│   │       ├── stores/    # State management
+│   │       └── types/     # TypeScript definitions
+│   ├── docs/              # Documentation
+│   └── scripts/           # Build and utility scripts
+├── docs/                  # Additional documentation
+├── CONTRIBUTING.md        # Contributing guidelines
+└── README.md              # This file
 ```
+
+## Standards & Specifications
+
+Ontos implements and integrates with these standards:
+
+- **[ODCS](https://github.com/bitol-io/open-data-contract-standard)** - Open Data Contract Standard (v3.0.2)
+- **[ODPS](https://github.com/bitol-io/open-data-product-standard)** - Open Data Product Specification
+- **[MCP](https://modelcontextprotocol.io/)** - Model Context Protocol for AI integration
 
 ## Contributing
 
-1. Create a new branch for your feature
-2. Make your changes
-3. Run tests and linting:
-```bash
-hatch run test:cov
-hatch run lint:all
-```
-4. Submit a pull request
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for:
 
-# License
+- Development setup instructions
+- Commit message conventions (we use [Conventional Commits](https://www.conventionalcommits.org/))
+- Versioning and release process
+- Code style guidelines
+- Pull request process
 
-This project is licensed under the Databricks License - see the LICENSE.txt file for details.
+## License
+
+This project is licensed under the Apache Software License 2.0 - see the [LICENSE.txt](LICENSE.txt) file for details.
+
+---
+
+**Version**: 0.4.0  
+**Maintained by**: [Databricks](https://databricks.com)
