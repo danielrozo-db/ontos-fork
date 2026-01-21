@@ -25,12 +25,8 @@ env:
   
   - name: "DATABRICKS_WAREHOUSE_ID"
     valueFrom: "sql-warehouse"
-  - name: "DATABRICKS_CATALOG"
-    value: "app_data"
-  - name: "DATABRICKS_SCHEMA"
-    value: "app_ontos"
   - name: "DATABRICKS_VOLUME"
-    value: "app_files"
+    valueFrom: "volume"
 
   - name: "APP_ADMIN_DEFAULT_GROUPS"
     value: '["admins"]'
@@ -43,5 +39,3 @@ env:
   - name: "LLM_ENDPOINT"
     valueFrom: "serving-endpoint"
   
-  - name: "WORKSPACE_DEPLOYMENT_PATH"
-    value: "/Workspace/Users/lars.george@databricks.com/ontos-jobs"
