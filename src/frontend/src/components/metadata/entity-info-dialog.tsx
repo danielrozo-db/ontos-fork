@@ -1,11 +1,16 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import MarkdownViewer from '@/components/ui/markdown-viewer';
 import { useEntityMetadata, useMergedMetadata, DocumentItem, LinkItem, EntityKind } from '@/hooks/use-entity-metadata';
-import { Bell, Check, Loader2, ArrowLeft, Share2 } from 'lucide-react';
+import { Bell, Check, Loader2, ArrowLeft, Share2, Star } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { StarRatingInput } from '@/components/ratings/star-rating-input';
+import { RatingSummary } from '@/components/ratings/rating-summary';
+import { useComments } from '@/hooks/use-comments';
+import type { RatingAggregation } from '@/types/comments';
 
 interface Props {
   entityType: EntityKind;
@@ -108,6 +113,50 @@ export default function EntityInfoDialog({
     : directMetadata;
   
   const sources = useMerged ? mergedMetadata.sources : {};
+
+  // Ratings state
+  const [ratingAggregation, setRatingAggregation] = useState<RatingAggregation | null>(null);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [reviewText, setReviewText] = useState('');
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
+  const { createRating, fetchRatingAggregation } = useComments();
+
+  const loadRatings = useCallback(async () => {
+    if (!entityId) return;
+    try {
+      setRatingsLoading(true);
+      const ratingData = await fetchRatingAggregation(entityType, entityId);
+      setRatingAggregation(ratingData);
+      if (ratingData?.user_current_rating) {
+        setSelectedRating(ratingData.user_current_rating);
+      }
+    } catch {
+      // Silently handle rating fetch errors
+    } finally {
+      setRatingsLoading(false);
+    }
+  }, [entityId, entityType, fetchRatingAggregation]);
+
+  useEffect(() => {
+    if (open && entityId) {
+      loadRatings();
+    }
+  }, [open, entityId, loadRatings]);
+
+  const handleSubmitRating = async () => {
+    if (!entityId || selectedRating === 0) return;
+    try {
+      setSubmittingRating(true);
+      await createRating(entityType, entityId, selectedRating, reviewText || undefined);
+      setReviewText('');
+      loadRatings();
+    } catch {
+      // Error is handled by the hook
+    } finally {
+      setSubmittingRating(false);
+    }
+  };
 
   const concatenatedMarkdown = useMemo(() => {
     const divider = '\n\n---\n\n';
@@ -224,6 +273,74 @@ export default function EntityInfoDialog({
                         })}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* Ratings Section */}
+              <div>
+                <div className="text-base font-medium mb-3 flex items-center gap-2">
+                  <Star className="h-5 w-5 text-amber-500" />
+                  Ratings & Reviews
+                </div>
+                
+                {ratingsLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Loading ratings...
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Rating Summary */}
+                    <RatingSummary 
+                      aggregation={ratingAggregation} 
+                      loading={ratingsLoading}
+                      showDistribution={true}
+                    />
+                    
+                    {/* User Rating Input */}
+                    <div className="border rounded-lg p-4 bg-muted/30">
+                      <div className="text-sm font-medium mb-2">Your Rating</div>
+                      <div className="flex items-center gap-4 mb-3">
+                        <StarRatingInput
+                          value={selectedRating}
+                          onChange={setSelectedRating}
+                          size="md"
+                          disabled={submittingRating}
+                        />
+                        {selectedRating > 0 && (
+                          <span className="text-sm text-muted-foreground">
+                            {selectedRating === 1 && 'Poor'}
+                            {selectedRating === 2 && 'Fair'}
+                            {selectedRating === 3 && 'Good'}
+                            {selectedRating === 4 && 'Very Good'}
+                            {selectedRating === 5 && 'Excellent'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mb-3">
+                        <Textarea
+                          placeholder="Add a review (optional)..."
+                          value={reviewText}
+                          onChange={(e) => setReviewText(e.target.value)}
+                          rows={2}
+                          disabled={submittingRating}
+                          className="resize-none"
+                        />
+                      </div>
+                      <Button
+                        size="sm"
+                        disabled={selectedRating === 0 || submittingRating}
+                        onClick={handleSubmitRating}
+                      >
+                        {submittingRating ? (
+                          <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Submitting...</>
+                        ) : (
+                          'Submit Rating'
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
