@@ -40,6 +40,7 @@ roles:
       entitlements-sync: Admin
       data-asset-reviews: Admin
       catalog-commander: Full
+      comments: Read/Write
     home_sections:
       - REQUIRED_ACTIONS
       - DISCOVERY
@@ -71,6 +72,7 @@ roles:
       compliance: Read-only
       data-asset-reviews: Read/Write
       catalog-commander: Read-only
+      comments: Read/Write
     home_sections:
       - REQUIRED_ACTIONS
       - DISCOVERY
@@ -100,6 +102,7 @@ roles:
       projects: Read-only
       business-glossary: Read-only
       catalog-commander: Read-only
+      comments: Read/Write
     home_sections:
       - DISCOVERY
 
@@ -114,6 +117,7 @@ roles:
       projects: Read/Write
       business-glossary: Read-only
       catalog-commander: Read-only
+      comments: Read/Write
     home_sections:
       - DATA_CURATION
       - DISCOVERY
@@ -136,6 +140,7 @@ roles:
       entitlements-sync: Admin
       compliance: Read/Write
       data-asset-reviews: Read-only
+      comments: Read/Write
     home_sections:
       - REQUIRED_ACTIONS
       - DISCOVERY

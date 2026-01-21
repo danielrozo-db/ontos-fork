@@ -143,6 +143,11 @@ APP_FEATURES: Dict[str, Dict[str, str | List[FeatureAccessLevel]]] = {
         'name': 'Self Service',
         'allowed_levels': READ_WRITE_ADMIN_LEVELS  # Self-service data requests
     },
+    # Comments & Ratings - cross-cutting feature for social interaction
+    'comments': {
+        'name': 'Comments & Ratings',
+        'allowed_levels': READ_WRITE_ADMIN_LEVELS  # READ_WRITE to add, ADMIN to manage all
+    },
     # 'about': { ... } # About page doesn't need explicit permissions here
 
 }

@@ -446,6 +446,51 @@ const RoleFormDialog: React.FC<RoleFormDialogProps> = ({
                                             </div>
                                         );
                                     })}
+                                    {/* Backend-only features (not in frontend navigation) */}
+                                    {Object.entries(featuresConfig)
+                                        .filter(([featureId]) => !orderedFeatures.some(f => f.id === featureId))
+                                        .map(([featureId, featureConf]) => {
+                                            const allowedLevels = Array.isArray(featureConf.allowed_levels) ? featureConf.allowed_levels : [];
+                                            return (
+                                                <div key={featureId} className="flex items-center justify-between space-x-4 py-2 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
+                                                    <Label htmlFor={`permissions-${featureId}`} className="text-sm font-normal flex-1">
+                                                        {featureConf.name || featureId}
+                                                        <p className="text-xs text-muted-foreground">Cross-cutting feature</p>
+                                                    </Label>
+                                                    <div className="w-auto">
+                                                        <Controller
+                                                            name={`feature_permissions.${featureId}`}
+                                                            control={control}
+                                                            render={({ field }) => (
+                                                                <Select
+                                                                    value={field.value || FeatureAccessLevel.NONE}
+                                                                    onValueChange={field.onChange}
+                                                                    disabled={allowedLevels.length === 0}
+                                                                >
+                                                                    <SelectTrigger id={`permissions-${featureId}`} className="w-[180px]">
+                                                                        <SelectValue placeholder="Select access" />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {allowedLevels.length > 0 ? (
+                                                                            [...allowedLevels]
+                                                                                .sort((a, b) => (ACCESS_LEVEL_ORDER[a] ?? -1) - (ACCESS_LEVEL_ORDER[b] ?? -1))
+                                                                                .map(level => (
+                                                                                    <SelectItem key={level} value={level}>
+                                                                                        {level}
+                                                                                    </SelectItem>
+                                                                                ))
+                                                                        ) : (
+                                                                            <SelectItem value="none" disabled>No levels</SelectItem>
+                                                                        )}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            )}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    }
                                     {Object.keys(featuresConfig).length === 0 && (
                                         <p className="text-sm text-muted-foreground">No features configuration loaded.</p>
                                     )}

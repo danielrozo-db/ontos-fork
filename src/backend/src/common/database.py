@@ -515,6 +515,18 @@ def ensure_database_and_schema_exist(settings: Settings):
                     conn.execute(text(f'DROP SCHEMA IF EXISTS "{target_schema}" CASCADE'))
                     conn.commit()
                     logger.warning(f"✓ Schema '{target_schema}' dropped CASCADE. Will be recreated.")
+                    
+                    # Also drop enum types that may have been created in public schema
+                    # These survive schema drops and can cause issues with create_all()
+                    logger.info("Dropping application enum types from public schema...")
+                    enum_types = ['commentstatus', 'commenttype', 'accesslevel']  # Add all app enum types here
+                    for enum_type in enum_types:
+                        try:
+                            conn.execute(text(f'DROP TYPE IF EXISTS "{enum_type}" CASCADE'))
+                        except Exception as e:
+                            logger.debug(f"Could not drop enum type {enum_type}: {e}")
+                    conn.commit()
+                    logger.info("✓ Enum types cleanup completed.")
                 
                 # Check if schema exists (using parameterized query)
                 result = conn.execute(

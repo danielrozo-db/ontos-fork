@@ -28,10 +28,21 @@ class CommentDb(Base):
     title = Column(String, nullable=True)  # Optional title for comment
     comment = Column(Text, nullable=False)
     audience = Column(Text, nullable=True)  # JSON array of group names who can see the comment
-    status = Column(Enum(CommentStatus), nullable=False, default=CommentStatus.ACTIVE)
+    # Use values_callable to ensure PostgreSQL enum uses lowercase values ('active', 'deleted')
+    status = Column(
+        Enum(CommentStatus, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=CommentStatus.ACTIVE
+    )
     
     # Comment type: regular comment or rating
-    comment_type = Column(Enum(CommentType), nullable=False, default=CommentType.COMMENT)
+    # Use values_callable to ensure PostgreSQL enum uses lowercase values ('comment', 'rating')
+    # matching the Alembic migration and demo data SQL
+    comment_type = Column(
+        Enum(CommentType, values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+        default=CommentType.COMMENT
+    )
     # Star rating (1-5), only applicable when comment_type is RATING
     rating = Column(Integer, nullable=True)
 

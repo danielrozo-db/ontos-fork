@@ -18,8 +18,9 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api", tags=["Comments"])
 
-# Comments can be created on any object, so we use a generic feature for now
-FEATURE_ID = "data-domains"  # Use domain feature for now; can widen later
+# Comments feature - cross-cutting feature for social interaction
+# All users get READ_WRITE by default, Admin role gets ADMIN to manage all comments
+FEATURE_ID = "comments"
 
 
 @router.post("/entities/{entity_type}/{entity_id}/comments", response_model=Comment, status_code=status.HTTP_201_CREATED)

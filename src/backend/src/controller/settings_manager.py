@@ -65,6 +65,7 @@ DEFAULT_ROLE_PERMISSIONS = {
         'entitlements-sync': FeatureAccessLevel.ADMIN,
         'data-asset-reviews': FeatureAccessLevel.ADMIN,
         'catalog-commander': FeatureAccessLevel.FULL,
+        'comments': FeatureAccessLevel.READ_WRITE,  # All users can comment
     },
     "Data Steward": {
         'data-domains': FeatureAccessLevel.READ_WRITE,
@@ -76,6 +77,7 @@ DEFAULT_ROLE_PERMISSIONS = {
         'compliance': FeatureAccessLevel.READ_ONLY,
         'data-asset-reviews': FeatureAccessLevel.READ_WRITE,
         'catalog-commander': FeatureAccessLevel.READ_ONLY,
+        'comments': FeatureAccessLevel.READ_WRITE,  # All users can comment
     },
     "Data Consumer": {
         'data-domains': FeatureAccessLevel.READ_ONLY,
@@ -85,6 +87,7 @@ DEFAULT_ROLE_PERMISSIONS = {
         'projects': FeatureAccessLevel.READ_ONLY,
         'business-glossary': FeatureAccessLevel.READ_ONLY,
         'catalog-commander': FeatureAccessLevel.READ_ONLY,
+        'comments': FeatureAccessLevel.READ_WRITE,  # All users can comment
     },
     "Data Producer": {
         'data-domains': FeatureAccessLevel.READ_ONLY,
@@ -94,6 +97,7 @@ DEFAULT_ROLE_PERMISSIONS = {
         'projects': FeatureAccessLevel.READ_WRITE,
         'business-glossary': FeatureAccessLevel.READ_ONLY,
         'catalog-commander': FeatureAccessLevel.READ_ONLY,
+        'comments': FeatureAccessLevel.READ_WRITE,  # All users can comment
     },
     "Security Officer": {
         'security-features': FeatureAccessLevel.ADMIN,
@@ -101,6 +105,7 @@ DEFAULT_ROLE_PERMISSIONS = {
         'entitlements-sync': FeatureAccessLevel.ADMIN,
         'compliance': FeatureAccessLevel.READ_WRITE,
         'data-asset-reviews': FeatureAccessLevel.READ_ONLY,
+        'comments': FeatureAccessLevel.READ_WRITE,  # All users can comment
     },
 }
 
