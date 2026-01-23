@@ -9,7 +9,8 @@
     "semanticModels": "セマンティックモデル",
     "tags": "タグ",
     "search": "検索",
-    "mcpTokens": "MCPトークン"
+    "mcpTokens": "MCPトークン",
+    "workflows": "ワークフロー"
   },
   "accessDenied": {
     "title": "アクセス拒否",

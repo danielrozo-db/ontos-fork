@@ -69,6 +69,9 @@
       "title": "Istanze Fisiche",
       "subtitle": "Implementazioni fisiche in diversi sistemi e ambienti",
       "addInstance": "Aggiungi Istanza",
+      "inferFromUC": "Deduci da Unity Catalog",
+      "addSuccess": "Istanza aggiunta con successo",
+      "addError": "Impossibile aggiungere l'istanza",
       "noInstances": "Nessuna istanza fisica",
       "noInstancesHint": "Aggiungi istanze per tracciare dove questo dataset è fisicamente implementato",
       "addFirstInstance": "Aggiungi Prima Istanza",
@@ -206,6 +209,63 @@
     "production": "Produzione",
     "testing": "Test",
     "sandbox": "Sandbox"
+  },
+  "request": {
+    "button": "Richiedi...",
+    "title": "Richiedi azione",
+    "description": "Seleziona il tipo di richiesta per questo dataset",
+    "types": {
+      "status_change": {
+        "title": "Cambia stato",
+        "description": "Richiedi approvazione per cambiare lo stato del ciclo di vita di questo dataset"
+      },
+      "review": {
+        "title": "Richiedi revisione steward",
+        "description": "Invia questo dataset per la revisione da parte di un data steward"
+      },
+      "publish": {
+        "title": "Pubblica sul Marketplace",
+        "description": "Pubblica questo dataset sul marketplace dell'organizzazione"
+      },
+      "unpublish": {
+        "title": "Rimuovi dal Marketplace",
+        "description": "Rimuovi questo dataset dal marketplace dell'organizzazione"
+      },
+      "access": {
+        "title": "Richiedi accesso",
+        "description": "Richiedi il permesso di visualizzare e utilizzare questo dataset"
+      }
+    },
+    "justification": "Giustificazione",
+    "justificationPlaceholder": "Spiega perché questo cambio di stato è necessario e qualsiasi contesto rilevante...",
+    "justificationHint": "Minimo 20 caratteri richiesti. Questo sarà esaminato da un amministratore.",
+    "message": "Messaggio",
+    "messagePlaceholder": "Aggiungi note per il revisore...",
+    "accessMessage": "Motivo dell'accesso",
+    "accessMessagePlaceholder": "Spiega perché hai bisogno di accedere a questo dataset...",
+    "targetStatus": "Stato obiettivo",
+    "selectTargetStatus": "Seleziona stato obiettivo",
+    "noTransitions": "Nessuna transizione di stato disponibile dallo stato attuale",
+    "submit": "Invia richiesta",
+    "submitting": "Invio in corso...",
+    "changeStatus": "Cambia stato",
+    "changingStatus": "Cambio stato in corso...",
+    "cancel": "Annulla",
+    "success": {
+      "published": "Dataset pubblicato sul marketplace",
+      "unpublished": "Dataset rimosso dal marketplace",
+      "statusChanged": "Stato del dataset cambiato con successo",
+      "requestSubmitted": "La tua richiesta è stata inviata e sarai notificato della decisione"
+    },
+    "error": {
+      "noTargetStatus": "Seleziona uno stato obiettivo",
+      "noJustification": "Fornisci una giustificazione per il cambio di stato",
+      "shortJustification": "Fornisci una giustificazione più dettagliata (minimo 20 caratteri)",
+      "noAccessReason": "Fornisci un motivo per la richiesta di accesso",
+      "shortAccessReason": "Fornisci un motivo più dettagliato (minimo 10 caratteri)",
+      "invalidRequest": "Impossibile richiedere questa azione per un dataset con lo stato attuale",
+      "submitFailed": "Impossibile inviare la richiesta"
+    }
   }
 }
 

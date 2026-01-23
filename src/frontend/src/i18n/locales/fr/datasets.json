@@ -69,6 +69,9 @@
       "title": "Instances Physiques",
       "subtitle": "Implémentations physiques dans différents systèmes et environnements",
       "addInstance": "Ajouter une Instance",
+      "inferFromUC": "Déduire depuis Unity Catalog",
+      "addSuccess": "Instance ajoutée avec succès",
+      "addError": "Échec de l'ajout de l'instance",
       "noInstances": "Aucune instance physique",
       "noInstancesHint": "Ajoutez des instances pour suivre où ce dataset est physiquement implémenté",
       "addFirstInstance": "Ajouter la Première Instance",
@@ -206,6 +209,63 @@
     "production": "Production",
     "testing": "Test",
     "sandbox": "Sandbox"
+  },
+  "request": {
+    "button": "Demander...",
+    "title": "Demander une action",
+    "description": "Sélectionnez le type de demande pour ce dataset",
+    "types": {
+      "status_change": {
+        "title": "Changer le statut",
+        "description": "Demander l'approbation pour changer le statut du cycle de vie de ce dataset"
+      },
+      "review": {
+        "title": "Demander une révision par un steward",
+        "description": "Soumettre ce dataset pour révision par un data steward"
+      },
+      "publish": {
+        "title": "Publier sur le Marketplace",
+        "description": "Publier ce dataset sur le marketplace de l'organisation"
+      },
+      "unpublish": {
+        "title": "Retirer du Marketplace",
+        "description": "Retirer ce dataset du marketplace de l'organisation"
+      },
+      "access": {
+        "title": "Demander l'accès",
+        "description": "Demander la permission de consulter et utiliser ce dataset"
+      }
+    },
+    "justification": "Justification",
+    "justificationPlaceholder": "Expliquez pourquoi ce changement de statut est nécessaire et tout contexte pertinent...",
+    "justificationHint": "Minimum 20 caractères requis. Ceci sera examiné par un administrateur.",
+    "message": "Message",
+    "messagePlaceholder": "Ajoutez des notes pour le réviseur...",
+    "accessMessage": "Raison de l'accès",
+    "accessMessagePlaceholder": "Expliquez pourquoi vous avez besoin d'accéder à ce dataset...",
+    "targetStatus": "Statut cible",
+    "selectTargetStatus": "Sélectionner le statut cible",
+    "noTransitions": "Aucune transition de statut disponible depuis le statut actuel",
+    "submit": "Envoyer la demande",
+    "submitting": "Envoi en cours...",
+    "changeStatus": "Changer le statut",
+    "changingStatus": "Changement du statut...",
+    "cancel": "Annuler",
+    "success": {
+      "published": "Dataset publié sur le marketplace",
+      "unpublished": "Dataset retiré du marketplace",
+      "statusChanged": "Statut du dataset modifié avec succès",
+      "requestSubmitted": "Votre demande a été soumise et vous serez notifié de la décision"
+    },
+    "error": {
+      "noTargetStatus": "Veuillez sélectionner un statut cible",
+      "noJustification": "Veuillez fournir une justification pour le changement de statut",
+      "shortJustification": "Veuillez fournir une justification plus détaillée (minimum 20 caractères)",
+      "noAccessReason": "Veuillez fournir une raison pour la demande d'accès",
+      "shortAccessReason": "Veuillez fournir une raison plus détaillée (minimum 10 caractères)",
+      "invalidRequest": "Impossible de demander cette action pour un dataset avec le statut actuel",
+      "submitFailed": "Échec de l'envoi de la demande"
+    }
   }
 }
 

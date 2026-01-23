@@ -5,6 +5,7 @@
     "askOntos": "Ask Ontos",
     "indexSearch": "Index Search",
     "conceptGraph": "Concept Graph",
+    "knowledgeGraph": "Knowledge Graph",
     "concepts": "Concepts"
   },
   "noResults": "No results found",

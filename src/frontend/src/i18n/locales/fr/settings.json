@@ -9,7 +9,8 @@
     "semanticModels": "Modèles sémantiques",
     "tags": "Tags",
     "search": "Recherche",
-    "mcpTokens": "Jetons MCP"
+    "mcpTokens": "Jetons MCP",
+    "workflows": "Workflows"
   },
   "accessDenied": {
     "title": "Accès refusé",

@@ -69,6 +69,9 @@
       "title": "Physische Instanzen",
       "subtitle": "Physische Implementierungen in verschiedenen Systemen und Umgebungen",
       "addInstance": "Instanz hinzufügen",
+      "inferFromUC": "Aus Unity Catalog ableiten",
+      "addSuccess": "Instanz erfolgreich hinzugefügt",
+      "addError": "Fehler beim Hinzufügen der Instanz",
       "noInstances": "Keine physischen Instanzen",
       "noInstancesHint": "Fügen Sie Instanzen hinzu, um zu verfolgen, wo dieser Datensatz physisch implementiert ist",
       "addFirstInstance": "Erste Instanz hinzufügen",
@@ -206,6 +209,63 @@
     "production": "Produktion",
     "testing": "Test",
     "sandbox": "Sandbox"
+  },
+  "request": {
+    "button": "Anfrage...",
+    "title": "Aktion anfordern",
+    "description": "Wählen Sie die Art der Anfrage für diesen Datensatz",
+    "types": {
+      "status_change": {
+        "title": "Status ändern",
+        "description": "Genehmigung zur Änderung des Lebenszyklusstatus dieses Datensatzes anfordern"
+      },
+      "review": {
+        "title": "Steward-Überprüfung anfordern",
+        "description": "Diesen Datensatz zur Überprüfung durch einen Data Steward einreichen"
+      },
+      "publish": {
+        "title": "Im Marktplatz veröffentlichen",
+        "description": "Diesen Datensatz im organisationsweiten Marktplatz veröffentlichen"
+      },
+      "unpublish": {
+        "title": "Vom Marktplatz entfernen",
+        "description": "Diesen Datensatz aus dem organisationsweiten Marktplatz entfernen"
+      },
+      "access": {
+        "title": "Zugriff anfordern",
+        "description": "Berechtigung zum Anzeigen und Verwenden dieses Datensatzes anfordern"
+      }
+    },
+    "justification": "Begründung",
+    "justificationPlaceholder": "Erklären Sie, warum diese Statusänderung erforderlich ist und geben Sie relevanten Kontext an...",
+    "justificationHint": "Mindestens 20 Zeichen erforderlich. Dies wird von einem Administrator überprüft.",
+    "message": "Nachricht",
+    "messagePlaceholder": "Fügen Sie Notizen für den Prüfer hinzu...",
+    "accessMessage": "Grund für den Zugriff",
+    "accessMessagePlaceholder": "Erklären Sie, warum Sie Zugriff auf diesen Datensatz benötigen...",
+    "targetStatus": "Zielstatus",
+    "selectTargetStatus": "Zielstatus auswählen",
+    "noTransitions": "Keine Statusübergänge vom aktuellen Status verfügbar",
+    "submit": "Anfrage senden",
+    "submitting": "Wird gesendet...",
+    "changeStatus": "Status ändern",
+    "changingStatus": "Status wird geändert...",
+    "cancel": "Abbrechen",
+    "success": {
+      "published": "Datensatz im Marktplatz veröffentlicht",
+      "unpublished": "Datensatz vom Marktplatz entfernt",
+      "statusChanged": "Datensatzstatus erfolgreich geändert",
+      "requestSubmitted": "Ihre Anfrage wurde eingereicht und Sie werden über die Entscheidung benachrichtigt"
+    },
+    "error": {
+      "noTargetStatus": "Bitte wählen Sie einen Zielstatus",
+      "noJustification": "Bitte geben Sie eine Begründung für die Statusänderung an",
+      "shortJustification": "Bitte geben Sie eine detailliertere Begründung an (mindestens 20 Zeichen)",
+      "noAccessReason": "Bitte geben Sie einen Grund für die Zugriffsanfrage an",
+      "shortAccessReason": "Bitte geben Sie einen detaillierteren Grund an (mindestens 10 Zeichen)",
+      "invalidRequest": "Diese Aktion kann für einen Datensatz mit dem aktuellen Status nicht angefordert werden",
+      "submitFailed": "Anfrage konnte nicht eingereicht werden"
+    }
   }
 }
 

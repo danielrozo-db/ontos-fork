@@ -5,6 +5,7 @@
     "askOntos": "Ontosに聞く",
     "indexSearch": "インデックス検索",
     "conceptGraph": "コンセプトグラフ",
+    "knowledgeGraph": "ナレッジグラフ",
     "concepts": "コンセプト"
   },
   "noResults": "結果が見つかりません",

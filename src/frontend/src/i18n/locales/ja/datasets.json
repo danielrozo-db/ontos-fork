@@ -69,6 +69,9 @@
       "title": "物理インスタンス",
       "subtitle": "異なるシステムと環境にわたる物理的な実装",
       "addInstance": "インスタンスを追加",
+      "inferFromUC": "Unity Catalogから推測",
+      "addSuccess": "インスタンスが正常に追加されました",
+      "addError": "インスタンスの追加に失敗しました",
       "noInstances": "物理インスタンスがありません",
       "noInstancesHint": "このデータセットが物理的に実装されている場所を追跡するためにインスタンスを追加してください",
       "addFirstInstance": "最初のインスタンスを追加",
@@ -206,6 +209,63 @@
     "production": "本番",
     "testing": "テスト",
     "sandbox": "サンドボックス"
+  },
+  "request": {
+    "button": "リクエスト...",
+    "title": "アクションをリクエスト",
+    "description": "このデータセットのリクエストタイプを選択",
+    "types": {
+      "status_change": {
+        "title": "ステータス変更",
+        "description": "このデータセットのライフサイクルステータス変更の承認をリクエスト"
+      },
+      "review": {
+        "title": "スチュワードレビューをリクエスト",
+        "description": "このデータセットをデータスチュワードのレビューに提出"
+      },
+      "publish": {
+        "title": "マーケットプレイスに公開",
+        "description": "このデータセットを組織全体のマーケットプレイスに公開"
+      },
+      "unpublish": {
+        "title": "マーケットプレイスから削除",
+        "description": "このデータセットを組織全体のマーケットプレイスから削除"
+      },
+      "access": {
+        "title": "アクセスをリクエスト",
+        "description": "このデータセットを表示および使用する許可をリクエスト"
+      }
+    },
+    "justification": "理由",
+    "justificationPlaceholder": "このステータス変更が必要な理由と関連するコンテキストを説明してください...",
+    "justificationHint": "最低20文字が必要です。これは管理者によってレビューされます。",
+    "message": "メッセージ",
+    "messagePlaceholder": "レビュアーへのメモを追加...",
+    "accessMessage": "アクセスの理由",
+    "accessMessagePlaceholder": "このデータセットへのアクセスが必要な理由を説明してください...",
+    "targetStatus": "目標ステータス",
+    "selectTargetStatus": "目標ステータスを選択",
+    "noTransitions": "現在のステータスから利用可能なステータス遷移はありません",
+    "submit": "リクエストを送信",
+    "submitting": "送信中...",
+    "changeStatus": "ステータスを変更",
+    "changingStatus": "ステータス変更中...",
+    "cancel": "キャンセル",
+    "success": {
+      "published": "データセットがマーケットプレイスに公開されました",
+      "unpublished": "データセットがマーケットプレイスから削除されました",
+      "statusChanged": "データセットのステータスが正常に変更されました",
+      "requestSubmitted": "リクエストが送信されました。決定について通知されます"
+    },
+    "error": {
+      "noTargetStatus": "目標ステータスを選択してください",
+      "noJustification": "ステータス変更の理由を入力してください",
+      "shortJustification": "より詳細な理由を入力してください（最低20文字）",
+      "noAccessReason": "アクセスリクエストの理由を入力してください",
+      "shortAccessReason": "より詳細な理由を入力してください（最低10文字）",
+      "invalidRequest": "現在のステータスのデータセットに対してこのアクションをリクエストできません",
+      "submitFailed": "リクエストの送信に失敗しました"
+    }
   }
 }
 
