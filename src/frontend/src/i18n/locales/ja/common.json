@@ -334,7 +334,8 @@
       "pass": "成功",
       "fail": "失敗",
       "policy_check": "ポリシーチェック",
-      "delivery": "配信"
+      "delivery": "配信",
+      "create_asset_review": "アセットレビュー作成"
     }
   }
 }

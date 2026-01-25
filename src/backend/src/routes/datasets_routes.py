@@ -493,7 +493,7 @@ async def request_status_change(
             dataset_id=dataset_id,
             target_status=target_status,
             justification=justification,
-            requested_by=current_user.username,
+            requested_by=current_user.email or current_user.username,
         )
         
         return {
@@ -536,7 +536,7 @@ async def request_steward_review(
     try:
         result = manager.request_review(
             dataset_id=dataset_id,
-            requested_by=current_user.username,
+            requested_by=current_user.email or current_user.username,
             message=message,
         )
         

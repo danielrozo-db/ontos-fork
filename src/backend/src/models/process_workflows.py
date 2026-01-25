@@ -80,6 +80,7 @@ class StepType(str, Enum):
     FAIL = "fail"
     POLICY_CHECK = "policy_check"  # Evaluates existing compliance policy by UUID
     DELIVERY = "delivery"  # Triggers DeliveryService to apply changes
+    CREATE_ASSET_REVIEW = "create_asset_review"  # Creates a DataAssetReview for formal review tracking
 
 
 class ExecutionStatus(str, Enum):

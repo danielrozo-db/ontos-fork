@@ -476,8 +476,8 @@ class WorkflowExecutionRepository:
         if not db_execution:
             return None
         
-        # Only retry failed executions
-        if db_execution.status != 'failed':
+        # Allow retry for failed and cancelled executions
+        if db_execution.status not in ('failed', 'cancelled'):
             logger.warning(f"Cannot retry execution {execution_id} with status {db_execution.status}")
             return None
         

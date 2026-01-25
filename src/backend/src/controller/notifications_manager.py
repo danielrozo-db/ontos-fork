@@ -135,6 +135,9 @@ class NotificationsManager:
                         is_recipient = True
 
             if is_recipient:
+                # Admins can delete any notification they can see
+                if is_admin:
+                    n.can_delete = True
                 filtered_notifications.append(n)
 
         # Sort by created_at descending (using datetime objects)

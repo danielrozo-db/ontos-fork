@@ -334,7 +334,8 @@
       "pass": "Successo",
       "fail": "Fallimento",
       "policy_check": "Verifica policy",
-      "delivery": "Consegna"
+      "delivery": "Consegna",
+      "create_asset_review": "Crea revisione asset"
     }
   }
 }

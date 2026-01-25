@@ -332,7 +332,8 @@
       "pass": "Erfolgreich",
       "fail": "Fehlgeschlagen",
       "policy_check": "Richtlinienprüfung",
-      "delivery": "Auslieferung"
+      "delivery": "Auslieferung",
+      "create_asset_review": "Asset-Überprüfung erstellen"
     }
   }
 }

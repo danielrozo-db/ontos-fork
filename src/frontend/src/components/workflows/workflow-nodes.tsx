@@ -15,6 +15,7 @@ import {
   ClipboardCheck,
   Truck,
   GitBranch,
+  FileSearch,
 } from 'lucide-react';
 import type { WorkflowStep, WorkflowTrigger, StepType } from '@/types/process-workflow';
 import { 
@@ -352,4 +353,35 @@ export const PolicyCheckNode = memo((props: NodeProps<StepNodeData>) => {
   );
 });
 PolicyCheckNode.displayName = 'PolicyCheckNode';
+
+export const CreateAssetReviewNode = memo((props: NodeProps<StepNodeData>) => {
+  const reviewerRole = (props.data.step.config as { reviewer_role?: string })?.reviewer_role;
+  const reviewType = (props.data.step.config as { review_type?: string })?.review_type;
+  const displayRole = resolveRecipientDisplay(reviewerRole, props.data.rolesMap || {});
+  
+  return (
+    <Card className={`${baseNodeClass} border-teal-500 bg-teal-50 dark:bg-teal-950/30 ${props.selected ? 'ring-2 ring-teal-500' : ''}`}>
+      <Handle type="target" position={Position.Top} className="!bg-gray-400" />
+      <CardHeader className="p-3 pb-2">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <FileSearch className="h-4 w-4 text-teal-500" />
+          {props.data.step.name || 'Asset Review'}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-3 pt-0 space-y-1">
+        <p className="text-xs text-muted-foreground truncate" title={displayRole}>
+          <span className="font-medium">Reviewer:</span> {displayRole || 'Not set'}
+        </p>
+        {reviewType && (
+          <Badge variant="outline" className="text-xs">
+            {reviewType}
+          </Badge>
+        )}
+      </CardContent>
+      <Handle type="source" position={Position.Bottom} id="pass" className="!bg-green-500 !-bottom-2" />
+    </Card>
+  );
+});
+
+CreateAssetReviewNode.displayName = 'CreateAssetReviewNode';
 

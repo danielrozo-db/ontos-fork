@@ -332,7 +332,8 @@
       "pass": "Pass",
       "fail": "Fail",
       "policy_check": "Policy Check",
-      "delivery": "Delivery"
+      "delivery": "Delivery",
+      "create_asset_review": "Create Asset Review"
     }
   }
 }

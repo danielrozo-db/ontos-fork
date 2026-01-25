@@ -48,6 +48,7 @@ import {
   UserCheck,
   Play,
   ClipboardCheck,
+  FileSearch,
 } from 'lucide-react';
 
 import {
@@ -60,6 +61,7 @@ import {
   ScriptNode,
   EndNode,
   PolicyCheckNode,
+  CreateAssetReviewNode,
 } from './workflow-nodes';
 
 import type {
@@ -93,6 +95,7 @@ const nodeTypes = {
   pass: EndNode,
   fail: EndNode,
   policy_check: PolicyCheckNode,
+  create_asset_review: CreateAssetReviewNode,
 };
 
 // Layout helper
@@ -589,6 +592,9 @@ export default function WorkflowDesigner({ workflowId }: WorkflowDesignerProps) 
                 <Button variant="ghost" size="sm" className="justify-start" onClick={() => addStep('script')}>
                   <Code className="h-4 w-4 mr-2" /> Script
                 </Button>
+                <Button variant="ghost" size="sm" className="justify-start" onClick={() => addStep('create_asset_review')}>
+                  <FileSearch className="h-4 w-4 mr-2" /> Asset Review
+                </Button>
                 <Separator className="my-1" />
                 <Button variant="ghost" size="sm" className="justify-start" onClick={() => addStep('pass')}>
                   <CheckCircle className="h-4 w-4 mr-2 text-green-500" /> Pass
@@ -871,6 +877,71 @@ export default function WorkflowDesigner({ workflowId }: WorkflowDesignerProps) 
                           onChange={(e) => updateStep(selectedStep.step_id, { 
                             config: { ...selectedStep.config, timeout_days: parseInt(e.target.value) }
                           })}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {selectedStep.step_type === 'create_asset_review' && (
+                    <>
+                      <div>
+                        <Label>Reviewer Role</Label>
+                        <Select 
+                          value={(selectedStep.config as { reviewer_role?: string })?.reviewer_role || ''}
+                          onValueChange={(v) => updateStep(selectedStep.step_id, { 
+                            config: { ...selectedStep.config, reviewer_role: v }
+                          })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select reviewer role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableRoles.map((role) => (
+                              <SelectItem key={role.id} value={role.id}>
+                                <div className="flex items-center gap-2">
+                                  <span>{role.name}</span>
+                                  {!role.has_groups && (
+                                    <Badge variant="outline" className="text-xs text-amber-600">
+                                      No groups
+                                    </Badge>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          The role whose members can review the asset.
+                        </p>
+                      </div>
+                      <div>
+                        <Label>Review Type</Label>
+                        <Select 
+                          value={(selectedStep.config as { review_type?: string })?.review_type || 'standard'}
+                          onValueChange={(v) => updateStep(selectedStep.step_id, { 
+                            config: { ...selectedStep.config, review_type: v }
+                          })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select review type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="standard">Standard Review</SelectItem>
+                            <SelectItem value="expedited">Expedited Review</SelectItem>
+                            <SelectItem value="compliance">Compliance Review</SelectItem>
+                            <SelectItem value="security">Security Review</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Notes</Label>
+                        <Textarea
+                          value={(selectedStep.config as { notes?: string })?.notes || ''}
+                          onChange={(e) => updateStep(selectedStep.step_id, { 
+                            config: { ...selectedStep.config, notes: e.target.value }
+                          })}
+                          placeholder="Additional notes for the reviewer..."
+                          rows={2}
                         />
                       </div>
                     </>

@@ -334,7 +334,8 @@
       "pass": "Exitoso",
       "fail": "Fallido",
       "policy_check": "Verificación de política",
-      "delivery": "Entrega"
+      "delivery": "Entrega",
+      "create_asset_review": "Crear revisión de activo"
     }
   }
 }

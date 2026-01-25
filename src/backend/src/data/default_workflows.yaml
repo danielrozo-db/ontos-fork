@@ -423,7 +423,7 @@ workflows:
   # Dataset Review Request
   - id: "dataset-review-request"
     name: "Dataset Review Request"
-    description: "Handles dataset review requests with data steward approval. Fires when ON_REQUEST_REVIEW is triggered for datasets."
+    description: "Handles dataset review requests with data steward approval and creates a formal asset review record."
     trigger:
       type: "on_request_review"
       entity_types:
@@ -440,6 +440,16 @@ workflows:
           recipients: "requester"
           template: "request_submitted"
           custom_message: "Your dataset review request has been submitted. A data steward will review it shortly."
+        on_pass: "create-review"
+
+      - id: "create-review"
+        name: "Create Asset Review"
+        type: "create_asset_review"
+        config:
+          reviewer_role: "DataSteward"
+          review_type: "standard"
+          notes: "Dataset review requested via workflow"
+          use_entity_as_asset: true
         on_pass: "request-approval"
 
       - id: "request-approval"
@@ -483,7 +493,7 @@ workflows:
   # Data Contract Review Request
   - id: "contract-review-request"
     name: "Data Contract Review Request"
-    description: "Handles data contract review requests with data steward approval."
+    description: "Handles data contract review requests with data steward approval and creates a formal asset review record."
     trigger:
       type: "on_request_review"
       entity_types:
@@ -500,6 +510,16 @@ workflows:
           recipients: "requester"
           template: "request_submitted"
           custom_message: "Your data contract review request has been submitted. A data steward will review it shortly."
+        on_pass: "create-review"
+
+      - id: "create-review"
+        name: "Create Asset Review"
+        type: "create_asset_review"
+        config:
+          reviewer_role: "DataSteward"
+          review_type: "standard"
+          notes: "Data contract review requested via workflow"
+          use_entity_as_asset: true
         on_pass: "request-approval"
 
       - id: "request-approval"
@@ -629,7 +649,7 @@ workflows:
   # Data Product Review Request
   - id: "product-review-request"
     name: "Data Product Review Request"
-    description: "Handles data product review requests with domain owner approval."
+    description: "Handles data product review requests with domain owner approval and creates a formal asset review record."
     trigger:
       type: "on_request_review"
       entity_types:
@@ -646,6 +666,16 @@ workflows:
           recipients: "requester"
           template: "request_submitted"
           custom_message: "Your data product review request has been submitted."
+        on_pass: "create-review"
+
+      - id: "create-review"
+        name: "Create Asset Review"
+        type: "create_asset_review"
+        config:
+          reviewer_role: "DomainOwner"
+          review_type: "standard"
+          notes: "Data product review requested via workflow"
+          use_entity_as_asset: true
         on_pass: "request-approval"
 
       - id: "request-approval"

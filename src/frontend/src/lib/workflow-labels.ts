@@ -17,6 +17,7 @@ import {
   ClipboardCheck,
   Truck,
   GitBranch,
+  FileSearch,
   type LucideIcon,
 } from 'lucide-react';
 import { TriggerType, EntityType, StepType } from '@/types/process-workflow';
@@ -36,6 +37,7 @@ export const STEP_ICONS: Record<StepType, LucideIcon> = {
   fail: XCircle,
   policy_check: ClipboardCheck,
   delivery: Truck,
+  create_asset_review: FileSearch,
 };
 
 /**
@@ -53,6 +55,7 @@ export const STEP_COLORS: Record<StepType, string> = {
   fail: 'red',
   policy_check: 'orange',
   delivery: 'indigo',
+  create_asset_review: 'teal',
 };
 
 /**
@@ -180,6 +183,7 @@ export const ALL_STEP_TYPES: StepType[] = [
   'fail',
   'policy_check',
   'delivery',
+  'create_asset_review',
 ];
 
 /**

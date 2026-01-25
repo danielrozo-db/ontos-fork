@@ -40,42 +40,37 @@ class WorkflowsManager:
         self._db = db
         self._default_workflows_path = Path(__file__).parent.parent / "data" / "default_workflows.yaml"
 
-    def load_from_yaml(self, yaml_path: Optional[str] = None) -> int:
+    def load_from_yaml(self, yaml_path: Optional[str] = None, update_existing: bool = False) -> dict:
         """Load default workflows from YAML file.
-        
-        Only loads workflows that don't already exist (by name).
         
         Args:
             yaml_path: Path to YAML file, or None to use default
+            update_existing: If True, updates existing default workflows instead of skipping
             
         Returns:
-            Number of workflows loaded
+            Dict with counts: {'created': int, 'updated': int, 'skipped': int}
         """
         path = Path(yaml_path) if yaml_path else self._default_workflows_path
         
+        result = {'created': 0, 'updated': 0, 'skipped': 0}
+        
         if not path.exists():
             logger.warning(f"Workflows YAML not found: {path}")
-            return 0
+            return result
         
         try:
             with open(path) as f:
                 data = yaml.safe_load(f) or {}
         except Exception as e:
             logger.exception(f"Failed to load workflows YAML: {e}")
-            return 0
+            return result
         
         workflows_data = data.get('workflows', [])
-        loaded = 0
         
         for wf_data in workflows_data:
             try:
                 name = wf_data.get('name')
                 if not name:
-                    continue
-                
-                # Skip if already exists
-                if process_workflow_repo.exists_by_name(self._db, name):
-                    logger.debug(f"Workflow '{name}' already exists, skipping")
                     continue
                 
                 # Parse trigger
@@ -109,7 +104,28 @@ class WorkflowsManager:
                     )
                     steps.append(step)
                 
-                # Create workflow
+                # Check if already exists
+                existing = process_workflow_repo.get_by_name(self._db, name)
+                
+                if existing:
+                    if update_existing and existing.is_default:
+                        # Update existing default workflow
+                        update_data = ProcessWorkflowUpdate(
+                            description=wf_data.get('description'),
+                            trigger=trigger,
+                            scope=scope,
+                            is_active=wf_data.get('is_active', True),
+                            steps=steps,
+                        )
+                        process_workflow_repo.update(self._db, existing.id, update_data)
+                        result['updated'] += 1
+                        logger.info(f"Updated default workflow: {name}")
+                    else:
+                        result['skipped'] += 1
+                        logger.debug(f"Workflow '{name}' already exists, skipping")
+                    continue
+                
+                # Create new workflow
                 workflow = ProcessWorkflowCreate(
                     name=name,
                     description=wf_data.get('description'),
@@ -125,14 +141,14 @@ class WorkflowsManager:
                     is_default=wf_data.get('is_default', True),
                     created_by='system',
                 )
-                loaded += 1
+                result['created'] += 1
                 logger.info(f"Loaded default workflow: {name}")
                 
             except Exception as e:
                 logger.exception(f"Failed to load workflow from YAML: {e}")
                 continue
         
-        return loaded
+        return result
 
     def list_workflows(self, *, is_active: Optional[bool] = None) -> List[ProcessWorkflow]:
         """List all workflows."""

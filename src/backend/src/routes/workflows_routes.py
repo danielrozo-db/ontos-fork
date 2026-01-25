@@ -451,12 +451,27 @@ async def validate_workflow(
 @router.post("/load-defaults")
 async def load_default_workflows(
     request: Request,
+    update_existing: bool = False,
     manager: WorkflowsManager = Depends(get_workflows_manager),
     _: bool = Depends(PermissionChecker('settings', FeatureAccessLevel.ADMIN)),
 ) -> dict:
-    """Load default workflows from YAML (admin only)."""
-    count = manager.load_from_yaml()
-    return {"message": f"Loaded {count} default workflow(s)"}
+    """Load default workflows from YAML (admin only).
+    
+    Query params:
+        update_existing: If true, updates existing default workflows to match YAML definitions.
+    """
+    result = manager.load_from_yaml(update_existing=update_existing)
+    
+    parts = []
+    if result['created'] > 0:
+        parts.append(f"created {result['created']}")
+    if result['updated'] > 0:
+        parts.append(f"updated {result['updated']}")
+    if result['skipped'] > 0:
+        parts.append(f"skipped {result['skipped']} (already exist)")
+    
+    message = "Workflows: " + ", ".join(parts) if parts else "No workflows to load"
+    return {"message": message, **result}
 
 
 @router.get("/{workflow_id}/referenced-policies")
@@ -767,13 +782,16 @@ async def retry_execution(
         # Get trigger context to re-execute
         trigger_context = json.loads(reset_result.trigger_context) if reset_result.trigger_context else {}
         
+        # Get entity data from trigger context
+        entity_data = trigger_context.get('entity_data', {}) or {}
+        
         result = executor.execute_workflow(
-            workflow=workflow,
+            workflow,
+            entity_data,  # positional argument
             entity_type=trigger_context.get('entity_type', 'unknown'),
             entity_id=trigger_context.get('entity_id', ''),
             entity_name=trigger_context.get('entity_name'),
             user_email=trigger_context.get('user_email'),
-            entity=trigger_context.get('entity', {}),
             execution_id=execution_id,  # Reuse the same execution record
         )
         

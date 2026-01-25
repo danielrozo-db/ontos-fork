@@ -666,6 +666,7 @@ class DatasetsManager(DeliveryMixin, SearchableAsset):
                 entity_data={
                     "dataset_id": dataset_id,
                     "dataset_name": db_dataset.name,
+                    "fqn": f"dataset:{db_dataset.name}",
                     "current_status": current_status,
                     "target_status": target,
                     "justification": justification,
@@ -768,6 +769,7 @@ class DatasetsManager(DeliveryMixin, SearchableAsset):
                 entity_data={
                     "dataset_id": dataset_id,
                     "dataset_name": db_dataset.name,
+                    "fqn": f"dataset:{db_dataset.name}",
                     "current_status": current_status,
                     "message": message,
                     "request_id": request_id,

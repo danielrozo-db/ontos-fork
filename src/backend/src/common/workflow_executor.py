@@ -777,6 +777,228 @@ class PolicyCheckStepHandler(StepHandler):
             )
 
 
+class CreateAssetReviewStepHandler(StepHandler):
+    """Handler for creating data asset review requests.
+    
+    This step creates a formal DataAssetReview record for tracking purposes,
+    useful when workflows need to integrate with the data asset review system.
+    
+    Config options:
+        reviewer_role: Role name or UUID of the reviewer (default: 'DataSteward')
+        review_type: Type of review (default: 'standard')  
+        notes: Additional notes for the review
+        use_entity_as_asset: If true, uses the trigger entity as the asset to review
+    """
+
+    def execute(self, context: StepContext) -> StepResult:
+        # Imports moved to where they're used below
+        
+        reviewer_role = self._config.get('reviewer_role', 'DataSteward')
+        review_type = self._config.get('review_type', 'standard')
+        notes = self._config.get('notes', '')
+        use_entity_as_asset = self._config.get('use_entity_as_asset', True)
+        
+        try:
+            # Get requester from trigger context (TriggerContext is a Pydantic model, not a dict)
+            tc = context.trigger_context
+            requester_email = tc.user_email if tc else None
+            if not requester_email:
+                requester_email = 'system@app.local'
+            
+            # Resolve reviewer email from role
+            reviewer_email = self._resolve_reviewer_from_role(reviewer_role)
+            used_fallback = False
+            if not reviewer_email:
+                # Fallback: use the requester as the reviewer (self-review placeholder)
+                # This allows the asset review to be created even if the role has no members
+                reviewer_email = requester_email
+                used_fallback = True
+                logger.warning(
+                    f"Could not resolve reviewer from role: {reviewer_role}. "
+                    f"Using requester ({requester_email}) as fallback reviewer."
+                )
+            
+            # Determine asset FQN
+            asset_fqns = []
+            if use_entity_as_asset:
+                # Try to get FQN from entity (TriggerContext attributes)
+                entity_type = tc.entity_type if tc else ''
+                entity_id = tc.entity_id if tc else ''
+                entity_name = tc.entity_name if tc else ''
+                
+                # Debug logging
+                logger.info(f"CreateAssetReview: entity_type={entity_type}, entity_id={entity_id}, entity_name={entity_name}")
+                logger.info(f"CreateAssetReview: context.entity={context.entity}")
+                logger.info(f"CreateAssetReview: tc.entity_data={tc.entity_data if tc else None}")
+                
+                # Build FQN based on entity - check both context.entity and trigger context entity_data
+                entity_data = tc.entity_data if tc and tc.entity_data else {}
+                
+                if entity_type in ['dataset', 'table', 'view']:
+                    # For datasets, try to get fqn from entity data
+                    fqn = (context.entity.get('fqn') or context.entity.get('table_fqn') or 
+                           entity_data.get('fqn') or entity_data.get('table_fqn') or 
+                           entity_name or entity_id)
+                    if fqn:
+                        asset_fqns.append(fqn)
+                elif entity_type == 'data_contract':
+                    fqn = context.entity.get('name') or entity_data.get('name') or entity_name or entity_id
+                    if fqn:
+                        asset_fqns.append(f"contract:{fqn}")
+                elif entity_type == 'data_product':
+                    fqn = context.entity.get('name') or entity_data.get('name') or entity_name or entity_id
+                    if fqn:
+                        asset_fqns.append(f"product:{fqn}")
+                else:
+                    # Generic fallback
+                    fqn = entity_name or entity_id
+                    if fqn:
+                        asset_fqns.append(f"{entity_type}:{fqn}")
+            
+            if not asset_fqns:
+                return StepResult(
+                    passed=False,
+                    error="Could not determine asset FQN for review. Ensure entity has a name or fqn."
+                )
+            
+            # Construct notes with review type
+            full_notes = f"[{review_type}] {notes}".strip() if notes else f"[{review_type}] Created by workflow"
+            
+            # Create the review request using repository with proper API models
+            from src.repositories.data_asset_reviews_repository import data_asset_review_repo
+            from src.models.data_asset_reviews import (
+                DataAssetReviewRequest, ReviewedAsset, 
+                ReviewRequestStatus, ReviewedAssetStatus, AssetType
+            )
+            from uuid import uuid4
+            from datetime import datetime
+            
+            review_id = str(uuid4())
+            
+            # Build assets list
+            assets_to_review = []
+            for fqn in asset_fqns:
+                # Determine asset type from FQN prefix
+                if fqn.startswith('dataset:'):
+                    asset_type = AssetType.TABLE  # Datasets map to tables
+                elif fqn.startswith('contract:'):
+                    asset_type = AssetType.TABLE  # Contracts map to tables
+                elif fqn.startswith('product:'):
+                    asset_type = AssetType.TABLE  # Products map to tables
+                else:
+                    asset_type = AssetType.TABLE  # Default for UC assets
+                
+                assets_to_review.append(ReviewedAsset(
+                    id=str(uuid4()),
+                    asset_fqn=fqn,
+                    asset_type=asset_type,
+                    status=ReviewedAssetStatus.PENDING,
+                    updated_at=datetime.utcnow(),
+                ))
+            
+            # Create full request model
+            full_request = DataAssetReviewRequest(
+                id=review_id,
+                requester_email=requester_email,
+                reviewer_email=reviewer_email,
+                status=ReviewRequestStatus.QUEUED,
+                notes=full_notes,
+                created_at=datetime.utcnow(),
+                updated_at=datetime.utcnow(),
+                assets=assets_to_review,
+            )
+            
+            # Use repository to create
+            review = data_asset_review_repo.create_with_assets(db=self._db, obj_in=full_request)
+            
+            fallback_note = " (using requester as fallback reviewer)" if used_fallback else ""
+            logger.info(f"Created asset review {review.id} for {asset_fqns} by {reviewer_email}{fallback_note}")
+            
+            return StepResult(
+                passed=True,
+                message=f"Asset review created: {review.id}{fallback_note}",
+                data={
+                    'review_id': review.id,
+                    'reviewer_email': reviewer_email,
+                    'asset_fqns': asset_fqns,
+                    'review_type': review_type,
+                    'used_fallback': used_fallback,
+                }
+            )
+            
+        except Exception as e:
+            logger.exception(f"Failed to create asset review: {e}")
+            return StepResult(passed=False, error=str(e))
+    
+    def _resolve_reviewer_from_role(self, role_identifier: str) -> Optional[str]:
+        """Resolve a reviewer email from a role name or UUID.
+        
+        Returns the email of the first user in the role's assigned groups,
+        or None if no users are found.
+        """
+        from src.db_models.settings import AppRoleDb
+        from uuid import UUID
+        
+        try:
+            # Try to find role by UUID first, then by name
+            role = None
+            try:
+                # Check if it's a valid UUID
+                UUID(role_identifier)
+                role = self._db.query(AppRoleDb).filter(AppRoleDb.id == role_identifier).first()
+            except ValueError:
+                # Not a UUID, try by name (flexible matching)
+                role = self._db.query(AppRoleDb).filter(AppRoleDb.name == role_identifier).first()
+                if not role:
+                    # Try normalized matching
+                    normalized = role_identifier.lower().replace(' ', '').replace('_', '')
+                    all_roles = self._db.query(AppRoleDb).all()
+                    for r in all_roles:
+                        r_normalized = r.name.lower().replace(' ', '').replace('_', '')
+                        if r_normalized == normalized:
+                            role = r
+                            break
+            
+            if not role:
+                logger.warning(f"Role not found: {role_identifier}")
+                return None
+            
+            if not role.assigned_groups:
+                logger.warning(f"Role {role.name} has no assigned groups")
+                return None
+            
+            # Get first user from first assigned group
+            try:
+                from src.common.workspace_client import get_workspace_client
+                ws = get_workspace_client()
+                
+                for group_name in role.assigned_groups:
+                    # List group members
+                    members = list(ws.groups.list(filter=f'displayName eq "{group_name}"'))
+                    if members:
+                        group = members[0]
+                        if hasattr(group, 'members') and group.members:
+                            for member in group.members:
+                                if hasattr(member, 'value'):
+                                    # Get user by ID
+                                    try:
+                                        user = ws.users.get(member.value)
+                                        if user and user.user_name:
+                                            return user.user_name
+                                    except Exception:
+                                        continue
+                
+            except Exception as e:
+                logger.warning(f"Failed to resolve users from groups: {e}")
+            
+            # Fallback: return None if we couldn't resolve
+            return None
+            
+        except Exception as e:
+            logger.exception(f"Failed to resolve reviewer from role: {e}")
+            return None
+
+
 class WorkflowExecutor:
     """Executes process workflows."""
 
@@ -793,6 +1015,7 @@ class WorkflowExecutor:
         'fail': FailStepHandler,
         'policy_check': PolicyCheckStepHandler,
         'delivery': DeliveryStepHandler,
+        'create_asset_review': CreateAssetReviewStepHandler,
     }
 
     def __init__(self, db: Session):
@@ -809,6 +1032,7 @@ class WorkflowExecutor:
         user_email: Optional[str] = None,
         trigger_context: Optional[TriggerContext] = None,
         blocking: bool = True,
+        execution_id: Optional[str] = None,
     ) -> WorkflowExecution:
         """Execute a workflow against an entity.
         
@@ -821,17 +1045,31 @@ class WorkflowExecutor:
             user_email: User who triggered the workflow
             trigger_context: Full trigger context
             blocking: If True, run synchronously; if False, queue for async execution
+            execution_id: Optional existing execution ID to reuse (for retries)
             
         Returns:
             WorkflowExecution with results
         """
-        # Create execution record
-        execution_create = WorkflowExecutionCreate(
-            workflow_id=workflow.id,
-            trigger_context=trigger_context,
-            triggered_by=user_email,
-        )
-        db_execution = workflow_execution_repo.create(self._db, execution_create)
+        # Reuse existing execution or create new one
+        if execution_id:
+            db_execution = workflow_execution_repo.get(self._db, execution_id)
+            if not db_execution:
+                raise ValueError(f"Execution {execution_id} not found")
+            # Reset execution state for retry
+            db_execution.status = ExecutionStatus.RUNNING.value
+            db_execution.started_at = datetime.now()
+            db_execution.finished_at = None
+            db_execution.error_message = None
+            db_execution.current_step_id = None
+            self._db.commit()
+        else:
+            # Create new execution record
+            execution_create = WorkflowExecutionCreate(
+                workflow_id=workflow.id,
+                trigger_context=trigger_context,
+                triggered_by=user_email,
+            )
+            db_execution = workflow_execution_repo.create(self._db, execution_create)
         
         # Build step context
         context = StepContext(
@@ -1222,7 +1460,15 @@ class WorkflowExecutor:
             return StepResult(passed=False, error=f"Unknown step type: {step_type}")
         
         try:
-            handler = handler_class(self._db, step.config or {})
+            # Handle config - may be a JSON string from DB or already a dict
+            config = step.config or {}
+            if isinstance(config, str):
+                try:
+                    config = json.loads(config)
+                except json.JSONDecodeError:
+                    config = {}
+            
+            handler = handler_class(self._db, config)
             return handler.execute(context)
         except Exception as e:
             logger.exception(f"Step execution failed: {e}")

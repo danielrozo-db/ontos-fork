@@ -58,8 +58,9 @@ export type StepType =
   | 'script'
   | 'pass'
   | 'fail'
-  | 'policy_check'   // Evaluates existing compliance policy by UUID
-  | 'delivery';      // Triggers DeliveryService to apply changes
+  | 'policy_check'       // Evaluates existing compliance policy by UUID
+  | 'delivery'           // Triggers DeliveryService to apply changes
+  | 'create_asset_review'; // Creates a DataAssetReview for formal review tracking
 
 export type ExecutionStatus =
   | 'pending'

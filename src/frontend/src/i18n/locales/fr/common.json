@@ -334,7 +334,8 @@
       "pass": "Réussi",
       "fail": "Échoué",
       "policy_check": "Vérification de politique",
-      "delivery": "Livraison"
+      "delivery": "Livraison",
+      "create_asset_review": "Créer un examen d'actif"
     }
   }
 }
