@@ -70,9 +70,19 @@ class NotificationsManager:
         user_name = user_info.username  # Also check username for matching
 
         # Pre-fetch all role definitions for efficient lookup
+        # Create multiple mappings for flexible role name matching
         try:
             all_roles = self._settings_manager.list_app_roles() # Assuming this uses DB and returns List[AppRole]
-            role_map: Dict[str, 'AppRole'] = {role.name: role for role in all_roles} # Use AppRole type
+            role_map: Dict[str, 'AppRole'] = {}
+            for role in all_roles:
+                # Map by exact name
+                role_map[role.name] = role
+                # Also map by normalized name (no spaces, lowercase) for flexible matching
+                normalized = role.name.lower().replace(' ', '')
+                role_map[normalized] = role
+                # Also try CamelCase variant
+                camel_case = ''.join(word.capitalize() for word in role.name.split())
+                role_map[camel_case] = role
         except Exception as e:
             logger.error(f"Failed to retrieve roles for notification filtering: {e}")
             role_map = {} # Continue with empty map if roles fail
