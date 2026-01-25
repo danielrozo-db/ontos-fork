@@ -148,7 +148,7 @@ async def mark_notification_read(
         notification = manager.get_notification_by_id(db=db, notification_id=notification_id)
         if not notification:
             raise HTTPException(status_code=404, detail="Notification not found")
-        if notification.user_email != user_info.email:
+        if notification.recipient and notification.recipient != user_info.email:
             raise HTTPException(status_code=403, detail="Cannot modify other user's notifications")
 
         updated_notification = manager.mark_notification_read(db=db, notification_id=notification_id)
