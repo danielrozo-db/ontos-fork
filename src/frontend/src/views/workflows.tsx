@@ -305,7 +305,12 @@ export default function Workflows() {
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <GitBranch className="h-4 w-4 text-muted-foreground" />
-          <span className="font-medium">{row.original.name}</span>
+          <button
+            onClick={() => navigate(`/workflows/${row.original.id}`)}
+            className="font-medium hover:underline hover:text-primary text-left"
+          >
+            {row.original.name}
+          </button>
           {row.original.is_default && (
             <Badge variant="secondary" className="text-xs">Default</Badge>
           )}
