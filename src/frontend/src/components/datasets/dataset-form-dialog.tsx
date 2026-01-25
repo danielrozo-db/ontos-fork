@@ -226,6 +226,7 @@ export default function DatasetFormDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="in_review">In Review</SelectItem>
                     <SelectItem value="active">Active</SelectItem>
                     <SelectItem value="deprecated">Deprecated</SelectItem>
                     <SelectItem value="retired">Retired</SelectItem>

@@ -23,6 +23,7 @@ from src.models.assets import UnifiedAssetType
 class DatasetStatus(str, Enum):
     """Dataset lifecycle status values."""
     DRAFT = "draft"
+    IN_REVIEW = "in_review"
     ACTIVE = "active"
     DEPRECATED = "deprecated"
     RETIRED = "retired"
