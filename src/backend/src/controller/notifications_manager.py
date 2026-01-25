@@ -66,6 +66,12 @@ class NotificationsManager:
             logger.error(f"Failed to retrieve roles for notification filtering: {e}")
             role_map = {} # Continue with empty map if roles fail
 
+        # Check if user is an admin (member of Admin role's groups)
+        is_admin = False
+        admin_role = role_map.get('Admin')
+        if admin_role and admin_role.assigned_groups:
+            is_admin = any(group in user_groups for group in admin_role.assigned_groups)
+
         filtered_notifications = []
         for n in all_notifications_api:
             is_recipient = False
@@ -78,9 +84,18 @@ class NotificationsManager:
             elif user_name and recipient == user_name: # Direct username match
                 is_recipient = True
             elif recipient in role_map: # Check if recipient matches a defined role name
-                 target_role = role_map[recipient]
-                 if any(group in user_groups for group in target_role.assigned_groups):
-                      is_recipient = True
+                target_role = role_map[recipient]
+                if target_role.assigned_groups:
+                    # Role has groups - check if user is in any of them
+                    if any(group in user_groups for group in target_role.assigned_groups):
+                        is_recipient = True
+                else:
+                    # Role has NO groups assigned - show to admins as fallback
+                    if is_admin:
+                        is_recipient = True
+                        logger.debug(
+                            f"Showing notification for orphaned role '{recipient}' to admin user"
+                        )
 
             if is_recipient:
                 filtered_notifications.append(n)
