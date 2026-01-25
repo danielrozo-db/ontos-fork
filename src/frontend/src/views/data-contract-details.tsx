@@ -1227,18 +1227,6 @@ export default function DataContractDetails() {
     setIsDatasetInstanceLookupOpen(false)
   }
 
-  const handleSubmitForReview = async () => {
-    if (!contractId) return;
-    try {
-      const res = await fetch(`/api/data-contracts/${contractId}/submit`, { method: 'POST' });
-      if (!res.ok) throw new Error(`Submit failed (${res.status})`);
-      await fetchDetails();
-      toast({ title: 'Submitted', description: 'Contract submitted for review.' });
-    } catch (e: any) {
-      toast({ title: 'Error', description: e?.message || 'Submit failed', variant: 'destructive' });
-    }
-  };
-
   const handleApprove = async () => {
     if (!contractId) return;
     try {
@@ -1421,9 +1409,6 @@ export default function DataContractDetails() {
         </div>
         <div className="flex items-center gap-2">
           {/* Lifecycle actions */}
-          {contract && (contract.status?.toLowerCase() === 'draft') && (
-            <Button size="sm" onClick={handleSubmitForReview}>Submit for Review</Button>
-          )}
           {contract && (['proposed','under_review'].includes((contract.status || '').toLowerCase())) && (
             <>
               <Button size="sm" variant="outline" onClick={handleApprove}>Approve</Button>

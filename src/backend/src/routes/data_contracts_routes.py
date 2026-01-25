@@ -130,50 +130,6 @@ async def get_contract(
 
 # --- Lifecycle Transition Endpoints (minimal) ---
 
-@router.post('/data-contracts/{contract_id}/submit')
-async def submit_contract(
-    contract_id: str,
-    request: Request,
-    db: DBSessionDep,
-    audit_manager: AuditManagerDep,
-    current_user: AuditCurrentUserDep,
-    manager: DataContractsManager = Depends(get_data_contracts_manager),
-    _: bool = Depends(PermissionChecker('data-contracts', FeatureAccessLevel.READ_WRITE)),
-):
-    try:
-        contract = data_contract_repo.get(db, id=contract_id)
-        if not contract:
-            raise HTTPException(status_code=404, detail="Contract not found")
-        from_status = (contract.status or '').lower()
-        if from_status != 'draft':
-            raise HTTPException(status_code=409, detail=f"Invalid transition from {contract.status} to PROPOSED")
-        
-        # Business logic now in manager
-        updated = manager.transition_status(
-            db=db,
-            contract_id=contract_id,
-            new_status='proposed',
-            current_user=current_user.username if current_user else None
-        )
-        
-        # Audit
-        audit_manager.log_action(
-            db=db,
-            username=current_user.username if current_user else 'anonymous',
-            ip_address=request.client.host if request.client else None,
-            feature='data-contracts',
-            action='SUBMIT',
-            success=True,
-            details={ 'contract_id': contract_id, 'from': from_status, 'to': updated.status }
-        )
-        return { 'status': updated.status }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Submit contract failed for contract_id=%s", contract_id)
-        raise HTTPException(status_code=500, detail="Failed to submit contract")
-
-
 @router.post('/data-contracts/{contract_id}/approve')
 async def approve_contract(
     contract_id: str,
