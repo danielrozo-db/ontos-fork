@@ -30,8 +30,14 @@
   },
   "status": {
     "draft": "Bozza",
+    "pending": "In attesa",
+    "in_review": "In revisione",
+    "under_review": "In revisione",
+    "active": "Attivo",
     "approved": "Approvato",
-    "deprecated": "Obsoleto"
+    "certified": "Certificato",
+    "deprecated": "Obsoleto",
+    "retired": "Ritirato"
   },
   "details": {
     "backToList": "Torna ai Termini",

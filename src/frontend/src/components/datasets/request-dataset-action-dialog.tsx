@@ -31,6 +31,10 @@ const ALLOWED_TRANSITIONS: Record<string, { target: string; label: string }[]> =
     { target: 'active', label: 'Activate' },
     { target: 'deprecated', label: 'Deprecate' },
   ],
+  'in_review': [
+    { target: 'draft', label: 'Cancel Review' },
+    { target: 'active', label: 'Approve & Activate' },
+  ],
   'active': [
     { target: 'deprecated', label: 'Deprecate' },
   ],

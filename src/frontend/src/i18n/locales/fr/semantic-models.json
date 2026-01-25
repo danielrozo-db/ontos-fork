@@ -30,8 +30,14 @@
   },
   "status": {
     "draft": "Brouillon",
+    "pending": "En attente",
+    "in_review": "En révision",
+    "under_review": "En révision",
+    "active": "Actif",
     "approved": "Approuvé",
-    "deprecated": "Obsolète"
+    "certified": "Certifié",
+    "deprecated": "Obsolète",
+    "retired": "Retiré"
   },
   "details": {
     "backToList": "Retour aux Termes",

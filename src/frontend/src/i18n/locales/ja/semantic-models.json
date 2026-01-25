@@ -30,8 +30,14 @@
   },
   "status": {
     "draft": "下書き",
+    "pending": "保留中",
+    "in_review": "レビュー中",
+    "under_review": "レビュー中",
+    "active": "アクティブ",
     "approved": "承認済み",
-    "deprecated": "非推奨"
+    "certified": "認定済み",
+    "deprecated": "非推奨",
+    "retired": "廃止"
   },
   "details": {
     "backToList": "用語一覧に戻る",

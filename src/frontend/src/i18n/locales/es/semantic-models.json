@@ -30,8 +30,14 @@
   },
   "status": {
     "draft": "Borrador",
+    "pending": "Pendiente",
+    "in_review": "En revisión",
+    "under_review": "En revisión",
+    "active": "Activo",
     "approved": "Aprobado",
-    "deprecated": "Obsoleto"
+    "certified": "Certificado",
+    "deprecated": "Obsoleto",
+    "retired": "Retirado"
   },
   "details": {
     "backToList": "Volver a Términos",

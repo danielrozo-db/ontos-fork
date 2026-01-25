@@ -30,8 +30,14 @@
   },
   "status": {
     "draft": "Entwurf",
+    "pending": "Ausstehend",
+    "in_review": "In Prüfung",
+    "under_review": "In Prüfung",
+    "active": "Aktiv",
     "approved": "Genehmigt",
-    "deprecated": "Veraltet"
+    "certified": "Zertifiziert",
+    "deprecated": "Veraltet",
+    "retired": "Stillgelegt"
   },
   "details": {
     "backToList": "Zurück zu Begriffen",
