@@ -4,20 +4,27 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Play, 
-  Shield, 
-  UserCheck, 
-  Bell, 
-  Tag, 
-  GitBranch, 
-  Code, 
-  CheckCircle, 
-  XCircle,
   Zap,
+  Shield,
+  UserCheck,
+  Bell,
+  Tag,
+  Code,
+  CheckCircle,
+  XCircle,
   ClipboardCheck,
+  Truck,
+  GitBranch,
 } from 'lucide-react';
-import type { WorkflowStep, WorkflowTrigger, TriggerType, EntityType, StepType } from '@/types/process-workflow';
-import { getTriggerTypeLabel, getEntityTypeLabel } from '@/lib/workflow-labels';
+import type { WorkflowStep, WorkflowTrigger, StepType } from '@/types/process-workflow';
+import { 
+  getTriggerTypeLabel, 
+  getEntityTypeLabel,
+  getStepIcon,
+  getStepColor,
+  STEP_ICONS,
+  STEP_COLORS,
+} from '@/lib/workflow-labels';
 
 // Base node styles - fixed width for consistent compact sizing
 const baseNodeClass = "rounded-lg shadow-md border-2 w-[180px] transition-all hover:shadow-lg";

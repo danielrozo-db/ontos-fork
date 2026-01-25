@@ -6,7 +6,68 @@
  */
 
 import { TFunction } from 'i18next';
+import {
+  Shield,
+  UserCheck,
+  Bell,
+  Tag,
+  Code,
+  CheckCircle,
+  XCircle,
+  ClipboardCheck,
+  Truck,
+  GitBranch,
+  type LucideIcon,
+} from 'lucide-react';
 import { TriggerType, EntityType, StepType } from '@/types/process-workflow';
+
+/**
+ * Icons for each step type.
+ */
+export const STEP_ICONS: Record<StepType, LucideIcon> = {
+  validation: Shield,
+  approval: UserCheck,
+  notification: Bell,
+  assign_tag: Tag,
+  remove_tag: Tag,
+  conditional: GitBranch,
+  script: Code,
+  pass: CheckCircle,
+  fail: XCircle,
+  policy_check: ClipboardCheck,
+  delivery: Truck,
+};
+
+/**
+ * Colors for each step type (Tailwind color names without prefix).
+ */
+export const STEP_COLORS: Record<StepType, string> = {
+  validation: 'blue',
+  approval: 'amber',
+  notification: 'green',
+  assign_tag: 'violet',
+  remove_tag: 'rose',
+  conditional: 'slate',
+  script: 'cyan',
+  pass: 'emerald',
+  fail: 'red',
+  policy_check: 'orange',
+  delivery: 'indigo',
+};
+
+/**
+ * Get the icon for a step type with fallback.
+ */
+export function getStepIcon(type: StepType | string): LucideIcon {
+  return STEP_ICONS[type as StepType] || Code;
+}
+
+/**
+ * Get the color for a step type with fallback.
+ */
+export function getStepColor(type: StepType | string): string {
+  return STEP_COLORS[type as StepType] || 'slate';
+}
 
 /**
  * Get a human-readable label for a trigger type.

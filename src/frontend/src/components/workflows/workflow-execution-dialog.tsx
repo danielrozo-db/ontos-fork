@@ -1,15 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import ReactFlow, {
-  Node,
-  Edge,
-  Background,
-  Controls,
-  BackgroundVariant,
-  ConnectionLineType,
-  MarkerType,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
 
 import {
   Dialog,
@@ -19,26 +9,19 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
   Play,
-  Shield,
-  UserCheck,
-  Bell,
-  Tag,
   Code,
   CheckCircle,
   XCircle,
   Zap,
-  ClipboardCheck,
   Clock,
   Pause,
   AlertCircle,
   User,
-  Calendar,
-  Truck,
 } from 'lucide-react';
 
 import type {
@@ -46,9 +29,13 @@ import type {
   ProcessWorkflow,
   WorkflowStep,
   ExecutionStatus,
-  StepType,
 } from '@/types/process-workflow';
-import { getTriggerTypeLabel, getEntityTypeLabel } from '@/lib/workflow-labels';
+import { 
+  getTriggerTypeLabel, 
+  getEntityTypeLabel,
+  getStepIcon,
+  getStepColor,
+} from '@/lib/workflow-labels';
 import { useApi } from '@/hooks/useApi';
 
 interface WorkflowExecutionDialogProps {
@@ -56,36 +43,6 @@ interface WorkflowExecutionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-// Step type icons
-const stepIcons: Record<string, React.ElementType> = {
-  validation: Shield,
-  approval: UserCheck,
-  notification: Bell,
-  assign_tag: Tag,
-  remove_tag: Tag,
-  conditional: Code,
-  script: Code,
-  pass: CheckCircle,
-  fail: XCircle,
-  policy_check: ClipboardCheck,
-  delivery: Truck,
-};
-
-// Step type colors
-const stepColors: Record<string, string> = {
-  validation: 'blue',
-  approval: 'amber',
-  notification: 'green',
-  assign_tag: 'violet',
-  remove_tag: 'rose',
-  conditional: 'slate',
-  script: 'cyan',
-  pass: 'emerald',
-  fail: 'red',
-  policy_check: 'orange',
-  delivery: 'indigo',
-};
 
 // Execution step status
 type StepExecutionState = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'current';
@@ -120,8 +77,8 @@ interface ExecutionStepNodeProps {
 
 function ExecutionStepNode({ data }: { data: ExecutionStepNodeProps['data'] }) {
   const { step, state } = data;
-  const Icon = stepIcons[step.type] || Code;
-  const color = stepColors[step.type] || 'slate';
+  const Icon = getStepIcon(step.type);
+  const color = getStepColor(step.type);
   
   const stateStyles: Record<StepExecutionState, string> = {
     pending: 'opacity-50',
@@ -202,8 +159,8 @@ function SimpleWorkflowFlow({
       {/* Steps */}
       {workflow.steps.map((step, index) => {
         const state = getStepExecutionState(step.id, execution);
-        const Icon = stepIcons[step.type] || Code;
-        const color = stepColors[step.type] || 'slate';
+        const Icon = getStepIcon(step.type);
+        const color = getStepColor(step.type);
         
         const stateStyles: Record<StepExecutionState, string> = {
           pending: 'opacity-50 border-muted',
