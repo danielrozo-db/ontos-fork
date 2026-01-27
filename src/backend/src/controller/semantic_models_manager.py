@@ -455,6 +455,41 @@ class SemanticModelsManager:
             count = rdf_triples_repo.count_by_context(self._db, ctx)
             logger.debug(f"Loaded context '{ctx}': {count} triples")
 
+    def _sync_entity_semantic_links_to_graph(self) -> None:
+        """Sync semantic links from entity_semantic_links table to in-memory graph.
+        
+        This ensures that any links that weren't properly dual-written to rdf_triples
+        (e.g., due to transaction timing or app_state not being available) are still
+        available for graph queries.
+        
+        Links are added to the 'urn:semantic-links' context with the predicate
+        http://ontos.app/ontology#semanticAssignment.
+        """
+        from src.repositories.semantic_links_repository import entity_semantic_links_repo
+        
+        context_name = "urn:semantic-links"
+        context = self._graph.get_context(context_name)
+        predicate = ONTOS.semanticAssignment
+        
+        links = entity_semantic_links_repo.list_all(self._db)
+        added_count = 0
+        
+        for link in links:
+            # Build the subject URI from entity_type and entity_id
+            subject_uri = f"urn:ontos:{link.entity_type}:{link.entity_id}"
+            subj = URIRef(subject_uri)
+            obj = URIRef(link.iri)
+            
+            # Check if triple already exists in the graph
+            if (subj, predicate, obj) not in context:
+                context.add((subj, predicate, obj))
+                added_count += 1
+        
+        if added_count > 0:
+            logger.info(f"Synced {added_count} semantic links from entity_semantic_links to graph")
+        else:
+            logger.debug(f"All {len(links)} semantic links already present in graph")
+
     def _load_database_glossaries_into_graph(self) -> None:
         """Load database glossaries as RDF triples into named graphs"""
         try:
@@ -520,9 +555,13 @@ class SemanticModelsManager:
         # Step 5: Load database glossaries (dynamically computed)
         self._load_database_glossaries_into_graph()
         
-        # Note: Semantic links are now loaded from rdf_triples in Step 2
-        # The entity_semantic_links table is kept as a denormalized index
-        # but triples are also persisted to rdf_triples via dual-write
+        # Step 6: Sync semantic links from entity_semantic_links table
+        # This ensures any links that weren't properly dual-written to rdf_triples
+        # are still present in the in-memory graph
+        try:
+            self._sync_entity_semantic_links_to_graph()
+        except Exception as e:
+            logger.warning(f"Failed to sync entity semantic links to graph: {e}")
 
         # Build persistent caches after graph is rebuilt
         try:
@@ -1685,6 +1724,140 @@ class SemanticModelsManager:
         # Sort concepts within each group
         for source in grouped:
             grouped[source].sort(key=lambda c: (c.label or c.iri))
+
+        return grouped
+
+    def get_properties_grouped(self) -> Dict[str, List[Dict[str, Any]]]:
+        """Return all RDF/OWL properties grouped by their source context name.
+
+        Queries owl:ObjectProperty, owl:DatatypeProperty, rdfs:Property from each
+        context in the graph and returns them with source_context for grouping.
+
+        Each property is returned as a dict with:
+        - iri: The property IRI
+        - label: Human-readable label
+        - concept_type: Always "property" for tree compatibility
+        - property_type: "object", "datatype", or "annotation"
+        - domain: Domain class IRI (optional)
+        - range: Range class/datatype IRI (optional)
+        - comment: Description (optional)
+        - source_context: The source taxonomy name
+        - parent_concepts: Empty list for tree compatibility
+        - child_concepts: Empty list for tree compatibility
+        """
+        grouped: Dict[str, List[Dict[str, Any]]] = {}
+
+        for context in self._graph.contexts():
+            if not hasattr(context, 'identifier'):
+                continue
+            context_id = context.identifier
+            if not isinstance(context_id, URIRef):
+                continue
+            context_name = str(context_id)
+
+            # Extract source context name (same logic as concepts)
+            source_context = None
+            if context_name.startswith("urn:taxonomy:"):
+                source_context = context_name.replace("urn:taxonomy:", "")
+            elif context_name.startswith("urn:semantic-model:"):
+                source_context = context_name.replace("urn:semantic-model:", "")
+            elif context_name.startswith("urn:schema:"):
+                source_context = context_name.replace("urn:schema:", "")
+            elif context_name.startswith("urn:glossary:"):
+                source_context = context_name.replace("urn:glossary:", "")
+            elif context_name.startswith("urn:demo"):
+                source_context = "Demo Data"
+            elif context_name.startswith("urn:app-entities"):
+                source_context = "Application Entities"
+
+            if not source_context:
+                source_context = "Unassigned"
+
+            # Query properties in this context
+            try:
+                # Find all property types
+                properties_found = set()
+
+                # owl:ObjectProperty
+                for prop_uri in context.subjects(RDF.type, OWL.ObjectProperty):
+                    properties_found.add((str(prop_uri), "object"))
+
+                # owl:DatatypeProperty
+                for prop_uri in context.subjects(RDF.type, OWL.DatatypeProperty):
+                    properties_found.add((str(prop_uri), "datatype"))
+
+                # owl:AnnotationProperty
+                for prop_uri in context.subjects(RDF.type, OWL.AnnotationProperty):
+                    properties_found.add((str(prop_uri), "annotation"))
+
+                # rdfs:Property (generic)
+                for prop_uri in context.subjects(RDF.type, RDF.Property):
+                    # Only add if not already typed more specifically
+                    prop_str = str(prop_uri)
+                    if not any(prop_str == p[0] for p in properties_found):
+                        properties_found.add((prop_str, "datatype"))  # Default to datatype
+
+                for prop_iri, property_type in properties_found:
+                    # Skip standard vocabulary properties
+                    if any(prop_iri.startswith(prefix) for prefix in [
+                        "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+                        "http://www.w3.org/2000/01/rdf-schema#",
+                        "http://www.w3.org/2004/02/skos/core#",
+                        "http://www.w3.org/2002/07/owl#"
+                    ]):
+                        continue
+
+                    prop_uri = URIRef(prop_iri)
+
+                    # Get label
+                    labels = list(context.objects(prop_uri, RDFS.label))
+                    label = str(labels[0]) if labels else None
+                    if not label:
+                        # Extract from IRI
+                        if '#' in prop_iri:
+                            label = prop_iri.split('#')[-1]
+                        elif '/' in prop_iri:
+                            label = prop_iri.split('/')[-1]
+                        else:
+                            label = prop_iri
+
+                    # Get comment
+                    comments = list(context.objects(prop_uri, RDFS.comment))
+                    comment = str(comments[0]) if comments else None
+
+                    # Get domain
+                    domains = list(context.objects(prop_uri, RDFS.domain))
+                    domain = str(domains[0]) if domains else None
+
+                    # Get range
+                    ranges = list(context.objects(prop_uri, RDFS.range))
+                    range_val = str(ranges[0]) if ranges else None
+
+                    # Build property dict compatible with concept structure
+                    prop_dict = {
+                        "iri": prop_iri,
+                        "label": label,
+                        "comment": comment,
+                        "concept_type": "property",  # For tree compatibility
+                        "property_type": property_type,
+                        "domain": domain,
+                        "range": range_val,
+                        "source_context": source_context,
+                        "parent_concepts": [],
+                        "child_concepts": [],
+                        "tagged_assets": [],
+                    }
+
+                    if source_context not in grouped:
+                        grouped[source_context] = []
+                    grouped[source_context].append(prop_dict)
+
+            except Exception as e:
+                logger.warning(f"Failed to query properties in context {context_name}: {e}")
+
+        # Sort properties within each group
+        for source in grouped:
+            grouped[source].sort(key=lambda p: (p.get("label") or p.get("iri")))
 
         return grouped
 

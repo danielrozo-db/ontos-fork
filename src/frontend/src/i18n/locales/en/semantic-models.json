@@ -11,7 +11,9 @@
     "bySource": "Filter by Source",
     "all": "All",
     "none": "None",
-    "groupBySource": "Group by Source"
+    "groupBySource": "Group by Source",
+    "showProperties": "Show Properties",
+    "groupByDomain": "Group by Domain"
   },
   "table": {
     "name": "Name",

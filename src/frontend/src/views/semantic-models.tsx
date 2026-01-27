@@ -84,6 +84,8 @@ const ConceptTreeItem: React.FC<ConceptTreeItemProps> = ({ item, selectedConcept
         return <Layers className="h-4 w-4 shrink-0 text-blue-500" />;
       case 'concept':
         return <Layers className="h-4 w-4 shrink-0 text-green-500" />;
+      case 'property':
+        return <Zap className="h-4 w-4 shrink-0 text-purple-500" />;
       default:
         return <Zap className="h-4 w-4 shrink-0 text-yellow-500" />;
     }
@@ -99,7 +101,7 @@ const ConceptTreeItem: React.FC<ConceptTreeItemProps> = ({ item, selectedConcept
       onSelectConcept(concept);
     }
   };
-
+  
   return (
     <div
       {...item.getProps()}
@@ -153,6 +155,7 @@ interface UnifiedConceptTreeProps {
   searchQuery: string;
   onShowKnowledgeGraph?: () => void;
   groupBySource?: boolean;
+  groupByDomain?: boolean;
 }
 
 const UnifiedConceptTree: React.FC<UnifiedConceptTreeProps> = ({
@@ -161,7 +164,8 @@ const UnifiedConceptTree: React.FC<UnifiedConceptTreeProps> = ({
   onSelectConcept,
   searchQuery,
   onShowKnowledgeGraph,
-  groupBySource = false
+  groupBySource = false,
+  groupByDomain = false
 }) => {
   const { t } = useTranslation(['semantic-models', 'common']);
   
@@ -198,10 +202,10 @@ const UnifiedConceptTree: React.FC<UnifiedConceptTreeProps> = ({
     const hierarchy = new Map<string, string[]>();
     const sourceContexts = new Set<string>();
 
-    // Only show classes and concepts (explicit positive filtering to match graph)
+    // Show classes, concepts, and optionally properties (properties already filtered by toggle)
     const baseConcepts = concepts.filter(concept => {
       const conceptType = (concept as any).concept_type as string;
-      return conceptType === 'class' || conceptType === 'concept';
+      return conceptType === 'class' || conceptType === 'concept' || conceptType === 'property';
     });
     
     // Build concept map and hierarchy
@@ -245,6 +249,15 @@ const UnifiedConceptTree: React.FC<UnifiedConceptTreeProps> = ({
       // Check if it's a source group node
       if (concept.iri.startsWith('source:')) {
         return true;
+      }
+      // When groupByDomain is enabled, check if this concept has properties with it as domain
+      if (groupByDomain) {
+        const hasPropertiesWithThisDomain = Array.from(treeData.conceptMap.values()).some(
+          c => c.concept_type === 'property' && c.domain === concept.iri
+        );
+        if (hasPropertiesWithThisDomain) {
+          return true;
+        }
       }
       const children = treeData.hierarchy.get(concept.iri) || [];
       const hasChildConcepts = concept.child_concepts && concept.child_concepts.length > 0;
@@ -302,8 +315,13 @@ const UnifiedConceptTree: React.FC<UnifiedConceptTreeProps> = ({
             return treeData.sourceContexts.map(source => `source:${source}`);
           }
           // Return root-level concepts (those with no parents or parents not in our dataset)
+          // When groupByDomain is enabled, properties with domains are excluded (shown under their domain)
           const rootConcepts = Array.from(treeData.conceptMap.values())
             .filter(concept => {
+              // When groupByDomain is enabled, properties with domains are shown under their domain concept
+              if (groupByDomain && concept.concept_type === 'property' && concept.domain) {
+                return false;
+              }
               return concept.parent_concepts.length === 0 || 
                      !concept.parent_concepts.some(parentIri => treeData.conceptMap.has(parentIri));
             })
@@ -316,12 +334,27 @@ const UnifiedConceptTree: React.FC<UnifiedConceptTreeProps> = ({
           const sourceRootConcepts = Array.from(treeData.conceptMap.values())
             .filter(concept => {
               const matchesSource = concept.source_context === sourceName;
+              // When groupByDomain is enabled, properties with domains are shown under their domain concept
+              if (groupByDomain && concept.concept_type === 'property' && concept.domain) {
+                return false;
+              }
               const isRootLevel = concept.parent_concepts.length === 0 || 
                      !concept.parent_concepts.some(parentIri => treeData.conceptMap.has(parentIri));
               return matchesSource && isRootLevel;
             })
             .map(concept => concept.iri);
           return sourceRootConcepts;
+        }
+        // When groupByDomain is enabled, concepts may have properties as children
+        if (groupByDomain) {
+          const regularChildren = treeData.hierarchy.get(itemId) || [];
+          // Add properties that have this concept as domain
+          const propertiesWithThisDomain = Array.from(treeData.conceptMap.values())
+            .filter(concept => concept.concept_type === 'property' && concept.domain === itemId)
+            .map(concept => concept.iri);
+          // Combine and deduplicate
+          const combined = [...new Set([...regularChildren, ...propertiesWithThisDomain])];
+          return combined;
         }
         return treeData.hierarchy.get(itemId) || [];
       },
@@ -471,7 +504,16 @@ const ConceptDetails: React.FC<ConceptDetailsProps> = ({ concept, concepts, onSe
       
       <DetailItem 
         label="Type" 
-        value={<Badge variant="outline">{concept.concept_type}</Badge>} 
+        value={
+          <div className="flex items-center gap-2">
+            <Badge variant="outline">{concept.concept_type}</Badge>
+            {concept.concept_type === 'property' && concept.property_type && (
+              <Badge variant="secondary" className="text-xs">
+                {concept.property_type}
+              </Badge>
+            )}
+          </div>
+        } 
       />
       
       <DetailItem 
@@ -490,6 +532,48 @@ const ConceptDetails: React.FC<ConceptDetailsProps> = ({ concept, concepts, onSe
       
       {concept.comment && (
         <DetailItem label="Description" value={concept.comment} />
+      )}
+      
+      {/* Property-specific: Domain */}
+      {concept.concept_type === 'property' && concept.domain && (
+        <DetailItem 
+          label="Domain" 
+          value={
+            <Badge 
+              variant="secondary" 
+              className="text-xs cursor-pointer hover:bg-secondary/80 transition-colors"
+              onClick={() => {
+                const domainConcept = concepts.find(c => c.iri === concept.domain);
+                if (domainConcept) {
+                  onSelectConcept(domainConcept);
+                }
+              }}
+            >
+              {getConceptLabel(concept.domain)}
+            </Badge>
+          } 
+        />
+      )}
+      
+      {/* Property-specific: Range */}
+      {concept.concept_type === 'property' && concept.range && (
+        <DetailItem 
+          label="Range" 
+          value={
+            <Badge 
+              variant="secondary" 
+              className="text-xs cursor-pointer hover:bg-secondary/80 transition-colors"
+              onClick={() => {
+                const rangeConcept = concepts.find(c => c.iri === concept.range);
+                if (rangeConcept) {
+                  onSelectConcept(rangeConcept);
+                }
+              }}
+            >
+              {getConceptLabel(concept.range)}
+            </Badge>
+          } 
+        />
       )}
       
       {concept.parent_concepts.length > 0 && (
@@ -564,14 +648,56 @@ type TaggedAsset = {
 };
 
 const TaggedAssetsView: React.FC<TaggedAssetsViewProps> = ({ concept }) => {
+  const navigate = useNavigate();
+
+  // Helper to generate navigation path based on asset type
+  const getAssetNavigationPath = (asset: TaggedAsset): string | null => {
+    const assetType = asset.type?.toLowerCase();
+    const path = asset.path;
+    
+    if (!path) return null;
+    
+    switch (assetType) {
+      case 'table':
+      case 'view':
+        // Navigate to data catalog table details
+        return `/data-catalog/${encodeURIComponent(path)}`;
+      case 'column':
+        // Navigate to data catalog with search for column name
+        return `/data-catalog?search=${encodeURIComponent(asset.name)}`;
+      case 'data_product':
+        // Navigate to data product details
+        return `/data-products/${asset.id}`;
+      case 'data_contract':
+        // Navigate to data contract details
+        return `/data-contracts/${asset.id}`;
+      case 'dashboard':
+        // External dashboards may not have internal navigation
+        return null;
+      default:
+        return null;
+    }
+  };
+
   // Define columns for the data table
   const columns: ColumnDef<TaggedAsset>[] = [
     {
       accessorKey: "name",
       header: "Asset Name",
-      cell: ({ row }) => (
-        <div className="font-medium">{row.getValue("name")}</div>
-      ),
+      cell: ({ row }) => {
+        const asset = row.original;
+        const navPath = getAssetNavigationPath(asset);
+        return navPath ? (
+          <div
+            className="font-medium text-primary cursor-pointer hover:underline"
+            onClick={() => navigate(navPath)}
+          >
+            {row.getValue("name")}
+          </div>
+        ) : (
+          <div className="font-medium">{row.getValue("name")}</div>
+        );
+      },
     },
     {
       accessorKey: "type",
@@ -592,9 +718,17 @@ const TaggedAssetsView: React.FC<TaggedAssetsViewProps> = ({ concept }) => {
       accessorKey: "path",
       header: "Path",
       cell: ({ row }) => {
+        const asset = row.original;
         const path = row.getValue("path") as string;
+        const navPath = getAssetNavigationPath(asset);
         return path ? (
-          <code className="text-sm text-muted-foreground bg-muted px-2 py-1 rounded">
+          <code 
+            className={cn(
+              "text-sm bg-muted px-2 py-1 rounded",
+              navPath ? "text-primary cursor-pointer hover:underline" : "text-muted-foreground"
+            )}
+            onClick={navPath ? () => navigate(navPath) : undefined}
+          >
             {path}
           </code>
         ) : null;
@@ -663,36 +797,52 @@ export default function SemanticModelsView() {
   const { 
     hiddenSources, 
     groupBySource, 
+    showProperties,
+    groupByDomain,
     isFilterExpanded,
     toggleSource, 
     selectAllSources, 
     selectNoneSources, 
     setGroupBySource,
+    setShowProperties,
+    setGroupByDomain,
     setFilterExpanded
   } = glossaryPrefs;
 
-  // Extract unique source contexts from concepts
+  // Properties data state
+  const [groupedProperties, setGroupedProperties] = useState<Record<string, OntologyConcept[]>>({});
+
+  // Extract unique source contexts from concepts and properties
   const availableSources = useMemo(() => {
     const allConcepts = Object.values(groupedConcepts).flat();
+    const allProperties = Object.values(groupedProperties).flat();
     const sources = new Set<string>();
     allConcepts.forEach((concept) => {
       if (concept.source_context) {
         sources.add(concept.source_context);
       }
     });
+    allProperties.forEach((prop) => {
+      if (prop.source_context) {
+        sources.add(prop.source_context);
+      }
+    });
     return Array.from(sources).sort();
-  }, [groupedConcepts]);
+  }, [groupedConcepts, groupedProperties]);
 
-  // Filter concepts based on hidden sources
+  // Filter concepts (and optionally properties) based on hidden sources
   const filteredConcepts = useMemo(() => {
     const allConcepts = Object.values(groupedConcepts).flat();
+    const allProperties = showProperties ? Object.values(groupedProperties).flat() : [];
+    const combined = [...allConcepts, ...allProperties];
+    
     if (hiddenSources.length === 0) {
-      return allConcepts;
+      return combined;
     }
-    return allConcepts.filter(
-      (concept) => !concept.source_context || !hiddenSources.includes(concept.source_context)
+    return combined.filter(
+      (item) => !item.source_context || !hiddenSources.includes(item.source_context)
     );
-  }, [groupedConcepts, hiddenSources]);
+  }, [groupedConcepts, groupedProperties, hiddenSources, showProperties]);
 
   // Permission check for write access
   const canWrite = !permissionsLoading && hasPermission('semantic-models', FeatureAccessLevel.READ_WRITE);
@@ -773,6 +923,38 @@ export default function SemanticModelsView() {
       fetchInProgressRef.current = false;
     }
   };
+
+  // Fetch properties when showProperties toggle is enabled
+  const fetchProperties = async () => {
+    try {
+      const response = await fetch('/api/semantic-models/properties-grouped');
+      if (!response.ok) throw new Error('Failed to fetch properties');
+      const data = await response.json();
+      
+      // Convert to OntologyConcept-compatible format
+      const propsGrouped: Record<string, OntologyConcept[]> = {};
+      for (const [source, props] of Object.entries(data.grouped_properties || {})) {
+        propsGrouped[source] = (props as any[]).map((p: any) => ({
+          ...p,
+          properties: [],
+          synonyms: [],
+          examples: [],
+        } as OntologyConcept));
+      }
+      setGroupedProperties(propsGrouped);
+    } catch (err) {
+      console.error('Failed to fetch properties:', err);
+    }
+  };
+
+  // Effect to fetch/clear properties when toggle changes
+  useEffect(() => {
+    if (showProperties) {
+      fetchProperties();
+    } else {
+      setGroupedProperties({});
+    }
+  }, [showProperties]);
 
   const handleSelectConcept = async (concept: OntologyConcept) => {
     setSelectedConcept(concept);
@@ -1176,21 +1358,17 @@ export default function SemanticModelsView() {
           `}
         </style>
         <ReactFlow
+          key={`lineage-${hierarchy.concept.iri}`}
           nodes={nodes}
           edges={edges}
           fitView
-          onInit={(reactFlowInstance) => {
-            // Enhanced fit view on initialization
-            setTimeout(() => {
-              reactFlowInstance.fitView({ 
-                padding: 0.15,
-                includeHiddenNodes: false,
-                minZoom: 0.5,
-                maxZoom: 1.2
-              });
-            }, 100);
+          fitViewOptions={{
+            padding: 0.2,
+            includeHiddenNodes: false,
+            minZoom: 0.4,
+            maxZoom: 1.0
           }}
-          minZoom={0.5}
+          minZoom={0.3}
           maxZoom={1.5}
           className="bg-background"
           defaultEdgeOptions={{
@@ -1209,6 +1387,213 @@ export default function SemanticModelsView() {
           onNodeClick={(_, node) => {
             // Find and select the concept in the tree
             const allConcepts = Object.values(groupedConcepts).flat();
+            const concept = allConcepts.find(c => c.iri === node.id);
+            if (concept) {
+              handleSelectConcept(concept);
+            }
+          }}
+          connectionMode={ConnectionMode.Strict}
+        >
+          <Controls />
+          <Background color={isDarkMode ? '#334155' : '#e2e8f0'} gap={16} />
+        </ReactFlow>
+      </div>
+    );
+  };
+
+  // Render property lineage graph showing domain → property → range
+  const renderPropertyLineage = (property: OntologyConcept) => {
+    const nodes: Node[] = [];
+    const edges: Edge[] = [];
+    const allConcepts = [...Object.values(groupedConcepts).flat(), ...Object.values(groupedProperties).flat()];
+
+    // Detect dark mode
+    const isDarkMode = document.documentElement.classList.contains('dark');
+
+    // Helper function to find concept by IRI
+    const findConceptByIri = (iri: string): OntologyConcept | null => {
+      const found = allConcepts.find(c => c.iri === iri);
+      if (found) return found;
+      
+      // Create minimal placeholder
+      const label = iri.split(/[/#]/).pop() || iri;
+      return {
+        iri,
+        label,
+        concept_type: 'class',
+        parent_concepts: [],
+        child_concepts: [],
+        source_context: '',
+        properties: [],
+        tagged_assets: [],
+        synonyms: [],
+        examples: []
+      } as OntologyConcept;
+    };
+
+    const centerX = 400;
+    const centerY = 200;
+
+    // Add property as center node (purple)
+    nodes.push({
+      id: property.iri,
+      data: {
+        label: property.label || property.iri.split(/[/#]/).pop(),
+        type: 'property'
+      },
+      position: { x: centerX, y: centerY },
+      type: 'default',
+      style: {
+        background: isDarkMode ? '#3b0764' : '#f3e8ff',
+        color: isDarkMode ? '#e9d5ff' : '#6b21a8',
+        border: '2px solid #9333ea',
+        borderRadius: '8px',
+        padding: '12px',
+        fontSize: '14px',
+        fontWeight: 'bold',
+        minWidth: '160px',
+        textAlign: 'center'
+      }
+    });
+
+    // Add domain concept (blue, above) - labeled "Domain"
+    if (property.domain) {
+      const domain = findConceptByIri(property.domain);
+      if (domain) {
+        nodes.push({
+          id: domain.iri,
+          data: {
+            label: domain.label || domain.iri.split(/[/#]/).pop(),
+            type: 'domain'
+          },
+          position: { x: centerX, y: centerY - 150 },
+          style: {
+            background: isDarkMode ? '#1e3a5f' : '#dbeafe',
+            color: isDarkMode ? '#bfdbfe' : '#1e3a8a',
+            border: `2px solid ${isDarkMode ? '#60a5fa' : '#3b82f6'}`,
+            borderRadius: '6px',
+            padding: '10px',
+            fontSize: '12px',
+            minWidth: '140px',
+            textAlign: 'center'
+          }
+        });
+
+        edges.push({
+          id: `domain-${property.iri}`,
+          source: domain.iri,
+          target: property.iri,
+          type: 'smoothstep',
+          label: 'domain',
+          labelStyle: { fontSize: 10, fill: isDarkMode ? '#94a3b8' : '#64748b' },
+          labelBgStyle: { fill: isDarkMode ? '#1e293b' : '#fff' },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: isDarkMode ? '#60a5fa' : '#3b82f6'
+          },
+          style: { stroke: isDarkMode ? '#60a5fa' : '#3b82f6', strokeWidth: 2 }
+        });
+      }
+    }
+
+    // Add range concept/datatype (green, below) - labeled "Range"
+    if (property.range) {
+      const rangeLabel = property.range.split(/[/#]/).pop() || property.range;
+      const isDatatype = property.range.includes('XMLSchema') || 
+                         property.range.includes('xsd') ||
+                         ['string', 'integer', 'boolean', 'date', 'dateTime', 'decimal', 'float', 'double'].some(t => 
+                           rangeLabel.toLowerCase() === t
+                         );
+
+      // Try to find as concept first
+      const rangeConcept = findConceptByIri(property.range);
+      
+      nodes.push({
+        id: property.range,
+        data: {
+          label: rangeConcept?.label || rangeLabel,
+          type: isDatatype ? 'datatype' : 'range'
+        },
+        position: { x: centerX, y: centerY + 150 },
+        style: {
+          background: isDatatype 
+            ? (isDarkMode ? '#422006' : '#fef3c7') 
+            : (isDarkMode ? '#14532d' : '#dcfce7'),
+          color: isDatatype 
+            ? (isDarkMode ? '#fcd34d' : '#92400e') 
+            : (isDarkMode ? '#bbf7d0' : '#15803d'),
+          border: `2px solid ${isDatatype 
+            ? (isDarkMode ? '#f59e0b' : '#d97706') 
+            : (isDarkMode ? '#22c55e' : '#16a34a')}`,
+          borderRadius: '6px',
+          padding: '10px',
+          fontSize: '12px',
+          minWidth: '140px',
+          textAlign: 'center'
+        }
+      });
+
+      edges.push({
+        id: `${property.iri}-range`,
+        source: property.iri,
+        target: property.range,
+        type: 'smoothstep',
+        label: 'range',
+        labelStyle: { fontSize: 10, fill: isDarkMode ? '#94a3b8' : '#64748b' },
+        labelBgStyle: { fill: isDarkMode ? '#1e293b' : '#fff' },
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: isDatatype 
+            ? (isDarkMode ? '#f59e0b' : '#d97706') 
+            : (isDarkMode ? '#22c55e' : '#16a34a')
+        },
+        style: { 
+          stroke: isDatatype 
+            ? (isDarkMode ? '#f59e0b' : '#d97706') 
+            : (isDarkMode ? '#22c55e' : '#16a34a'), 
+          strokeWidth: 2 
+        }
+      });
+    }
+
+    return (
+      <div className="h-[400px] border rounded-lg">
+        <style>
+          {`
+            .react-flow__handle {
+              opacity: 0 !important;
+              pointer-events: none !important;
+              width: 1px !important;
+              height: 1px !important;
+            }
+            .react-flow__node {
+              cursor: pointer;
+            }
+            .react-flow__node:hover {
+              transform: scale(1.05);
+              transition: transform 0.2s ease;
+            }
+          `}
+        </style>
+        <ReactFlow
+          key={`property-lineage-${property.iri}`}
+          nodes={nodes}
+          edges={edges}
+          fitView
+          fitViewOptions={{
+            padding: 0.3,
+            includeHiddenNodes: false,
+            minZoom: 0.5,
+            maxZoom: 1.0
+          }}
+          minZoom={0.4}
+          maxZoom={1.5}
+          className="bg-background"
+          nodesDraggable={false}
+          nodesConnectable={false}
+          elementsSelectable={true}
+          onNodeClick={(_, node) => {
+            // Navigate to domain or range concept if it exists
             const concept = allConcepts.find(c => c.iri === node.id);
             if (concept) {
               handleSelectConcept(concept);
@@ -1397,6 +1782,34 @@ export default function SemanticModelsView() {
                       onCheckedChange={setGroupBySource}
                     />
                   </div>
+                  
+                  {/* Show Properties Toggle */}
+                  <div className="flex items-center justify-between pt-2 border-t">
+                    <Label htmlFor="show-properties" className="text-sm flex items-center gap-2 cursor-pointer">
+                      <Zap className="h-4 w-4" />
+                      {t('semantic-models:filters.showProperties')}
+                    </Label>
+                    <Switch
+                      id="show-properties"
+                      checked={showProperties}
+                      onCheckedChange={setShowProperties}
+                    />
+                  </div>
+                  
+                  {/* Group by Domain Toggle - only visible when properties are shown */}
+                  {showProperties && (
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <Label htmlFor="group-by-domain" className="text-sm flex items-center gap-2 cursor-pointer">
+                        <Layers className="h-4 w-4" />
+                        {t('semantic-models:filters.groupByDomain')}
+                      </Label>
+                      <Switch
+                        id="group-by-domain"
+                        checked={groupByDomain}
+                        onCheckedChange={setGroupByDomain}
+                      />
+                    </div>
+                  )}
                 </div>
               </CollapsibleContent>
             </Collapsible>
@@ -1405,13 +1818,14 @@ export default function SemanticModelsView() {
           <ScrollArea className="flex-1">
             <div className="p-4 h-full">
               <UnifiedConceptTree
-                key={`${filteredConcepts.length}-${groupBySource}`}
+                key={`${filteredConcepts.length}-${groupBySource}-${showProperties}-${groupByDomain}`}
                 concepts={filteredConcepts}
                 selectedConcept={selectedConcept}
                 onSelectConcept={handleSelectConcept}
                 onShowKnowledgeGraph={handleShowKnowledgeGraph}
                 searchQuery={searchQuery}
                 groupBySource={groupBySource}
+                groupByDomain={groupByDomain}
               />
             </div>
           </ScrollArea>
@@ -1456,6 +1870,8 @@ export default function SemanticModelsView() {
                             return <Layers className="h-6 w-6 shrink-0 text-blue-500" />;
                           case 'concept':
                             return <Layers className="h-6 w-6 shrink-0 text-green-500" />;
+                          case 'property':
+                            return <Zap className="h-6 w-6 shrink-0 text-purple-500" />;
                           default:
                             return <Zap className="h-6 w-6 shrink-0 text-yellow-500" />;
                         }
@@ -1474,14 +1890,19 @@ export default function SemanticModelsView() {
                 <div className="border rounded-lg p-4">
                   <ConceptDetails 
                     concept={selectedConcept} 
-                    concepts={Object.values(groupedConcepts).flat()}
+                    concepts={[...Object.values(groupedConcepts).flat(), ...Object.values(groupedProperties).flat()]}
                     onSelectConcept={handleSelectConcept}
                   />
                 </div>
 
-                {/* Hierarchy Section */}
+                {/* Hierarchy/Lineage Section */}
                 <div className="border rounded-lg p-4">
-                  {selectedHierarchy ? (
+                  {selectedConcept.concept_type === 'property' ? (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold">Property Relationships</h3>
+                      {renderPropertyLineage(selectedConcept)}
+                    </div>
+                  ) : selectedHierarchy ? (
                     <div className="space-y-4">
                       <h3 className="text-lg font-semibold">Concept Hierarchy</h3>
                       {renderLineage(selectedHierarchy, selectedConcept)}

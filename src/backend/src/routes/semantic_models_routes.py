@@ -489,6 +489,25 @@ async def get_concepts_grouped(
         logger.error("Error retrieving grouped concepts", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to retrieve grouped concepts")
 
+
+@router.get('/semantic-models/properties-grouped')
+async def get_properties_grouped(
+    manager: SemanticModelsManager = Depends(get_semantic_models_manager),
+    _: bool = Depends(PermissionChecker('semantic-models', FeatureAccessLevel.READ_ONLY))
+) -> dict:
+    """Get all RDF/OWL properties grouped by taxonomy source.
+    
+    Returns properties with concept_type='property' for tree compatibility.
+    """
+    try:
+        logger.info("Retrieving properties grouped by taxonomy")
+        grouped = manager.get_properties_grouped()
+        
+        return {'grouped_properties': grouped}
+    except Exception as e:
+        logger.error("Error retrieving grouped properties", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve grouped properties")
+
 @router.get('/semantic-models/concepts/hierarchy')
 async def get_concept_hierarchy(
     iri: str = Query(..., description="Concept IRI"),

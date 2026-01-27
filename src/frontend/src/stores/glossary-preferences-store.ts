@@ -8,6 +8,12 @@ interface GlossaryPreferencesState {
   // Grouping
   groupBySource: boolean;
   
+  // Show properties toggle
+  showProperties: boolean;
+  
+  // Group properties by domain
+  groupByDomain: boolean;
+  
   // UI state
   isFilterExpanded: boolean;
   
@@ -16,6 +22,8 @@ interface GlossaryPreferencesState {
   selectAllSources: () => void;
   selectNoneSources: (allSources: string[]) => void;
   setGroupBySource: (enabled: boolean) => void;
+  setShowProperties: (enabled: boolean) => void;
+  setGroupByDomain: (enabled: boolean) => void;
   isSourceVisible: (source: string) => boolean;
   setFilterExpanded: (expanded: boolean) => void;
 }
@@ -25,6 +33,8 @@ export const useGlossaryPreferencesStore = create<GlossaryPreferencesState>()(
     (set, get) => ({
       hiddenSources: [],
       groupBySource: false,
+      showProperties: false,
+      groupByDomain: false,
       isFilterExpanded: true,
 
       toggleSource: (source: string) => {
@@ -58,6 +68,14 @@ export const useGlossaryPreferencesStore = create<GlossaryPreferencesState>()(
         set({ groupBySource: enabled });
       },
 
+      setShowProperties: (enabled: boolean) => {
+        set({ showProperties: enabled });
+      },
+
+      setGroupByDomain: (enabled: boolean) => {
+        set({ groupByDomain: enabled });
+      },
+
       isSourceVisible: (source: string) => {
         return !get().hiddenSources.includes(source);
       },
@@ -72,6 +90,8 @@ export const useGlossaryPreferencesStore = create<GlossaryPreferencesState>()(
       partialize: (state) => ({
         hiddenSources: state.hiddenSources,
         groupBySource: state.groupBySource,
+        showProperties: state.showProperties,
+        groupByDomain: state.groupByDomain,
         isFilterExpanded: state.isFilterExpanded,
       }),
     }
@@ -85,5 +105,7 @@ export const useGlossaryPreferencesActions = () =>
     selectAllSources: state.selectAllSources,
     selectNoneSources: state.selectNoneSources,
     setGroupBySource: state.setGroupBySource,
+    setShowProperties: state.setShowProperties,
+    setGroupByDomain: state.setGroupByDomain,
   }));
 

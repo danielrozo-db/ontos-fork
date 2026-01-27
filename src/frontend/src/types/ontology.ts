@@ -11,7 +11,7 @@ export interface OntologyConcept {
   iri: string;
   label?: string;
   comment?: string;
-  concept_type: 'class' | 'concept' | 'individual';
+  concept_type: 'class' | 'concept' | 'individual' | 'property';
   source_context?: string;
   parent_concepts: string[];
   child_concepts: string[];
@@ -24,6 +24,10 @@ export interface OntologyConcept {
   }>;
   synonyms: string[];
   examples: string[];
+  // Property-specific fields (only set when concept_type === 'property')
+  property_type?: 'datatype' | 'object' | 'annotation';
+  domain?: string;
+  range?: string;
 }
 
 export interface SemanticModel {
