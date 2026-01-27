@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactFlow, {
   Node,
@@ -13,6 +13,7 @@ import ReactFlow, {
   Handle,
   Position,
 } from 'reactflow';
+import { useTheme } from '@/components/theme/theme-provider';
 import dagre from 'dagre';
 import 'reactflow/dist/style.css';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,6 +54,7 @@ interface SchemaData {
 
 // Custom Table Node Component
 function TableNode({ data }: { data: Table }) {
+  const { t } = useTranslation(['database-schema', 'common']);
   const handleWheel = (e: React.WheelEvent) => {
     // Stop propagation to prevent React Flow from capturing the wheel event for zooming
     e.stopPropagation();
@@ -62,7 +64,7 @@ function TableNode({ data }: { data: Table }) {
   return (
     <>
       <Handle type="target" position={Position.Left} style={{ visibility: 'hidden' }} />
-      <Card className="min-w-[250px] max-w-[300px] shadow-lg">
+      <Card className="min-w-[250px] max-w-[300px] shadow-lg border-border dark:border-slate-700 dark:bg-slate-800">
         {/* Only the header is draggable via drag-handle class */}
         <CardHeader className="drag-handle bg-primary text-primary-foreground py-2 px-3 cursor-move">
           <CardTitle className="text-sm font-bold">{data.name}</CardTitle>
@@ -79,12 +81,12 @@ function TableNode({ data }: { data: Table }) {
                 {data.columns.map((col, idx) => (
                   <tr
                     key={idx}
-                    className={`border-b last:border-b-0 ${
+                    className={`border-b dark:border-slate-600 last:border-b-0 ${
                       col.primary_key
-                        ? 'bg-yellow-50 dark:bg-yellow-950'
+                        ? 'bg-yellow-50 dark:bg-yellow-900/50'
                         : col.foreign_key
-                        ? 'bg-blue-50 dark:bg-blue-950'
-                        : ''
+                        ? 'bg-blue-50 dark:bg-blue-900/50'
+                        : 'dark:bg-slate-800'
                     }`}
                   >
                     <td className="py-1 px-2 font-mono">
@@ -99,7 +101,7 @@ function TableNode({ data }: { data: Table }) {
                             🔗
                           </span>
                         )}
-                        <span className="font-semibold truncate">{col.name}</span>
+                        <span className="font-semibold truncate dark:text-slate-100">{col.name}</span>
                       </div>
                       <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
                         {col.type}
@@ -131,11 +133,16 @@ const nodeTypes = {
 const getLayoutedElements = (
   tables: Table[],
   relationships: Relationship[],
-  direction = 'LR'
+  direction = 'LR',
+  isDarkMode = false
 ) => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
   dagreGraph.setGraph({ rankdir: direction, nodesep: 150, ranksep: 200 });
+
+  // Theme-aware edge colors
+  const edgeColor = isDarkMode ? '#64748b' : '#94a3b8';
+  const labelColor = isDarkMode ? '#94a3b8' : '#666';
 
   // Create nodes
   const nodes: Node[] = tables.map((table) => {
@@ -167,14 +174,14 @@ const getLayoutedElements = (
       type: MarkerType.ArrowClosed,
       width: 20,
       height: 20,
-      color: '#94a3b8',
+      color: edgeColor,
     },
     style: {
       strokeWidth: 2,
-      stroke: '#94a3b8',
+      stroke: edgeColor,
     },
     label: rel.columns.join(', '),
-    labelStyle: { fill: '#666', fontSize: 10 },
+    labelStyle: { fill: labelColor, fontSize: 10 },
   }));
 
   // Add edges to dagre
@@ -206,8 +213,14 @@ export default function DatabaseSchema() {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-  // Detect dark mode
-  const isDarkMode = document.documentElement.classList.contains('dark');
+  // Detect dark mode reactively
+  const { theme } = useTheme();
+  const isDarkMode = useMemo(() => {
+    if (theme === 'dark') return true;
+    if (theme === 'light') return false;
+    // System theme - check the actual class on documentElement
+    return document.documentElement.classList.contains('dark');
+  }, [theme]);
 
   const setStaticSegments = useBreadcrumbStore((state: any) => state.setStaticSegments);
   const setDynamicTitle = useBreadcrumbStore((state: any) => state.setDynamicTitle);
@@ -263,12 +276,14 @@ export default function DatabaseSchema() {
     // Layout the filtered elements
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
       filteredTables,
-      filteredRelationships
+      filteredRelationships,
+      'LR',
+      isDarkMode
     );
 
     setNodes(layoutedNodes);
     setEdges(layoutedEdges);
-  }, [schemaData, searchTerm, setNodes, setEdges]);
+  }, [schemaData, searchTerm, setNodes, setEdges, isDarkMode]);
 
   const handleDownload = useCallback(() => {
     // Create a simple text representation for download
@@ -368,7 +383,11 @@ export default function DatabaseSchema() {
           <Background color={isDarkMode ? '#334155' : '#e2e8f0'} gap={16} />
           <Controls />
           <MiniMap
-            nodeColor={() => '#3b82f6'}
+            nodeColor={() => isDarkMode ? '#60a5fa' : '#3b82f6'}
+            maskColor={isDarkMode ? 'rgba(0, 0, 0, 0.6)' : 'rgba(240, 240, 240, 0.6)'}
+            style={{
+              backgroundColor: isDarkMode ? '#1e293b' : '#f8fafc',
+            }}
             nodeStrokeWidth={3}
             zoomable
             pannable
