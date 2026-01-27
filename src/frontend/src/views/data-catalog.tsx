@@ -251,9 +251,15 @@ const DataCatalog: React.FC = () => {
     return sorted;
   }, [columns, sortConfig]);
 
-  // Navigate to table details
+  // Navigate to table details or contract details
   const handleRowClick = (entry: ColumnDictionaryEntry) => {
-    navigate(`/data-catalog/${encodeURIComponent(entry.table_full_name)}`);
+    if (entry.table_type === 'CONTRACT' && entry.contract_id) {
+      // Navigate to Data Contract details page
+      navigate(`/data-contracts/${entry.contract_id}`);
+    } else {
+      // Navigate to Data Catalog table details for actual UC tables
+      navigate(`/data-catalog/${encodeURIComponent(entry.table_full_name)}`);
+    }
   };
 
   // Render sort header
