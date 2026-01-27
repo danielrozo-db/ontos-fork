@@ -1401,7 +1401,7 @@ export default function SemanticModelsView() {
     );
   };
 
-  // Render property lineage graph showing domain → property → range
+  // Render property lineage graph showing hierarchy + domain/range
   const renderPropertyLineage = (property: OntologyConcept) => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
@@ -1432,7 +1432,7 @@ export default function SemanticModelsView() {
     };
 
     const centerX = 400;
-    const centerY = 200;
+    const centerY = 250;
 
     // Add property as center node (purple)
     nodes.push({
@@ -1456,7 +1456,93 @@ export default function SemanticModelsView() {
       }
     });
 
-    // Add domain concept (blue, above) - labeled "Domain"
+    // Add parent properties (from rdfs:subPropertyOf) - purple, above left
+    const parentProps = property.parent_concepts || [];
+    parentProps.forEach((parentIri, index) => {
+      const parent = findConceptByIri(parentIri);
+      if (parent) {
+        const nodeId = `parent-prop-${parent.iri}`;
+        nodes.push({
+          id: nodeId,
+          data: {
+            label: parent.label || parent.iri.split(/[/#]/).pop(),
+            type: 'parent-property',
+            originalIri: parent.iri
+          },
+          position: { x: centerX - 200 + (index * 180), y: centerY - 150 },
+          style: {
+            background: isDarkMode ? '#581c87' : '#ede9fe',
+            color: isDarkMode ? '#c4b5fd' : '#7c3aed',
+            border: `2px solid ${isDarkMode ? '#a855f7' : '#8b5cf6'}`,
+            borderRadius: '6px',
+            padding: '10px',
+            fontSize: '12px',
+            minWidth: '140px',
+            textAlign: 'center'
+          }
+        });
+
+        edges.push({
+          id: `subprop-${parent.iri}-${property.iri}`,
+          source: nodeId,
+          target: property.iri,
+          type: 'smoothstep',
+          label: 'subPropertyOf',
+          labelStyle: { fontSize: 10, fill: isDarkMode ? '#a855f7' : '#8b5cf6' },
+          labelBgStyle: { fill: isDarkMode ? '#1e293b' : '#fff' },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: isDarkMode ? '#a855f7' : '#8b5cf6'
+          },
+          style: { stroke: isDarkMode ? '#a855f7' : '#8b5cf6', strokeWidth: 2 }
+        });
+      }
+    });
+
+    // Add child properties (sub-properties of this property) - purple, below left
+    const childProps = property.child_concepts || [];
+    childProps.forEach((childIri, index) => {
+      const child = findConceptByIri(childIri);
+      if (child) {
+        const nodeId = `child-prop-${child.iri}`;
+        nodes.push({
+          id: nodeId,
+          data: {
+            label: child.label || child.iri.split(/[/#]/).pop(),
+            type: 'child-property',
+            originalIri: child.iri
+          },
+          position: { x: centerX - 200 + (index * 180), y: centerY + 150 },
+          style: {
+            background: isDarkMode ? '#581c87' : '#ede9fe',
+            color: isDarkMode ? '#c4b5fd' : '#7c3aed',
+            border: `1px solid ${isDarkMode ? '#a855f7' : '#8b5cf6'}`,
+            borderRadius: '6px',
+            padding: '10px',
+            fontSize: '12px',
+            minWidth: '140px',
+            textAlign: 'center'
+          }
+        });
+
+        edges.push({
+          id: `subprop-${property.iri}-${child.iri}`,
+          source: property.iri,
+          target: nodeId,
+          type: 'smoothstep',
+          label: 'subPropertyOf',
+          labelStyle: { fontSize: 10, fill: isDarkMode ? '#a855f7' : '#8b5cf6' },
+          labelBgStyle: { fill: isDarkMode ? '#1e293b' : '#fff' },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: isDarkMode ? '#a855f7' : '#8b5cf6'
+          },
+          style: { stroke: isDarkMode ? '#a855f7' : '#8b5cf6', strokeWidth: 2 }
+        });
+      }
+    });
+
+    // Add domain concept (blue, right side) - labeled "Domain"
     if (property.domain) {
       const domain = findConceptByIri(property.domain);
       if (domain) {
@@ -1466,7 +1552,7 @@ export default function SemanticModelsView() {
             label: domain.label || domain.iri.split(/[/#]/).pop(),
             type: 'domain'
           },
-          position: { x: centerX, y: centerY - 150 },
+          position: { x: centerX + 250, y: centerY - 80 },
           style: {
             background: isDarkMode ? '#1e3a5f' : '#dbeafe',
             color: isDarkMode ? '#bfdbfe' : '#1e3a8a',
@@ -1496,7 +1582,7 @@ export default function SemanticModelsView() {
       }
     }
 
-    // Add range concept/datatype (green, below) - labeled "Range"
+    // Add range concept/datatype (green, right side below domain) - labeled "Range"
     if (property.range) {
       const rangeLabel = property.range.split(/[/#]/).pop() || property.range;
       const isDatatype = property.range.includes('XMLSchema') || 
@@ -1514,7 +1600,7 @@ export default function SemanticModelsView() {
           label: rangeConcept?.label || rangeLabel,
           type: isDatatype ? 'datatype' : 'range'
         },
-        position: { x: centerX, y: centerY + 150 },
+        position: { x: centerX + 250, y: centerY + 80 },
         style: {
           background: isDatatype 
             ? (isDarkMode ? '#422006' : '#fef3c7') 
@@ -1593,8 +1679,10 @@ export default function SemanticModelsView() {
           nodesConnectable={false}
           elementsSelectable={true}
           onNodeClick={(_, node) => {
-            // Navigate to domain or range concept if it exists
-            const concept = allConcepts.find(c => c.iri === node.id);
+            // Navigate to the clicked concept/property
+            // For parent/child property nodes, use originalIri stored in data
+            const targetIri = node.data.originalIri || node.id;
+            const concept = allConcepts.find(c => c.iri === targetIri);
             if (concept) {
               handleSelectConcept(concept);
             }

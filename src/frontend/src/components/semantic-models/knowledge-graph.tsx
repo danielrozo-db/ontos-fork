@@ -283,9 +283,9 @@ export const KnowledgeGraph: React.FC<KnowledgeGraphProps> = ({
 
   // Transform concepts to Cytoscape elements
   const graphData = useMemo((): GraphData => {
-    // Only include classes and concepts (matching the tree view)
+    // Include classes, concepts, and properties (matching the tree view)
     const visibleConcepts = concepts.filter(
-      (c) => c.concept_type === 'class' || c.concept_type === 'concept'
+      (c) => c.concept_type === 'class' || c.concept_type === 'concept' || c.concept_type === 'property'
     );
 
     // Identify root nodes (nodes with no parents)
