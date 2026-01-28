@@ -66,13 +66,12 @@ export default function Settings() {
   
   // Determine the active tab from URL param or default to 'general'
   // Note: Workflows tab moved to Compliance view
-  const validTabs = ['general', 'databricks', 'git', 'delivery', 'jobs', 'roles', 'tags', 'semantic-models', 'search', 'mcp-tokens'];
+  const validTabs = ['general', 'git', 'delivery', 'jobs', 'roles', 'tags', 'semantic-models', 'search', 'mcp-tokens'];
   const activeTab = urlTab && validTabs.includes(urlTab) ? urlTab : 'general';
   
   // Tab display names for breadcrumbs
   const tabNames: Record<string, string> = {
     'general': t('settings:tabs.general', 'General'),
-    'databricks': t('settings:tabs.databricks', 'Databricks'),
     'git': t('settings:tabs.git', 'Git'),
     'delivery': t('settings:tabs.delivery', 'Delivery'),
     'jobs': t('settings:tabs.jobs', 'Jobs'),
@@ -308,7 +307,6 @@ export default function Settings() {
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList>
           <TabsTrigger value="general">{t('settings:tabs.general')}</TabsTrigger>
-          <TabsTrigger value="databricks">{t('settings:tabs.databricks')}</TabsTrigger>
           <TabsTrigger value="git">{t('settings:tabs.git')}</TabsTrigger>
           <TabsTrigger value="delivery">{t('settings:tabs.delivery', 'Delivery')}</TabsTrigger>
           <TabsTrigger value="jobs">{t('settings:tabs.jobs')}</TabsTrigger>
@@ -508,68 +506,6 @@ export default function Settings() {
                 </Button>
               </CardFooter>
             )}
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="databricks">
-          <Card>
-            <CardHeader>
-              <CardTitle>{t('settings:databricks.title')}</CardTitle>
-              <CardDescription>{t('settings:databricks.description')}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="host">{t('settings:databricks.labels.host')}</Label>
-                <Input
-                  id="host"
-                  name="databricksHost"
-                  value={settings.databricksHost}
-                  onChange={handleChange}
-                  placeholder={t('settings:databricks.placeholders.host')}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="token">{t('settings:databricks.labels.token')}</Label>
-                <Input
-                  id="token"
-                  name="databricksToken"
-                  type="password"
-                  value={settings.databricksToken}
-                  onChange={handleChange}
-                  placeholder={t('settings:databricks.placeholders.token')}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="warehouse">{t('settings:databricks.labels.warehouseId')}</Label>
-                <Input
-                  id="warehouse"
-                  name="databricksWarehouseId"
-                  value={settings.databricksWarehouseId}
-                  onChange={handleChange}
-                  placeholder={t('settings:databricks.placeholders.warehouseId')}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="catalog">{t('settings:databricks.labels.catalog')}</Label>
-                <Input
-                  id="catalog"
-                  name="databricksCatalog"
-                  value={settings.databricksCatalog}
-                  onChange={handleChange}
-                  placeholder={t('settings:databricks.placeholders.catalog')}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="schema">{t('settings:databricks.labels.schema')}</Label>
-                <Input
-                  id="schema"
-                  name="databricksSchema"
-                  value={settings.databricksSchema}
-                  onChange={handleChange}
-                  placeholder={t('settings:databricks.placeholders.schema')}
-                />
-              </div>
-            </CardContent>
           </Card>
         </TabsContent>
 
