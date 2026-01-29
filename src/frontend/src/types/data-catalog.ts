@@ -56,6 +56,8 @@ export interface ColumnDictionaryEntry {
   contract_version?: string | null;
   /** Status of the source Data Contract */
   contract_status?: string | null;
+  /** Business terms/concepts linked to this column */
+  business_terms?: { iri: string; label?: string; type?: string }[];
 }
 
 /**

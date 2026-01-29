@@ -69,6 +69,12 @@ class ColumnDictionaryEntry(BaseModel):
     contract_version: Optional[str] = Field(None, description="Version of the source Data Contract")
     contract_status: Optional[str] = Field(None, description="Status of the source Data Contract")
     
+    # Business terms linked to this column (from authoritative definitions)
+    business_terms: List[Dict[str, str]] = Field(
+        default_factory=list,
+        description="Business terms/concepts linked to this column. Each item: {iri, label, type}"
+    )
+    
     @property
     def display_label(self) -> str:
         """Return display label (business label if set, else column name)."""

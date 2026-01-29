@@ -87,26 +87,31 @@ class DataCatalogManager:
         which define the expected structure of data regardless of whether
         the physical tables exist in Unity Catalog.
         
+        Columns are deduplicated by (table_full_name, column_name) to avoid
+        showing the same column multiple times.
+        
         Returns:
-            List of ColumnDictionaryEntry from all contracts
+            List of ColumnDictionaryEntry from all contracts (deduplicated)
         """
-        columns: List[ColumnDictionaryEntry] = []
+        # Use dict for deduplication: key = (table_full_name, column_name)
+        columns_map: Dict[tuple, ColumnDictionaryEntry] = {}
         
         try:
             # Query contracts directly from database with eager loading
             from sqlalchemy.orm import selectinload
-            from src.db_models.data_contracts import DataContractDb, SchemaObjectDb
+            from src.db_models.data_contracts import DataContractDb, SchemaObjectDb, SchemaPropertyDb
             
             if not self.db:
                 logger.warning("Database session not available")
                 return []
             
-            # Get all contracts with their schema objects and properties eager loaded
+            # Get all contracts with schema objects, properties, and authoritative definitions eager loaded
             db_contracts = (
                 self.db.query(DataContractDb)
                 .options(
                     selectinload(DataContractDb.schema_objects)
                     .selectinload(SchemaObjectDb.properties)
+                    .selectinload(SchemaPropertyDb.authoritative_definitions)
                 )
                 .all()
             )
@@ -140,30 +145,59 @@ class DataCatalogManager:
                         classification = getattr(prop, 'classification', None)
                         business_name = getattr(prop, 'business_name', None)
                         
-                        columns.append(ColumnDictionaryEntry(
-                            column_name=col_name,
-                            column_label=business_name,
-                            column_type=physical_type or logical_type,
-                            description=description,
-                            nullable=not required,
-                            position=idx,
-                            table_name=schema_name,
-                            table_full_name=f"{contract_name}.{schema_name}",
-                            schema_name=contract_name,  # Use contract name as "schema"
-                            catalog_name=contract_version,  # Use version as "catalog"
-                            table_type="CONTRACT",
-                            is_primary_key=is_pk,
-                            classification=classification,
-                            contract_id=contract_id,
-                            contract_name=contract_name,
-                            contract_version=contract_version,
-                            contract_status=contract_status,
-                        ))
+                        # Extract business terms from authoritative definitions
+                        business_terms: List[Dict[str, str]] = []
+                        auth_defs = getattr(prop, 'authoritative_definitions', []) or []
+                        for auth_def in auth_defs:
+                            url = getattr(auth_def, 'url', None)
+                            def_type = getattr(auth_def, 'type', None)
+                            if url:
+                                # Extract label from URL (last segment or after #)
+                                label = url.split('#')[-1].split('/')[-1] if url else None
+                                business_terms.append({
+                                    "iri": url,
+                                    "label": label or url,
+                                    "type": def_type or "businessTerm"
+                                })
+                        
+                        table_full_name = f"{contract_name}.{schema_name}"
+                        dedup_key = (table_full_name, col_name)
+                        
+                        if dedup_key in columns_map:
+                            # Merge business terms from duplicate entry
+                            existing = columns_map[dedup_key]
+                            existing_iris = {t.get("iri") for t in existing.business_terms}
+                            for term in business_terms:
+                                if term.get("iri") not in existing_iris:
+                                    existing.business_terms.append(term)
+                        else:
+                            columns_map[dedup_key] = ColumnDictionaryEntry(
+                                column_name=col_name,
+                                column_label=business_name,
+                                column_type=physical_type or logical_type,
+                                description=description,
+                                nullable=not required,
+                                position=idx,
+                                table_name=schema_name,
+                                table_full_name=table_full_name,
+                                schema_name=contract_name,  # Use contract name as "schema"
+                                catalog_name=contract_version,  # Use version as "catalog"
+                                table_type="CONTRACT",
+                                is_primary_key=is_pk,
+                                classification=classification,
+                                contract_id=contract_id,
+                                contract_name=contract_name,
+                                contract_version=contract_version,
+                                contract_status=contract_status,
+                                business_terms=business_terms,
+                            )
             
-            logger.info(f"Extracted {len(columns)} columns from {len(db_contracts)} contracts")
+            columns = list(columns_map.values())
+            logger.info(f"Extracted {len(columns)} unique columns from {len(db_contracts)} contracts")
             
         except Exception as e:
             logger.error(f"Error extracting columns from contracts: {e}", exc_info=True)
+            return []
         
         return columns
     
@@ -294,7 +328,16 @@ class DataCatalogManager:
             limit=5000
         )
         
-        # Filter by query - search in name, description, label, and contract name
+        # Helper to check if query matches any business term
+        def matches_business_terms(col: ColumnDictionaryEntry) -> bool:
+            for term in col.business_terms:
+                iri = term.get("iri", "").lower()
+                label = term.get("label", "").lower()
+                if query_lower in iri or query_lower in label:
+                    return True
+            return False
+        
+        # Filter by query - search in name, description, label, contract name, and business terms
         matching = [
             col for col in all_response.columns
             if query_lower in col.column_name.lower()
@@ -302,6 +345,7 @@ class DataCatalogManager:
             or (col.column_label and query_lower in col.column_label.lower())
             or (col.contract_name and query_lower in col.contract_name.lower())
             or (col.table_name and query_lower in col.table_name.lower())
+            or matches_business_terms(col)
         ]
         
         has_more = len(matching) > limit
