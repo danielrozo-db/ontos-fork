@@ -334,8 +334,11 @@ async def delete_role(
 # --- Role Request Handling ---
 @router.post("/settings/roles/handle-request", status_code=status.HTTP_200_OK)
 async def handle_role_request_decision(
+    request: Request,
     request_data: HandleRoleRequest = Body(...),
     db: Session = Depends(get_db),
+    audit_manager: AuditManagerDep = Depends(),
+    current_user: AuditCurrentUserDep = Depends(),
     settings_manager: SettingsManager = Depends(get_settings_manager),
     notifications_manager: NotificationsManager = Depends(get_notifications_manager),
     change_log_manager = Depends(get_change_log_manager)
@@ -349,6 +352,17 @@ async def handle_role_request_decision(
             notifications_manager=notifications_manager,
             change_log_manager=change_log_manager
         )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature='settings',
+            action='HANDLE_ROLE_REQUEST',
+            success=True,
+            details={'role_id': request_data.role_id, 'approved': request_data.approved, 'user_email': request_data.user_email}
+        )
+        
         return result
     except ValueError as e:
         # Role not found
@@ -666,6 +680,10 @@ async def get_compliance_mapping():
 
 @router.put('/settings/compliance-mapping')
 async def save_compliance_mapping(
+    request: Request,
+    db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     payload: Dict[str, Any] = Body(...),
     manager: SettingsManager = Depends(get_settings_manager)
 ):
@@ -674,6 +692,17 @@ async def save_compliance_mapping(
         from src.common.config import get_config_manager
         cfg = get_config_manager()
         cfg.save_yaml('compliance_mapping.yaml', payload)
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature='settings',
+            action='SAVE_COMPLIANCE_MAPPING',
+            success=True,
+            details={}
+        )
+        
         return {"status": "ok"}
     except Exception as e:
         logger.error("Error saving compliance mapping", exc_info=True)

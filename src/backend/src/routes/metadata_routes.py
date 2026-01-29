@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from fastapi import Response
 from sqlalchemy.orm import Session
 
-from src.common.dependencies import DBSessionDep, CurrentUserDep
+from src.common.dependencies import DBSessionDep, CurrentUserDep, AuditManagerDep, AuditCurrentUserDep
 from src.common.features import FeatureAccessLevel
 from src.common.authorization import PermissionChecker
 from src.common.logging import get_logger
@@ -36,16 +36,30 @@ FEATURE_ID = "data-domains"  # Use domain feature for now; can widen later
 async def create_rich_text(
     entity_type: str,
     entity_id: str,
+    request: Request,
     payload: RichTextCreate,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: MetadataManager = Depends(get_metadata_manager),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
     try:
         if payload.entity_type != entity_type or payload.entity_id != entity_id:
             raise HTTPException(status_code=400, detail="Entity path does not match body")
-        return manager.create_rich_text(db, data=payload, user_email=current_user.email)
+        result = manager.create_rich_text(db, data=payload, user_email=current_user.email if current_user else None)
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='CREATE_RICH_TEXT',
+            success=True,
+            details={'entity_type': entity_type, 'entity_id': entity_id}
+        )
+        
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -67,29 +81,55 @@ async def list_rich_texts(
 @router.put("/rich-texts/{id}", response_model=RichText)
 async def update_rich_text(
     id: str,
+    request: Request,
     payload: RichTextUpdate,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: MetadataManager = Depends(get_metadata_manager),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
-    updated = manager.update_rich_text(db, id=id, data=payload, user_email=current_user.email)
+    updated = manager.update_rich_text(db, id=id, data=payload, user_email=current_user.email if current_user else None)
     if not updated:
         raise HTTPException(status_code=404, detail="Rich text not found")
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='UPDATE_RICH_TEXT',
+        success=True,
+        details={'rich_text_id': id}
+    )
+    
     return updated
 
 
 @router.delete("/rich-texts/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_rich_text(
     id: str,
+    request: Request,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: MetadataManager = Depends(get_metadata_manager),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
-    ok = manager.delete_rich_text(db, id=id, user_email=current_user.email)
+    ok = manager.delete_rich_text(db, id=id, user_email=current_user.email if current_user else None)
     if not ok:
         raise HTTPException(status_code=404, detail="Rich text not found")
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='DELETE_RICH_TEXT',
+        success=True,
+        details={'rich_text_id': id}
+    )
+    
     return
 
 
@@ -98,16 +138,30 @@ async def delete_rich_text(
 async def create_link(
     entity_type: str,
     entity_id: str,
+    request: Request,
     payload: LinkCreate,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: MetadataManager = Depends(get_metadata_manager),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
     try:
         if payload.entity_type != entity_type or payload.entity_id != entity_id:
             raise HTTPException(status_code=400, detail="Entity path does not match body")
-        return manager.create_link(db, data=payload, user_email=current_user.email)
+        result = manager.create_link(db, data=payload, user_email=current_user.email if current_user else None)
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='CREATE_LINK',
+            success=True,
+            details={'entity_type': entity_type, 'entity_id': entity_id}
+        )
+        
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -129,29 +183,55 @@ async def list_links(
 @router.put("/links/{id}", response_model=Link)
 async def update_link(
     id: str,
+    request: Request,
     payload: LinkUpdate,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: MetadataManager = Depends(get_metadata_manager),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
-    updated = manager.update_link(db, id=id, data=payload, user_email=current_user.email)
+    updated = manager.update_link(db, id=id, data=payload, user_email=current_user.email if current_user else None)
     if not updated:
         raise HTTPException(status_code=404, detail="Link not found")
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='UPDATE_LINK',
+        success=True,
+        details={'link_id': id}
+    )
+    
     return updated
 
 
 @router.delete("/links/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_link(
     id: str,
+    request: Request,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: MetadataManager = Depends(get_metadata_manager),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
-    ok = manager.delete_link(db, id=id, user_email=current_user.email)
+    ok = manager.delete_link(db, id=id, user_email=current_user.email if current_user else None)
     if not ok:
         raise HTTPException(status_code=404, detail="Link not found")
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='DELETE_LINK',
+        success=True,
+        details={'link_id': id}
+    )
+    
     return
 
 
@@ -160,12 +240,13 @@ async def delete_link(
 async def upload_document(
     entity_type: str,
     entity_id: str,
+    request: Request,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     title: str = Body(...),
     short_description: Optional[str] = Body(None),
     file: UploadFile = File(...),
-    request: Request = None,
     manager: MetadataManager = Depends(get_metadata_manager),
     settings: Settings = Depends(get_settings),
     ws: WorkspaceClient = Depends(get_workspace_client),
@@ -208,15 +289,27 @@ async def upload_document(
             title=title,
             short_description=short_description,
         )
-        return manager.create_document_record(
+        result = manager.create_document_record(
             db,
             data=payload,
             filename=filename,
             content_type=content_type,
             size_bytes=size_bytes,
             storage_path=dest_path,
-            user_email=current_user.email,
+            user_email=current_user.email if current_user else None,
         )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='UPLOAD_DOCUMENT',
+            success=True,
+            details={'entity_type': entity_type, 'entity_id': entity_id, 'filename': filename}
+        )
+        
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -251,14 +344,27 @@ async def get_document(
 @router.delete("/documents/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     id: str,
+    request: Request,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: MetadataManager = Depends(get_metadata_manager),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
-    ok = manager.delete_document(db, id=id, user_email=current_user.email)
+    ok = manager.delete_document(db, id=id, user_email=current_user.email if current_user else None)
     if not ok:
         raise HTTPException(status_code=404, detail="Document not found")
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='DELETE_DOCUMENT',
+        success=True,
+        details={'document_id': id}
+    )
+    
     return
 
 
@@ -279,15 +385,29 @@ async def list_shared_assets(
 
 @router.post("/metadata/shared/rich-texts", response_model=RichText, status_code=status.HTTP_201_CREATED)
 async def create_shared_rich_text(
+    request: Request,
     payload: RichTextCreate,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: MetadataManager = Depends(get_metadata_manager),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
     """Create a new shared rich text asset."""
     try:
-        return manager.create_shared_rich_text(db, data=payload, user_email=current_user.email)
+        result = manager.create_shared_rich_text(db, data=payload, user_email=current_user.email if current_user else None)
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='CREATE_SHARED_RICH_TEXT',
+            success=True,
+            details={}
+        )
+        
+        return result
     except Exception as e:
         logger.exception("Failed creating shared rich text")
         raise HTTPException(status_code=500, detail="Failed to create shared rich text")
@@ -295,15 +415,29 @@ async def create_shared_rich_text(
 
 @router.post("/metadata/shared/links", response_model=Link, status_code=status.HTTP_201_CREATED)
 async def create_shared_link(
+    request: Request,
     payload: LinkCreate,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: MetadataManager = Depends(get_metadata_manager),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
     """Create a new shared link asset."""
     try:
-        return manager.create_shared_link(db, data=payload, user_email=current_user.email)
+        result = manager.create_shared_link(db, data=payload, user_email=current_user.email if current_user else None)
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='CREATE_SHARED_LINK',
+            success=True,
+            details={}
+        )
+        
+        return result
     except Exception as e:
         logger.exception("Failed creating shared link")
         raise HTTPException(status_code=500, detail="Failed to create shared link")
@@ -311,8 +445,10 @@ async def create_shared_link(
 
 @router.post("/metadata/shared/documents", response_model=Document, status_code=status.HTTP_201_CREATED)
 async def upload_shared_document(
+    request: Request,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     title: str = Body(...),
     short_description: Optional[str] = Body(None),
     level: int = Body(50),
@@ -353,15 +489,27 @@ async def upload_shared_document(
             level=level,
             inheritable=inheritable,
         )
-        return manager.create_document_record(
+        result = manager.create_document_record(
             db,
             data=payload,
             filename=filename,
             content_type=content_type,
             size_bytes=size_bytes,
             storage_path=dest_path,
-            user_email=current_user.email,
+            user_email=current_user.email if current_user else None,
         )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='UPLOAD_SHARED_DOCUMENT',
+            success=True,
+            details={'filename': filename}
+        )
+        
+        return result
     except HTTPException:
         raise
     except Exception as e:
@@ -377,18 +525,32 @@ async def upload_shared_document(
 async def attach_shared_asset(
     entity_type: str,
     entity_id: str,
+    request: Request,
     payload: MetadataAttachmentCreate,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: MetadataManager = Depends(get_metadata_manager),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
     """Attach a shared metadata asset to an entity."""
     try:
-        return manager.attach_shared_asset(
+        result = manager.attach_shared_asset(
             db, entity_type=entity_type, entity_id=entity_id,
-            data=payload, user_email=current_user.email
+            data=payload, user_email=current_user.email if current_user else None
         )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='ATTACH_SHARED_ASSET',
+            success=True,
+            details={'entity_type': entity_type, 'entity_id': entity_id}
+        )
+        
+        return result
     except Exception as e:
         logger.exception("Failed attaching shared asset to %s/%s", entity_type, entity_id)
         raise HTTPException(status_code=500, detail="Failed to attach shared asset")
@@ -412,18 +574,31 @@ async def detach_shared_asset(
     entity_id: str,
     asset_type: str,
     asset_id: str,
+    request: Request,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: MetadataManager = Depends(get_metadata_manager),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
     """Detach a shared metadata asset from an entity."""
     ok = manager.detach_shared_asset(
         db, entity_type=entity_type, entity_id=entity_id,
-        asset_type=asset_type, asset_id=asset_id, user_email=current_user.email
+        asset_type=asset_type, asset_id=asset_id, user_email=current_user.email if current_user else None
     )
     if not ok:
         raise HTTPException(status_code=404, detail="Attachment not found")
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='DETACH_SHARED_ASSET',
+        success=True,
+        details={'entity_type': entity_type, 'entity_id': entity_id, 'asset_type': asset_type, 'asset_id': asset_id}
+    )
+    
     return
 
 

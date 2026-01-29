@@ -11,6 +11,8 @@ from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Qu
 from src.common.dependencies import (
     DBSessionDep,
     CurrentUserDep,
+    AuditManagerDep,
+    AuditCurrentUserDep,
 )
 from src.common.authorization import PermissionChecker
 from src.common.features import FeatureAccessLevel
@@ -217,7 +219,8 @@ async def create_dataset(
     request: Request,
     db: DBSessionDep,
     background_tasks: BackgroundTasks,
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     dataset_data: DatasetCreate = Body(...),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
@@ -237,6 +240,16 @@ async def create_dataset(
             data=dataset_data,
             created_by=current_user.username,
             background_tasks=background_tasks,
+        )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='CREATE',
+            success=True,
+            details={'dataset_id': dataset.id, 'dataset_name': dataset.name}
         )
         
         return dataset
@@ -259,7 +272,8 @@ async def update_dataset(
     request: Request,
     db: DBSessionDep,
     background_tasks: BackgroundTasks,
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     dataset_data: DatasetUpdate = Body(...),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
@@ -287,6 +301,16 @@ async def update_dataset(
                 detail=f"Dataset {dataset_id} not found",
             )
         
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='UPDATE',
+            success=True,
+            details={'dataset_id': dataset_id, 'dataset_name': dataset.name}
+        )
+        
         return dataset
     except ValueError as e:
         raise HTTPException(
@@ -308,8 +332,8 @@ async def delete_dataset(
     request: Request,
     dataset_id: str,
     db: DBSessionDep,
-
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.ADMIN)),
 ):
     """
@@ -322,6 +346,10 @@ async def delete_dataset(
     
     manager = get_datasets_manager(request)
     
+    # Get dataset info before deleting for audit
+    dataset = manager.get_dataset(dataset_id)
+    dataset_name = dataset.name if dataset else 'unknown'
+    
     success = manager.delete_dataset(dataset_id, deleted_by=current_user.username if current_user else None)
     
     if not success:
@@ -329,6 +357,16 @@ async def delete_dataset(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Dataset {dataset_id} not found",
         )
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='DELETE',
+        success=True,
+        details={'dataset_id': dataset_id, 'dataset_name': dataset_name}
+    )
 
 
 # =============================================================================
@@ -340,8 +378,8 @@ async def publish_dataset(
     request: Request,
     dataset_id: str,
     db: DBSessionDep,
-
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
     """
@@ -359,6 +397,17 @@ async def publish_dataset(
             dataset_id=dataset_id,
             current_user=current_user.username,
         )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='PUBLISH',
+            success=True,
+            details={'dataset_id': dataset_id, 'dataset_name': dataset.name}
+        )
+        
         return {"status": dataset.status, "published": dataset.published}
     except ValueError as e:
         raise HTTPException(
@@ -378,8 +427,8 @@ async def unpublish_dataset(
     request: Request,
     dataset_id: str,
     db: DBSessionDep,
-
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
     """
@@ -397,6 +446,17 @@ async def unpublish_dataset(
             dataset_id=dataset_id,
             current_user=current_user.username,
         )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='UNPUBLISH',
+            success=True,
+            details={'dataset_id': dataset_id, 'dataset_name': dataset.name}
+        )
+        
         return {"status": dataset.status, "published": dataset.published}
     except ValueError as e:
         raise HTTPException(
@@ -420,7 +480,8 @@ async def change_dataset_status(
     request: Request,
     dataset_id: str,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
     new_status: str = Body(..., embed=True),
 ):
@@ -438,6 +499,10 @@ async def change_dataset_status(
     
     manager = get_datasets_manager(request)
     
+    # Get old status for audit
+    old_dataset = manager.get_dataset(dataset_id)
+    old_status = old_dataset.status if old_dataset else 'unknown'
+    
     try:
         dataset = manager.change_status(
             dataset_id=dataset_id,
@@ -450,6 +515,16 @@ async def change_dataset_status(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Dataset {dataset_id} not found",
             )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='CHANGE_STATUS',
+            success=True,
+            details={'dataset_id': dataset_id, 'old_status': old_status, 'new_status': new_status}
+        )
         
         return {"status": dataset.status, "message": f"Status changed to {new_status}"}
     except ValueError as e:
@@ -472,7 +547,8 @@ async def request_status_change(
     request: Request,
     dataset_id: str,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_ONLY)),
     target_status: str = Body(...),
     justification: str = Body(...),
@@ -494,6 +570,16 @@ async def request_status_change(
             target_status=target_status,
             justification=justification,
             requested_by=current_user.email or current_user.username,
+        )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='REQUEST_STATUS_CHANGE',
+            success=True,
+            details={'dataset_id': dataset_id, 'target_status': target_status}
         )
         
         return {
@@ -519,7 +605,8 @@ async def request_steward_review(
     request: Request,
     dataset_id: str,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_ONLY)),
     message: Optional[str] = Body(None, embed=True),
 ):
@@ -538,6 +625,16 @@ async def request_steward_review(
             dataset_id=dataset_id,
             requested_by=current_user.email or current_user.username,
             message=message,
+        )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='REQUEST_REVIEW',
+            success=True,
+            details={'dataset_id': dataset_id}
         )
         
         return {
@@ -568,8 +665,8 @@ async def assign_contract(
     dataset_id: str,
     contract_id: str,
     db: DBSessionDep,
-
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
     """
@@ -594,6 +691,16 @@ async def assign_contract(
             detail=f"Dataset {dataset_id} not found",
         )
     
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='ASSIGN_CONTRACT',
+        success=True,
+        details={'dataset_id': dataset_id, 'contract_id': contract_id}
+    )
+    
     return dataset
 
 
@@ -602,8 +709,8 @@ async def unassign_contract(
     request: Request,
     dataset_id: str,
     db: DBSessionDep,
-
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
     """
@@ -615,6 +722,10 @@ async def unassign_contract(
     
     manager = get_datasets_manager(request)
     
+    # Get old contract for audit
+    old_dataset = manager.get_dataset(dataset_id)
+    old_contract_id = old_dataset.contract_id if old_dataset else None
+    
     dataset = manager.unassign_contract(
         dataset_id=dataset_id,
         updated_by=current_user.username,
@@ -625,6 +736,16 @@ async def unassign_contract(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Dataset {dataset_id} not found",
         )
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='UNASSIGN_CONTRACT',
+        success=True,
+        details={'dataset_id': dataset_id, 'old_contract_id': old_contract_id}
+    )
     
     return dataset
 
@@ -658,8 +779,8 @@ async def subscribe_to_dataset(
     request: Request,
     dataset_id: str,
     db: DBSessionDep,
-
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_ONLY)),
     data: Optional[DatasetSubscriptionCreate] = None,
 ):
@@ -674,11 +795,23 @@ async def subscribe_to_dataset(
     manager = get_datasets_manager(request)
     
     try:
-        return manager.subscribe(
+        result = manager.subscribe(
             dataset_id=dataset_id,
             email=current_user.username,
             reason=data.reason if data else None,
         )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='SUBSCRIBE',
+            success=True,
+            details={'dataset_id': dataset_id}
+        )
+        
+        return result
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -691,8 +824,8 @@ async def unsubscribe_from_dataset(
     request: Request,
     dataset_id: str,
     db: DBSessionDep,
-
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_ONLY)),
 ):
     """
@@ -702,10 +835,22 @@ async def unsubscribe_from_dataset(
     
     manager = get_datasets_manager(request)
     
-    return manager.unsubscribe(
+    result = manager.unsubscribe(
         dataset_id=dataset_id,
         email=current_user.username,
     )
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='UNSUBSCRIBE',
+        success=True,
+        details={'dataset_id': dataset_id}
+    )
+    
+    return result
 
 
 @router.get("/datasets/{dataset_id}/subscribers", response_model=DatasetSubscribersListResponse)
@@ -805,7 +950,8 @@ async def add_dataset_instance(
     request: Request,
     dataset_id: str,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     instance_data: DatasetInstanceCreate = Body(...),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
@@ -820,11 +966,23 @@ async def add_dataset_instance(
     manager = get_datasets_manager(request)
     
     try:
-        return manager.add_instance(
+        instance = manager.add_instance(
             dataset_id=dataset_id,
             data=instance_data,
             created_by=current_user.username,
         )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='ADD_INSTANCE',
+            success=True,
+            details={'dataset_id': dataset_id, 'instance_id': instance.id, 'environment': instance.environment}
+        )
+        
+        return instance
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -844,7 +1002,8 @@ async def update_dataset_instance(
     dataset_id: str,
     instance_id: str,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     instance_data: DatasetInstanceUpdate = Body(...),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
@@ -875,6 +1034,16 @@ async def update_dataset_instance(
                 detail=f"Instance {instance_id} not found in dataset {dataset_id}",
             )
         
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature=FEATURE_ID,
+            action='UPDATE_INSTANCE',
+            success=True,
+            details={'dataset_id': dataset_id, 'instance_id': instance_id}
+        )
+        
         return instance
     except ValueError as e:
         raise HTTPException(
@@ -897,7 +1066,8 @@ async def remove_dataset_instance(
     dataset_id: str,
     instance_id: str,
     db: DBSessionDep,
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
+    audit_manager: AuditManagerDep,
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
     """
@@ -921,6 +1091,8 @@ async def remove_dataset_instance(
             detail=f"Instance {instance_id} not found in dataset {dataset_id}",
         )
     
+    instance_environment = instance.environment
+    
     success = manager.remove_instance(instance_id)
     
     if not success:
@@ -928,6 +1100,16 @@ async def remove_dataset_instance(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Instance {instance_id} not found",
         )
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='REMOVE_INSTANCE',
+        success=True,
+        details={'dataset_id': dataset_id, 'instance_id': instance_id, 'environment': instance_environment}
+    )
 
 
 # =============================================================================

@@ -1275,6 +1275,7 @@ async def start_profiling(
     contract_id: str,
     request: Request,
     db: DBSessionDep,
+    audit_manager: AuditManagerDep,
     current_user: AuditCurrentUserDep,
     payload: dict = Body(...),
     manager: DataContractsManager = Depends(get_data_contracts_manager),
@@ -1290,6 +1291,17 @@ async def start_profiling(
             triggered_by=current_user.username if current_user else 'unknown',
             jobs_manager=jobs_manager
         )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='START_PROFILING',
+            success=True,
+            details={'contract_id': contract_id, 'schema_names': payload.get('schema_names', [])}
+        )
+        
         return result
     except ValueError as e:
         logger.error("Validation error starting profiling for contract %s: %s", contract_id, e)
@@ -1387,7 +1399,10 @@ async def accept_suggestions(
 async def update_suggestion(
     contract_id: str,
     suggestion_id: str,
+    request: Request,
     db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     payload: dict = Body(...),
     manager: DataContractsManager = Depends(get_data_contracts_manager),
     _: bool = Depends(PermissionChecker('data-contracts', FeatureAccessLevel.READ_WRITE))
@@ -1400,6 +1415,17 @@ async def update_suggestion(
             suggestion_id=suggestion_id,
             updates=payload
         )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='UPDATE_SUGGESTION',
+            success=True,
+            details={'contract_id': contract_id, 'suggestion_id': suggestion_id}
+        )
+        
         return result
     except ValueError as e:
         logger.error("Validation error updating suggestion %s for contract %s: %s", suggestion_id, contract_id, e)

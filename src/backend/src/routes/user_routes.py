@@ -12,7 +12,7 @@ from src.models.notifications import Notification, NotificationType
 from src.models.settings import RoleAccessRequest, AppRole
 from src.common.config import get_settings, Settings
 from src.controller.authorization_manager import AuthorizationManager
-from src.common.dependencies import get_auth_manager, get_db # Import get_db
+from src.common.dependencies import get_auth_manager, get_db, AuditManagerDep, AuditCurrentUserDep, DBSessionDep # Import get_db
 from src.common.dependencies import get_settings_manager, get_notifications_manager
 from src.controller.settings_manager import SettingsManager
 from pydantic import BaseModel
@@ -152,6 +152,9 @@ class RoleOverrideRequest(BaseModel):
 
 @router.post("/user/role-override")
 async def set_role_override(
+    request: Request,
+    db: DBSessionDep,
+    audit_manager: AuditManagerDep,
     payload: RoleOverrideRequest,
     user_details: UserInfo = Depends(get_user_details_from_sdk),
     settings_manager: SettingsManager = Depends(get_settings_manager)
@@ -163,6 +166,17 @@ async def set_role_override(
     role_id = payload.role_id
     try:
         settings_manager.set_applied_role_override_for_user(user_details.email, role_id)
+        
+        audit_manager.log_action(
+            db=db,
+            username=user_details.username if user_details else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature='user',
+            action='SET_ROLE_OVERRIDE',
+            success=True,
+            details={'role_id': role_id}
+        )
+        
         return {"status": "ok"}
     except ValueError as e:
         logger.error("Invalid role override request for user %s: %s", user_details.email, e)
@@ -219,6 +233,7 @@ async def request_role_access(
     request_body: RoleAccessRequest,
     request: Request,
     db: Session = Depends(get_db), # Inject DB session
+    audit_manager: AuditManagerDep = Depends(),
     user_details: UserInfo = Depends(get_user_details_from_sdk),
     settings_manager: SettingsManager = Depends(get_settings_manager),
     notifications_manager: NotificationsManager = Depends(get_notifications_manager)
@@ -312,6 +327,17 @@ async def request_role_access(
         
         if executions:
             logger.info(f"Triggered {len(executions)} workflow(s) for role access request")
+            
+            audit_manager.log_action(
+                db=db,
+                username=user_details.username if user_details else 'unknown',
+                ip_address=request.client.host if request.client else None,
+                feature='user',
+                action='REQUEST_ROLE_ACCESS',
+                success=True,
+                details={'role_id': role_id, 'role_name': role_name}
+            )
+            
             db.commit()
             return {"message": "Role access request submitted successfully. Workflow triggered for approval."}
     except Exception as workflow_err:
@@ -364,6 +390,16 @@ async def request_role_access(
             )
             notifications_manager.create_notification(db=db, notification=approver_notification)
             logger.info(f"Created notification for approver role '{approver_role_name}'")
+
+        audit_manager.log_action(
+            db=db,
+            username=user_details.username if user_details else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature='user',
+            action='REQUEST_ROLE_ACCESS',
+            success=True,
+            details={'role_id': role_id, 'role_name': role_name}
+        )
 
         db.commit()
         return {"message": "Role access request submitted successfully."} 

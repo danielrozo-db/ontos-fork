@@ -66,6 +66,17 @@ async def create_policy(
         policy, 
         current_user=current_user.username if current_user else None
     )
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='CREATE_POLICY',
+        success=True,
+        details={'policy_id': created.id, 'policy_name': created.name}
+    )
+    
     return {
         'id': created.id,
         'name': created.name,
@@ -99,6 +110,17 @@ async def update_policy(
     )
     if not updated:
         raise HTTPException(status_code=404, detail="Policy not found")
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='UPDATE_POLICY',
+        success=True,
+        details={'policy_id': policy_id, 'policy_name': updated.name}
+    )
+    
     return {
         'id': updated.id,
         'name': updated.name,
@@ -115,10 +137,16 @@ async def update_policy(
 @router.delete("/compliance/policies/{policy_id}")
 async def delete_policy(
     policy_id: str,
+    request: Request,
     db: DBSessionDep,
+    audit_manager: AuditManagerDep,
     current_user: AuditCurrentUserDep,
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
 ):
+    # Get policy name before deleting for audit
+    policy = manager.get_policy(db, policy_id)
+    policy_name = policy.name if policy else 'unknown'
+    
     ok = manager.delete_policy(
         db, 
         policy_id,
@@ -126,13 +154,26 @@ async def delete_policy(
     )
     if not ok:
         raise HTTPException(status_code=404, detail="Policy not found")
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='DELETE_POLICY',
+        success=True,
+        details={'policy_id': policy_id, 'policy_name': policy_name}
+    )
+    
     return {"status": "success"}
 
 
 @router.post("/compliance/policies/{policy_id}/runs")
 async def run_policy(
     policy_id: str,
+    request: Request,
     db: DBSessionDep,
+    audit_manager: AuditManagerDep,
     current_user: AuditCurrentUserDep,
     payload: ComplianceRunRequest = Body(default=ComplianceRunRequest()),
     _: bool = Depends(PermissionChecker(FEATURE_ID, FeatureAccessLevel.READ_WRITE)),
@@ -148,6 +189,17 @@ async def run_policy(
         limit=payload.limit,
         current_user=current_user.username if current_user else None
     )
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature=FEATURE_ID,
+        action='RUN_POLICY',
+        success=True,
+        details={'policy_id': policy_id, 'policy_name': policy.name, 'run_id': run.id}
+    )
+    
     return {
         'id': run.id,
         'policy_id': run.policy_id,

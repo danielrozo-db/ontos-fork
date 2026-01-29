@@ -10,7 +10,10 @@ from src.common.authorization import PermissionChecker # Keep PermissionChecker 
 from src.common.dependencies import (
     CurrentUserDep, 
     AuthorizationManagerDep,
-    SettingsManagerDep
+    SettingsManagerDep,
+    AuditManagerDep,
+    AuditCurrentUserDep,
+    DBSessionDep,
 )
 
 # Configure logging
@@ -60,12 +63,27 @@ async def search_items(
 
 @router.post("/search/rebuild-index", status_code=202)
 async def rebuild_search_index(
+    request: Request,
+    db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: SearchManager = Depends(get_search_manager)
 ):
     """Triggers a rebuild of the search index."""
     try:
         # In a real app, this might be a background task
         manager.build_index()
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature='search',
+            action='REBUILD_INDEX',
+            success=True,
+            details={}
+        )
+        
         return {"message": "Search index rebuild initiated."}
     except Exception as e:
         logger.exception(f"Error during index rebuild: {e}")

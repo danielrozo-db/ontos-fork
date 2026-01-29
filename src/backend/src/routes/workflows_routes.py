@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session
 
 from src.common.database import get_db
-from src.common.dependencies import DBSessionDep
+from src.common.dependencies import DBSessionDep, AuditManagerDep, AuditCurrentUserDep
 from src.common.authorization import PermissionChecker
 from src.common.features import FeatureAccessLevel
 from src.common.logging import get_logger
@@ -276,21 +276,33 @@ async def get_workflow(
 async def create_workflow(
     request: Request,
     workflow: ProcessWorkflowCreate,
+    db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: WorkflowsManager = Depends(get_workflows_manager),
     _: bool = Depends(PermissionChecker('settings', FeatureAccessLevel.READ_WRITE)),
 ) -> ProcessWorkflow:
     """Create a new workflow."""
-    # Get current user
-    user_email = None
-    if hasattr(request.state, 'user'):
-        user_email = getattr(request.state.user, 'email', None)
+    user_email = current_user.email if current_user else None
     
     # Validate workflow
     validation = manager.validate_workflow(workflow)
     if not validation.valid:
         raise HTTPException(status_code=400, detail={"errors": validation.errors})
     
-    return manager.create_workflow(workflow, created_by=user_email)
+    result = manager.create_workflow(workflow, created_by=user_email)
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature='process-workflows',
+        action='CREATE',
+        success=True,
+        details={'workflow_id': result.id, 'workflow_name': result.name}
+    )
+    
+    return result
 
 
 @router.put("/{workflow_id}", response_model=ProcessWorkflow)
@@ -298,14 +310,14 @@ async def update_workflow(
     request: Request,
     workflow_id: str,
     workflow: ProcessWorkflowUpdate,
+    db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: WorkflowsManager = Depends(get_workflows_manager),
     _: bool = Depends(PermissionChecker('settings', FeatureAccessLevel.READ_WRITE)),
 ) -> ProcessWorkflow:
     """Update an existing workflow."""
-    # Get current user
-    user_email = None
-    if hasattr(request.state, 'user'):
-        user_email = getattr(request.state.user, 'email', None)
+    user_email = current_user.email if current_user else None
     
     # Validate if steps are being updated
     if workflow.steps is not None:
@@ -329,6 +341,17 @@ async def update_workflow(
     result = manager.update_workflow(workflow_id, workflow, updated_by=user_email)
     if not result:
         raise HTTPException(status_code=404, detail="Workflow not found")
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature='process-workflows',
+        action='UPDATE',
+        success=True,
+        details={'workflow_id': workflow_id, 'workflow_name': result.name}
+    )
+    
     return result
 
 
@@ -336,6 +359,9 @@ async def update_workflow(
 async def delete_workflow(
     request: Request,
     workflow_id: str,
+    db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     manager: WorkflowsManager = Depends(get_workflows_manager),
     _: bool = Depends(PermissionChecker('settings', FeatureAccessLevel.ADMIN)),
 ) -> dict:
@@ -344,6 +370,8 @@ async def delete_workflow(
     workflow = manager.get_workflow(workflow_id)
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
+    
+    workflow_name = workflow.name
     
     if workflow.is_default:
         raise HTTPException(
@@ -354,6 +382,16 @@ async def delete_workflow(
     if not manager.delete_workflow(workflow_id):
         raise HTTPException(status_code=500, detail="Failed to delete workflow")
     
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature='process-workflows',
+        action='DELETE',
+        success=True,
+        details={'workflow_id': workflow_id, 'workflow_name': workflow_name}
+    )
+    
     return {"message": "Workflow deleted"}
 
 
@@ -361,18 +399,30 @@ async def delete_workflow(
 async def toggle_workflow_active(
     request: Request,
     workflow_id: str,
+    db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     is_active: bool = Query(..., description="New active status"),
     manager: WorkflowsManager = Depends(get_workflows_manager),
     _: bool = Depends(PermissionChecker('settings', FeatureAccessLevel.READ_WRITE)),
 ) -> ProcessWorkflow:
     """Toggle workflow active status."""
-    user_email = None
-    if hasattr(request.state, 'user'):
-        user_email = getattr(request.state.user, 'email', None)
+    user_email = current_user.email if current_user else None
     
     result = manager.toggle_active(workflow_id, is_active, updated_by=user_email)
     if not result:
         raise HTTPException(status_code=404, detail="Workflow not found")
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature='process-workflows',
+        action='TOGGLE_ACTIVE',
+        success=True,
+        details={'workflow_id': workflow_id, 'is_active': is_active}
+    )
+    
     return result
 
 
@@ -380,18 +430,30 @@ async def toggle_workflow_active(
 async def duplicate_workflow(
     request: Request,
     workflow_id: str,
+    db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     new_name: str = Query(..., description="Name for the duplicated workflow"),
     manager: WorkflowsManager = Depends(get_workflows_manager),
     _: bool = Depends(PermissionChecker('settings', FeatureAccessLevel.READ_WRITE)),
 ) -> ProcessWorkflow:
     """Duplicate an existing workflow."""
-    user_email = None
-    if hasattr(request.state, 'user'):
-        user_email = getattr(request.state.user, 'email', None)
+    user_email = current_user.email if current_user else None
     
     result = manager.duplicate_workflow(workflow_id, new_name, created_by=user_email)
     if not result:
         raise HTTPException(status_code=404, detail="Workflow not found")
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature='process-workflows',
+        action='DUPLICATE',
+        success=True,
+        details={'source_workflow_id': workflow_id, 'new_workflow_id': result.id, 'new_name': new_name}
+    )
+    
     return result
 
 
@@ -399,6 +461,9 @@ async def duplicate_workflow(
 async def execute_workflow(
     request: Request,
     workflow_id: str,
+    db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     entity_type: EntityType = Query(..., description="Entity type"),
     entity_id: str = Query(..., description="Entity ID"),
     entity_name: Optional[str] = Query(None, description="Entity name"),
@@ -411,9 +476,7 @@ async def execute_workflow(
     if not workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
     
-    user_email = None
-    if hasattr(request.state, 'user'):
-        user_email = getattr(request.state.user, 'email', None)
+    user_email = current_user.email if current_user else None
     
     # Build trigger context
     trigger_context = TriggerContext(
@@ -434,6 +497,16 @@ async def execute_workflow(
         trigger_context=trigger_context,
     )
     
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature='process-workflows',
+        action='EXECUTE',
+        success=True,
+        details={'workflow_id': workflow_id, 'execution_id': execution.id, 'entity_type': entity_type.value, 'entity_id': entity_id}
+    )
+    
     return execution
 
 
@@ -451,6 +524,9 @@ async def validate_workflow(
 @router.post("/load-defaults")
 async def load_default_workflows(
     request: Request,
+    db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     update_existing: bool = False,
     manager: WorkflowsManager = Depends(get_workflows_manager),
     _: bool = Depends(PermissionChecker('settings', FeatureAccessLevel.ADMIN)),
@@ -471,6 +547,17 @@ async def load_default_workflows(
         parts.append(f"skipped {result['skipped']} (already exist)")
     
     message = "Workflows: " + ", ".join(parts) if parts else "No workflows to load"
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature='process-workflows',
+        action='LOAD_DEFAULTS',
+        success=True,
+        details={'created': result['created'], 'updated': result['updated'], 'skipped': result['skipped']}
+    )
+    
     return {"message": message, **result}
 
 
@@ -531,6 +618,8 @@ async def resume_workflow_execution(
     execution_id: str,
     request: Request,
     db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     executor: WorkflowExecutor = Depends(get_workflow_executor),
     _: bool = Depends(PermissionChecker('settings', FeatureAccessLevel.READ_WRITE)),
 ) -> Dict[str, Any]:
@@ -551,10 +640,7 @@ async def resume_workflow_execution(
         message = body.get('message')
         reason = body.get('reason')
         
-        # Get current user email
-        user_email = None
-        if hasattr(request.state, 'user'):
-            user_email = getattr(request.state.user, 'email', None)
+        user_email = current_user.email if current_user else None
         
         # Resume the workflow
         result = executor.resume_workflow(
@@ -573,6 +659,16 @@ async def resume_workflow_execution(
                 status_code=404, 
                 detail="Execution not found or not in paused state"
             )
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature='process-workflows',
+            action='RESUME_EXECUTION',
+            success=True,
+            details={'execution_id': execution_id, 'approved': approved}
+        )
         
         logger.info(
             f"Workflow execution {execution_id} resumed with decision: "
@@ -639,6 +735,8 @@ async def get_paused_executions_for_entity(
 async def handle_workflow_approval(
     request: Request,
     db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     executor: WorkflowExecutor = Depends(get_workflow_executor),
     _: bool = Depends(PermissionChecker('settings', FeatureAccessLevel.READ_WRITE)),
 ) -> Dict[str, Any]:
@@ -662,10 +760,7 @@ async def handle_workflow_approval(
         if not execution_id:
             raise HTTPException(status_code=400, detail="execution_id is required")
         
-        # Get current user email
-        user_email = None
-        if hasattr(request.state, 'user'):
-            user_email = getattr(request.state.user, 'email', None)
+        user_email = current_user.email if current_user else None
         
         # Resume the workflow
         result = executor.resume_workflow(
@@ -700,6 +795,16 @@ async def handle_workflow_approval(
             except (json.JSONDecodeError, TypeError):
                 continue
         
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature='process-workflows',
+            action='HANDLE_APPROVAL',
+            success=True,
+            details={'execution_id': execution_id, 'approved': approved}
+        )
+        
         db.commit()
         
         logger.info(f"Workflow approval handled for execution {execution_id}: {'approved' if approved else 'rejected'}")
@@ -726,13 +831,15 @@ async def cancel_execution(
     execution_id: str,
     request: Request,
     db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     _: bool = Depends(PermissionChecker('process-workflows', FeatureAccessLevel.ADMIN)),
 ) -> Dict[str, Any]:
     """Cancel a running or paused workflow execution.
     
     Requires ADMIN permission. Running and paused executions can be cancelled.
     """
-    user_email = getattr(request.state, 'user_email', None)
+    user_email = current_user.email if current_user else None
     
     result = workflow_execution_repo.cancel(db, execution_id, cancelled_by=user_email)
     
@@ -741,6 +848,16 @@ async def cancel_execution(
             status_code=404,
             detail="Execution not found or cannot be cancelled (must be running or paused)"
         )
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature='process-workflows',
+        action='CANCEL_EXECUTION',
+        success=True,
+        details={'execution_id': execution_id}
+    )
     
     logger.info(f"Execution {execution_id} cancelled by {user_email}")
     
@@ -756,6 +873,8 @@ async def retry_execution(
     execution_id: str,
     request: Request,
     db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     executor: WorkflowExecutor = Depends(get_workflow_executor),
     _: bool = Depends(PermissionChecker('process-workflows', FeatureAccessLevel.ADMIN)),
 ) -> Dict[str, Any]:
@@ -795,6 +914,16 @@ async def retry_execution(
             execution_id=execution_id,  # Reuse the same execution record
         )
         
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature='process-workflows',
+            action='RETRY_EXECUTION',
+            success=True,
+            details={'execution_id': execution_id}
+        )
+        
         logger.info(f"Execution {execution_id} retried, new status: {result.status}")
         
         return {
@@ -810,7 +939,10 @@ async def retry_execution(
 @router.delete("/executions/{execution_id}")
 async def delete_execution(
     execution_id: str,
+    request: Request,
     db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     _: bool = Depends(PermissionChecker('process-workflows', FeatureAccessLevel.ADMIN)),
 ) -> Dict[str, Any]:
     """Delete a workflow execution.
@@ -834,6 +966,16 @@ async def delete_execution(
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete execution")
     
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature='process-workflows',
+        action='DELETE_EXECUTION',
+        success=True,
+        details={'execution_id': execution_id}
+    )
+    
     logger.info(f"Execution {execution_id} deleted")
     
     return {
@@ -844,7 +986,10 @@ async def delete_execution(
 
 @router.delete("/executions")
 async def delete_executions_bulk(
+    request: Request,
     db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     older_than_days: Optional[int] = Query(None, description="Delete executions older than X days"),
     status: Optional[str] = Query(None, description="Filter by status (failed, succeeded, cancelled)"),
     workflow_id: Optional[str] = Query(None, description="Filter by workflow ID"),
@@ -874,6 +1019,16 @@ async def delete_executions_bulk(
         older_than_days=older_than_days,
         status=status,
         workflow_id=workflow_id,
+    )
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature='process-workflows',
+        action='DELETE_EXECUTIONS_BULK',
+        success=True,
+        details={'count': count, 'older_than_days': older_than_days, 'status': status, 'workflow_id': workflow_id}
     )
     
     logger.info(f"Bulk delete: {count} executions deleted (older_than_days={older_than_days}, status={status}, workflow_id={workflow_id})")

@@ -11,7 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from src.common.authorization import PermissionChecker
-from src.common.dependencies import CurrentUserDep, DBSessionDep
+from src.common.dependencies import CurrentUserDep, DBSessionDep, AuditManagerDep, AuditCurrentUserDep
 from src.common.features import FeatureAccessLevel
 from src.common.logging import get_logger
 from src.controller.mcp_tokens_manager import MCPTokensManager
@@ -46,8 +46,9 @@ require_admin = PermissionChecker(feature_id="settings", required_level=FeatureA
 async def create_mcp_token(
     request: Request,
     token_data: MCPTokenCreate,
-    current_user: CurrentUserDep,
+    current_user: AuditCurrentUserDep,
     db: DBSessionDep,
+    audit_manager: AuditManagerDep,
     _: bool = Depends(require_admin)
 ):
     """Create a new MCP API token."""
@@ -67,6 +68,20 @@ async def create_mcp_token(
         )
         
         db.commit()
+        
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'unknown',
+            ip_address=request.client.host if request.client else None,
+            feature='mcp-tokens',
+            action='CREATE',
+            success=True,
+            details={
+                'token_id': str(generated.id),
+                'token_name': generated.name,
+                'scopes': generated.scopes
+            }
+        )
         
         logger.info(f"Created MCP token: id={generated.id}, name='{generated.name}'")
         
@@ -167,14 +182,21 @@ async def get_mcp_token(
     description="Revoke an MCP API token, making it inactive."
 )
 async def revoke_mcp_token(
+    request: Request,
     token_id: UUID,
     db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     _: bool = Depends(require_admin)
 ):
     """Revoke an MCP API token."""
     logger.info(f"Revoking MCP token: id={token_id}")
     
     manager = MCPTokensManager(db=db)
+    
+    # Get token info before revoking for audit
+    token = manager.get_token(token_id)
+    token_name = token.name if token else 'unknown'
     
     success = manager.revoke_token(token_id)
     
@@ -185,6 +207,17 @@ async def revoke_mcp_token(
         )
     
     db.commit()
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature='mcp-tokens',
+        action='REVOKE',
+        success=True,
+        details={'token_id': str(token_id), 'token_name': token_name}
+    )
+    
     logger.info(f"Revoked MCP token: id={token_id}")
 
 
@@ -195,14 +228,21 @@ async def revoke_mcp_token(
     description="Permanently delete an MCP API token."
 )
 async def delete_mcp_token(
+    request: Request,
     token_id: UUID,
     db: DBSessionDep,
+    audit_manager: AuditManagerDep,
+    current_user: AuditCurrentUserDep,
     _: bool = Depends(require_admin)
 ):
     """Permanently delete an MCP API token."""
     logger.info(f"Deleting MCP token: id={token_id}")
     
     manager = MCPTokensManager(db=db)
+    
+    # Get token info before deleting for audit
+    token = manager.get_token(token_id)
+    token_name = token.name if token else 'unknown'
     
     success = manager.delete_token(token_id)
     
@@ -213,5 +253,16 @@ async def delete_mcp_token(
         )
     
     db.commit()
+    
+    audit_manager.log_action(
+        db=db,
+        username=current_user.username if current_user else 'unknown',
+        ip_address=request.client.host if request.client else None,
+        feature='mcp-tokens',
+        action='DELETE',
+        success=True,
+        details={'token_id': str(token_id), 'token_name': token_name}
+    )
+    
     logger.info(f"Deleted MCP token: id={token_id}")
 
