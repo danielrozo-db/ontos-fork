@@ -1664,14 +1664,14 @@ async def create_support_channel(
         )
 
         # Audit log
-        await audit_manager.log_event(
+        audit_manager.log_action(
             db=db,
-            user_email=current_user,
-            entity_type="data_contract",
-            entity_id=contract_id,
-            action="CREATE_SUPPORT_CHANNEL",
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='CREATE_SUPPORT_CHANNEL',
             success=True,
-            details={"channel_id": new_channel.id, "channel": new_channel.channel}
+            details={"contract_id": contract_id, "channel_id": new_channel.id, "channel": new_channel.channel}
         )
 
         return SupportChannelRead.model_validate(new_channel).model_dump()
@@ -1710,14 +1710,14 @@ async def update_support_channel(
         )
 
         # Audit log
-        await audit_manager.log_event(
+        audit_manager.log_action(
             db=db,
-            user_email=current_user,
-            entity_type="data_contract",
-            entity_id=contract_id,
-            action="UPDATE_SUPPORT_CHANNEL",
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='UPDATE_SUPPORT_CHANNEL',
             success=True,
-            details={"channel_id": channel_id}
+            details={"contract_id": contract_id, "channel_id": channel_id}
         )
 
         return SupportChannelRead.model_validate(updated_channel).model_dump()
@@ -1752,12 +1752,12 @@ async def delete_support_channel(
         )
 
         # Audit log
-        await audit_manager.log_event(
+        audit_manager.log_action(
             db=db,
-            user_email=current_user,
-            entity_type="data_contract",
-            entity_id=contract_id,
-            action="DELETE_SUPPORT_CHANNEL",
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='DELETE_SUPPORT_CHANNEL',
             success=True,
             details={"contract_id": contract_id, "channel_id": channel_id}
         )
@@ -1830,14 +1830,15 @@ async def update_pricing(
         )
 
         # Audit log
-        await audit_manager.log_event(
+        audit_manager.log_action(
             db=db,
-            user_email=current_user,
-            entity_type="data_contract",
-            entity_id=contract_id,
-            action="UPDATE_PRICING",
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='UPDATE_PRICING',
             success=True,
             details={
+                "contract_id": contract_id,
                 "price_amount": pricing_data.get("price_amount"),
                 "price_currency": pricing_data.get("price_currency"),
                 "price_unit": pricing_data.get("price_unit")
@@ -1921,14 +1922,14 @@ async def create_role(
         db.commit()
 
         # Audit log
-        await audit_manager.log_event(
+        audit_manager.log_action(
             db=db,
-            user_email=current_user,
-            entity_type="data_contract",
-            entity_id=contract_id,
-            action="CREATE_ROLE",
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='CREATE_ROLE',
             success=True,
-            details={"role_id": new_role.id, "role": new_role.role}
+            details={"contract_id": contract_id, "role_id": new_role.id, "role": new_role.role}
         )
 
         return RoleRead.model_validate(new_role).model_dump()
@@ -1989,14 +1990,14 @@ async def update_role(
         db.commit()
 
         # Audit log
-        await audit_manager.log_event(
+        audit_manager.log_action(
             db=db,
-            user_email=current_user,
-            entity_type="data_contract",
-            entity_id=contract_id,
-            action="UPDATE_ROLE",
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='UPDATE_ROLE',
             success=True,
-            details={"role_id": role_id}
+            details={"contract_id": contract_id, "role_id": role_id}
         )
 
         return RoleRead.model_validate(updated_role).model_dump()
@@ -2037,12 +2038,12 @@ async def delete_role(
         db.commit()
 
         # Audit log
-        await audit_manager.log_event(
+        audit_manager.log_action(
             db=db,
-            user_email=current_user,
-            entity_type="data_contract",
-            entity_id=contract_id,
-            action="DELETE_ROLE",
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='DELETE_ROLE',
             success=True,
             details={"contract_id": contract_id, "role_id": role_id}
         )
@@ -2105,10 +2106,14 @@ async def create_contract_authoritative_definition(
         )
         db.commit()
 
-        await audit_manager.log_event(
-            db=db, user_email=current_user, entity_type="data_contract", entity_id=contract_id,
-            action="CREATE_AUTHORITATIVE_DEFINITION", success=True,
-            details={"definition_id": new_definition.id, "url": new_definition.url}
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='CREATE_AUTHORITATIVE_DEFINITION',
+            success=True,
+            details={"contract_id": contract_id, "definition_id": new_definition.id, "url": new_definition.url}
         )
 
         return AuthoritativeDefinitionRead.model_validate(new_definition).model_dump()
@@ -2153,10 +2158,14 @@ async def update_contract_authoritative_definition(
 
         db.commit()
 
-        await audit_manager.log_event(
-            db=db, user_email=current_user, entity_type="data_contract", entity_id=contract_id,
-            action="UPDATE_AUTHORITATIVE_DEFINITION", success=True,
-            details={"definition_id": definition_id}
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='UPDATE_AUTHORITATIVE_DEFINITION',
+            success=True,
+            details={"contract_id": contract_id, "definition_id": definition_id}
         )
 
         return AuthoritativeDefinitionRead.model_validate(updated_definition).model_dump()
@@ -2196,9 +2205,13 @@ async def delete_contract_authoritative_definition(
 
         db.commit()
 
-        await audit_manager.log_event(
-            db=db, user_email=current_user, entity_type="data_contract", entity_id=contract_id,
-            action="DELETE_AUTHORITATIVE_DEFINITION", success=True,
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='DELETE_AUTHORITATIVE_DEFINITION',
+            success=True,
             details={"contract_id": contract_id, "definition_id": definition_id}
         )
 
@@ -2283,10 +2296,14 @@ async def create_schema_authoritative_definition(
         )
         db.commit()
 
-        await audit_manager.log_event(
-            db=db, user_email=current_user, entity_type="data_contract", entity_id=contract_id,
-            action="CREATE_SCHEMA_AUTHORITATIVE_DEFINITION", success=True,
-            details={"schema_id": schema_id, "definition_id": new_definition.id}
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='CREATE_SCHEMA_AUTHORITATIVE_DEFINITION',
+            success=True,
+            details={"contract_id": contract_id, "schema_id": schema_id, "definition_id": new_definition.id}
         )
 
         return AuthoritativeDefinitionRead.model_validate(new_definition).model_dump()
@@ -2332,10 +2349,14 @@ async def update_schema_authoritative_definition(
 
         db.commit()
 
-        await audit_manager.log_event(
-            db=db, user_email=current_user, entity_type="data_contract", entity_id=contract_id,
-            action="UPDATE_SCHEMA_AUTHORITATIVE_DEFINITION", success=True,
-            details={"schema_id": schema_id, "definition_id": definition_id}
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='UPDATE_SCHEMA_AUTHORITATIVE_DEFINITION',
+            success=True,
+            details={"contract_id": contract_id, "schema_id": schema_id, "definition_id": definition_id}
         )
 
         return AuthoritativeDefinitionRead.model_validate(updated_definition).model_dump()
@@ -2376,10 +2397,14 @@ async def delete_schema_authoritative_definition(
 
         db.commit()
 
-        await audit_manager.log_event(
-            db=db, user_email=current_user, entity_type="data_contract", entity_id=contract_id,
-            action="DELETE_SCHEMA_AUTHORITATIVE_DEFINITION", success=True,
-            details={"schema_id": schema_id, "definition_id": definition_id}
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='DELETE_SCHEMA_AUTHORITATIVE_DEFINITION',
+            success=True,
+            details={"contract_id": contract_id, "schema_id": schema_id, "definition_id": definition_id}
         )
 
         return None
@@ -2444,10 +2469,14 @@ async def create_property_authoritative_definition(
         )
         db.commit()
 
-        await audit_manager.log_event(
-            db=db, user_email=current_user, entity_type="data_contract", entity_id=contract_id,
-            action="CREATE_PROPERTY_AUTHORITATIVE_DEFINITION", success=True,
-            details={"property_id": property_id, "definition_id": new_definition.id}
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='CREATE_PROPERTY_AUTHORITATIVE_DEFINITION',
+            success=True,
+            details={"contract_id": contract_id, "property_id": property_id, "definition_id": new_definition.id}
         )
 
         return AuthoritativeDefinitionRead.model_validate(new_definition).model_dump()
@@ -2494,10 +2523,14 @@ async def update_property_authoritative_definition(
 
         db.commit()
 
-        await audit_manager.log_event(
-            db=db, user_email=current_user, entity_type="data_contract", entity_id=contract_id,
-            action="UPDATE_PROPERTY_AUTHORITATIVE_DEFINITION", success=True,
-            details={"property_id": property_id, "definition_id": definition_id}
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='UPDATE_PROPERTY_AUTHORITATIVE_DEFINITION',
+            success=True,
+            details={"contract_id": contract_id, "property_id": property_id, "definition_id": definition_id}
         )
 
         return AuthoritativeDefinitionRead.model_validate(updated_definition).model_dump()
@@ -2539,10 +2572,14 @@ async def delete_property_authoritative_definition(
 
         db.commit()
 
-        await audit_manager.log_event(
-            db=db, user_email=current_user, entity_type="data_contract", entity_id=contract_id,
-            action="DELETE_PROPERTY_AUTHORITATIVE_DEFINITION", success=True,
-            details={"property_id": property_id, "definition_id": definition_id}
+        audit_manager.log_action(
+            db=db,
+            username=current_user.username if current_user else 'anonymous',
+            ip_address=request.client.host if request.client else None,
+            feature='data-contracts',
+            action='DELETE_PROPERTY_AUTHORITATIVE_DEFINITION',
+            success=True,
+            details={"contract_id": contract_id, "property_id": property_id, "definition_id": definition_id}
         )
 
         return None
