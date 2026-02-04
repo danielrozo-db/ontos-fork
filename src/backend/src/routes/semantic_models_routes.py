@@ -54,7 +54,16 @@ async def get_semantic_models(
         
         # Convert graph taxonomies to API format (they don't have DB IDs)
         # Skip any that match database model names to avoid duplicates
+        # Also build a set of sanitized names since context URNs use sanitized versions
+        def sanitize_name(name: str) -> str:
+            """Sanitize name for comparison (same logic as _sanitize_context_name)"""
+            import re
+            sanitized = name.replace(' ', '_')
+            sanitized = re.sub(r'[^\w\-._~]', '_', sanitized)
+            return sanitized
+        
         db_model_names = {m.name for m in db_models}
+        db_model_names_sanitized = {sanitize_name(m.name) for m in db_models}
         
         combined = []
         
@@ -63,22 +72,28 @@ async def get_semantic_models(
             combined.append(m.model_dump())
         
         # Add graph-based taxonomies that aren't in the database
+        # Skip "database" source_type entries since those are already included from DB
         for tax in graph_taxonomies:
-            if tax.name not in db_model_names:
-                # Create a pseudo-model for file-based/schema taxonomies
-                combined.append({
-                    'id': f'file-{tax.name}',  # Pseudo-ID for file-based
-                    'name': tax.name,
-                    'format': tax.format or 'skos',
-                    'original_filename': tax.name,
-                    'content_type': 'text/turtle' if tax.format == 'ttl' else 'application/rdf+xml',
-                    'size_bytes': None,
-                    'enabled': True,  # File-based are always enabled
-                    'created_by': 'system@file' if tax.source_type == 'file' else f'system@{tax.source_type}',
-                    'updated_by': None,
-                    'created_at': None,
-                    'updated_at': None,
-                })
+            # Skip if this is a database-backed model (already included above)
+            if tax.source_type == 'database':
+                continue
+            # Skip if name matches (either original or sanitized version)
+            if tax.name in db_model_names or tax.name in db_model_names_sanitized:
+                continue
+            # Create a pseudo-model for file-based/schema taxonomies
+            combined.append({
+                'id': f'file-{tax.name}',  # Pseudo-ID for file-based
+                'name': tax.name,
+                'format': tax.format or 'skos',
+                'original_filename': tax.name,
+                'content_type': 'text/turtle' if tax.format == 'ttl' else 'application/rdf+xml',
+                'size_bytes': None,
+                'enabled': True,  # File-based are always enabled
+                'created_by': 'system@file' if tax.source_type == 'file' else f'system@{tax.source_type}',
+                'updated_by': None,
+                'created_at': None,
+                'updated_at': None,
+            })
         
         return {'semantic_models': combined}
     except Exception as e:
