@@ -36,6 +36,7 @@ from src.routes import (
     entitlements_routes,
     entitlements_sync_routes,
     estate_manager_routes,
+    industry_ontology_routes,
     jobs_routes,
     llm_search_routes,
     mcp_routes,
@@ -211,6 +212,7 @@ openapi_tags = [
     # Business Glossary - Semantic models and ontologies
     {"name": "Semantic Models", "description": "Manage semantic models and ontologies"},
     {"name": "Semantic Links", "description": "Manage semantic links between entities"},
+    {"name": "Industry Ontologies", "description": "Industry Ontology Library for importing standard ontologies"},
     
     # Operations - Monitoring and technical management
     {"name": "Estates", "description": "Manage data estates"},
@@ -294,6 +296,7 @@ approvals_routes.register_routes(app)
 # Governance - Standards and approval workflows
 semantic_models_routes.register_routes(app)
 semantic_links_routes.register_routes(app)
+industry_ontology_routes.register_routes(app)  # Industry Ontology Library
 data_asset_reviews_routes.register_routes(app)
 data_catalog_routes.register_routes(app)
 

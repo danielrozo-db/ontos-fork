@@ -8,7 +8,7 @@ import { ColumnDef, Column } from '@tanstack/react-table';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { Upload, ChevronDown, RefreshCw, Trash2, Loader2 } from 'lucide-react';
+import { Upload, ChevronDown, RefreshCw, Trash2, Loader2, Library } from 'lucide-react';
 import type { SemanticModel } from '@/types/ontology';
 import {
   AlertDialog,
@@ -20,6 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import OntologyLibraryDialog from '@/components/settings/ontology-library-dialog';
 
 // System contexts that should be hidden from the UI (internal use only)
 const SYSTEM_CONTEXTS = ['urn:meta:sources', 'urn:semantic-links'];
@@ -32,6 +33,7 @@ export default function SemanticModelsSettings() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [modelToDelete, setModelToDelete] = useState<SemanticModel | null>(null);
+  const [libraryDialogOpen, setLibraryDialogOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   
   // Filter out system contexts from display
@@ -294,6 +296,13 @@ export default function SemanticModelsSettings() {
         <div className="flex items-center gap-2">
           <Input ref={fileInputRef} type="file" accept=".ttl,.rdf,.xml,.skos,.rdfs,.owl,.nt,.n3,.trig,.trix,.jsonld,.json" className="hidden" onChange={onUpload} />
           <Button 
+            variant="default"
+            onClick={() => setLibraryDialogOpen(true)}
+          >
+            <Library className="h-4 w-4 mr-2" />
+            Industry Library
+          </Button>
+          <Button 
             variant="outline" 
             onClick={() => fileInputRef.current?.click()}
             disabled={uploadingId === 'uploading'}
@@ -330,6 +339,16 @@ export default function SemanticModelsSettings() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Industry Ontology Library Dialog */}
+      <OntologyLibraryDialog
+        isOpen={libraryDialogOpen}
+        onOpenChange={setLibraryDialogOpen}
+        onImportSuccess={() => {
+          // Refresh the list after successful import
+          fetchItems();
+        }}
+      />
     </Card>
   );
 }
