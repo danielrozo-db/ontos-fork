@@ -72,7 +72,7 @@ export const GraphTab: React.FC<GraphTabProps> = ({
                 {t('semantic-models:filters.bySource')}
                 {hiddenSources.length > 0 && (
                   <Badge variant="secondary" className="h-5 text-[10px] px-1.5">
-                    {availableSources.length - hiddenSources.length}/{availableSources.length}
+                    {availableSources.filter(s => !hiddenSources.includes(s)).length}/{availableSources.length}
                   </Badge>
                 )}
               </button>
