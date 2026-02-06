@@ -530,13 +530,43 @@ async def clear_demo_data(
         # UUID patterns use type codes in first 3 hex chars (see demo_data.sql for mapping)
         # Pattern: {type:3}{seq:5}-0000-4000-8000-...
         delete_statements = [
-            # Dataset subscriptions and custom properties (026=subscriptions, 024=custom_properties)
-            "DELETE FROM dataset_subscriptions WHERE id::text LIKE '026%'",
-            "DELETE FROM dataset_custom_properties WHERE id::text LIKE '024%'",
+            # Suggested quality checks (02e%) - before data_profiling_runs
+            "DELETE FROM suggested_quality_checks WHERE id::text LIKE '02e%'",
             
-            # Dataset and dataset_instance tags via unified entity_tag_associations (029 prefix)
-            "DELETE FROM entity_tag_associations WHERE entity_type = 'dataset_instance' AND entity_id::text LIKE '025%'",
-            "DELETE FROM entity_tag_associations WHERE entity_type = 'dataset' AND entity_id::text LIKE '021%'",
+            # Data profiling runs (02d%)
+            "DELETE FROM data_profiling_runs WHERE id::text LIKE '02d%'",
+            
+            # Comments/ratings (02c%)
+            "DELETE FROM comments WHERE id::text LIKE '02c%'",
+            
+            # Workflow steps (02b%, 02e%) - before process_workflows
+            "DELETE FROM workflow_steps WHERE id::text LIKE '02b%'",
+            "DELETE FROM workflow_steps WHERE id::text LIKE '02e%'",
+            
+            # Process workflows (02a%, 02d%)
+            "DELETE FROM process_workflows WHERE id::text LIKE '02a%'",
+            "DELETE FROM process_workflows WHERE id::text LIKE '02d%'",
+            
+            # Entity tag associations (029%) - all entity types, before tags
+            "DELETE FROM entity_tag_associations WHERE id::text LIKE '029%'",
+            
+            # Tag namespace permissions (028%) - before tag_namespaces
+            "DELETE FROM tag_namespace_permissions WHERE id::text LIKE '028%'",
+            
+            # Tags (027%) - before tag_namespaces
+            "DELETE FROM tags WHERE id::text LIKE '027%'",
+            
+            # Tag namespaces (0260%) - note: uses 02601xx pattern to avoid collision with dataset_subscriptions
+            "DELETE FROM tag_namespaces WHERE id::text LIKE '0260%'",
+            
+            # RDF triples (020%, 030%)
+            "DELETE FROM rdf_triples WHERE id::text LIKE '020%'",
+            "DELETE FROM rdf_triples WHERE id::text LIKE '030%'",
+            
+            # Dataset subscriptions (022%, 0260%) and custom properties (024%)
+            "DELETE FROM dataset_subscriptions WHERE id::text LIKE '022%'",
+            "DELETE FROM dataset_subscriptions WHERE id::text LIKE '0260%'",
+            "DELETE FROM dataset_custom_properties WHERE id::text LIKE '024%'",
             
             # Dataset instances (025)
             "DELETE FROM dataset_instances WHERE id::text LIKE '025%'",

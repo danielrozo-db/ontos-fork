@@ -68,6 +68,8 @@
 --   02a = process_workflows
 --   02b = workflow_steps
 --   02c = comments/ratings
+--   02d = data_profiling_runs
+--   02e = suggested_quality_checks
 -- ============================================================================
 
 BEGIN;
@@ -935,32 +937,32 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO mdm_match_candidates (id, run_id, master_record_id, source_record_id, source_contract_id, confidence_score, match_type, matched_fields, status, master_record_data, source_record_data) VALUES
 -- Customer matches from run 01b00001
 ('01c00001-0000-4000-8000-000000000001', '01b00001-0000-4000-8000-000000000001', 'CUST-M-001', 'DEV-S-001', '00400004-0000-4000-8000-000000000004', 0.98, 'exact', 
-'{"email": {"match": true, "score": 1.0}, "phone_number": {"match": true, "score": 1.0}}',
+'["email", "phone_number"]',
 'approved', 
 '{"customer_id": "CUST-M-001", "email": "john.smith@example.com", "first_name": "John", "last_name": "Smith", "phone_number": "+1-555-123-4567"}',
 '{"device_id": "DEV-S-001", "device_serial": "IOT-2024-001", "status": "active"}'),
 
 ('01c00002-0000-4000-8000-000000000002', '01b00001-0000-4000-8000-000000000001', 'CUST-M-002', 'DEV-S-002', '00400004-0000-4000-8000-000000000004', 0.87, 'fuzzy',
-'{"first_name": {"match": true, "score": 0.92}, "last_name": {"match": true, "score": 0.88}, "phone_number": {"match": false, "score": 0.0}}',
+'["first_name", "last_name"]',
 'pending',
 '{"customer_id": "CUST-M-002", "email": "jane.doe@example.com", "first_name": "Jane", "last_name": "Doe", "phone_number": "+1-555-987-6543"}',
 '{"device_id": "DEV-S-002", "device_serial": "IOT-2024-002", "status": "active"}'),
 
 ('01c00003-0000-4000-8000-000000000003', '01b00001-0000-4000-8000-000000000001', NULL, 'DEV-S-003', '00400004-0000-4000-8000-000000000004', 0.0, 'new',
-'{}',
+'[]',
 'pending',
 NULL,
 '{"device_id": "DEV-S-003", "device_serial": "IOT-2024-003", "status": "inactive"}'),
 
 -- Product matches from run 01b00003
 ('01c00004-0000-4000-8000-000000000004', '01b00003-0000-4000-8000-000000000003', 'PROD-M-001', 'INV-S-001', '00400007-0000-4000-8000-000000000007', 1.0, 'exact',
-'{"sku": {"match": true, "score": 1.0}}',
+'["sku"]',
 'merged',
 '{"product_id": "PROD-M-001", "product_name": "Widget Pro", "sku": "WGT-PRO-001", "price": 29.99}',
 '{"sku": "WGT-PRO-001", "item_name": "Widget Professional", "quantity": 150, "warehouse_id": "WH-EAST-01"}'),
 
 ('01c00005-0000-4000-8000-000000000005', '01b00003-0000-4000-8000-000000000003', 'PROD-M-002', 'INV-S-002', '00400007-0000-4000-8000-000000000007', 0.91, 'fuzzy',
-'{"product_name": {"match": true, "score": 0.91}, "sku": {"match": false, "score": 0.0}}',
+'["product_name"]',
 'rejected',
 '{"product_id": "PROD-M-002", "product_name": "Gadget Deluxe", "sku": "GDG-DLX-002", "price": 49.99}',
 '{"sku": "GDG-DELUXE-02", "item_name": "Gadget De Luxe", "quantity": 75, "warehouse_id": "WH-WEST-01"}')
@@ -1778,6 +1780,64 @@ INSERT INTO comments (id, entity_type, entity_id, comment, comment_type, rating,
 
 -- Inventory Levels (02100008) - deprecated, 1 old rating
 ('02c00021-0000-4000-8000-000000000033', 'dataset', '02100008-0000-4000-8000-000000000008', 'Was useful, now deprecated.', 'rating', 3, 'active', 'ops-lead@example.com', NOW() - INTERVAL '45 days', NOW() - INTERVAL '45 days')
+
+ON CONFLICT (id) DO NOTHING;
+
+
+-- ============================================================================
+-- 13. DATA PROFILING RUNS (type=02d)
+-- ============================================================================
+-- Track DQX profiling runs that generate quality check suggestions
+
+INSERT INTO data_profiling_runs (id, contract_id, source, schema_names, status, summary_stats, run_id, started_at, completed_at, error_message, triggered_by) VALUES
+-- Completed DQX run for Customer Data Contract - generated suggestions
+('02d00001-0000-4000-8000-000000000001', '00400001-0000-4000-8000-000000000001', 'dqx', '["customers"]', 'completed', '{"rows_profiled": 150000, "columns_analyzed": 10, "suggestions_generated": 6}', 'run_abc123', NOW() - INTERVAL '2 days', NOW() - INTERVAL '2 days' + INTERVAL '15 minutes', NULL, 'data.steward@example.com'),
+
+-- Completed DQX run for IoT Device Data Contract - generated suggestions
+('02d00002-0000-4000-8000-000000000002', '00400004-0000-4000-8000-000000000004', 'dqx', '["devices"]', 'completed', '{"rows_profiled": 25000, "columns_analyzed": 5, "suggestions_generated": 4}', 'run_def456', NOW() - INTERVAL '1 day', NOW() - INTERVAL '1 day' + INTERVAL '8 minutes', NULL, 'iot.admin@example.com'),
+
+-- Failed DQX run for illustration
+('02d00003-0000-4000-8000-000000000003', '00400006-0000-4000-8000-000000000006', 'dqx', '["transactions"]', 'failed', NULL, 'run_ghi789', NOW() - INTERVAL '3 hours', NOW() - INTERVAL '3 hours' + INTERVAL '2 minutes', 'Connection timeout: Unable to access catalog finance.transactions_raw', 'finance.analyst@example.com')
+
+ON CONFLICT (id) DO NOTHING;
+
+
+-- ============================================================================
+-- 14. SUGGESTED QUALITY CHECKS (type=02e)
+-- ============================================================================
+-- DQX-generated quality check suggestions pending review
+
+INSERT INTO suggested_quality_checks (id, profile_run_id, contract_id, source, schema_name, property_name, status, name, description, level, dimension, severity, type, rule, confidence_score, rationale, created_at) VALUES
+-- Customer Data Contract suggestions (from run 02d00001)
+-- email column checks
+('02e00001-0000-4000-8000-000000000001', '02d00001-0000-4000-8000-000000000001', '00400001-0000-4000-8000-000000000001', 'dqx', 'customers', 'email', 'pending', 'Email Format Validation', 'Validate that email addresses match standard email format', 'property', 'conformity', 'error', 'library', 'is_email', '0.95', 'Column contains email addresses. 99.2% of sampled values match email pattern. Recommend enforcing email format validation.', NOW() - INTERVAL '2 days'),
+
+('02e00002-0000-4000-8000-000000000002', '02d00001-0000-4000-8000-000000000001', '00400001-0000-4000-8000-000000000001', 'dqx', 'customers', 'email', 'pending', 'Email Not Null', 'Ensure email field is never null', 'property', 'completeness', 'error', 'library', 'is_not_null', '0.98', 'Email is marked as required. 0 null values found in 150,000 rows sampled. Recommend adding not-null constraint.', NOW() - INTERVAL '2 days'),
+
+-- phone_number column check
+('02e00003-0000-4000-8000-000000000003', '02d00001-0000-4000-8000-000000000001', '00400001-0000-4000-8000-000000000001', 'dqx', 'customers', 'phone_number', 'pending', 'Phone E.164 Format', 'Validate phone numbers follow E.164 international format', 'property', 'conformity', 'warning', 'library', 'matches_regex', '0.82', 'Phone numbers should follow E.164 format. 82% of non-null values match pattern. Some legacy records may need migration.', NOW() - INTERVAL '2 days'),
+
+-- country_code column check
+('02e00004-0000-4000-8000-000000000004', '02d00001-0000-4000-8000-000000000001', '00400001-0000-4000-8000-000000000001', 'dqx', 'customers', 'country_code', 'pending', 'ISO 3166-1 Alpha-2 Code', 'Validate country codes are valid ISO 3166-1 alpha-2 codes', 'property', 'conformity', 'error', 'library', 'is_in_list', '0.91', 'Detected 2-letter country codes. 99.8% match ISO 3166-1 alpha-2 standard. Recommend enforcing allowed values list.', NOW() - INTERVAL '2 days'),
+
+-- date_of_birth column check
+('02e00005-0000-4000-8000-000000000005', '02d00001-0000-4000-8000-000000000001', '00400001-0000-4000-8000-000000000001', 'dqx', 'customers', 'date_of_birth', 'pending', 'Reasonable Birth Date Range', 'Ensure birth dates fall within reasonable range (1900-present, age >= 13)', 'property', 'accuracy', 'warning', 'library', 'is_between', '0.88', 'Date of birth values span wide range. Recommend constraining to reasonable bounds for customer age validation.', NOW() - INTERVAL '2 days'),
+
+-- account_status column check (already accepted)
+('02e00006-0000-4000-8000-000000000006', '02d00001-0000-4000-8000-000000000001', '00400001-0000-4000-8000-000000000001', 'dqx', 'customers', 'account_status', 'accepted', 'Account Status Enum Values', 'Validate account_status contains only allowed values', 'property', 'conformity', 'error', 'library', 'is_in_list', '0.99', 'Detected enum-like values: active, suspended, closed, pending_verification. 100% of values match expected set.', NOW() - INTERVAL '2 days'),
+
+-- IoT Device Data Contract suggestions (from run 02d00002)
+-- device_serial uniqueness check
+('02e00007-0000-4000-8000-000000000007', '02d00002-0000-4000-8000-000000000002', '00400004-0000-4000-8000-000000000004', 'dqx', 'devices', 'device_serial', 'pending', 'Serial Number Uniqueness', 'Ensure device serial numbers are unique across all devices', 'property', 'uniqueness', 'error', 'library', 'is_unique', '0.97', 'Device serial numbers should be unique identifiers. 0 duplicates found in 25,000 devices sampled.', NOW() - INTERVAL '1 day'),
+
+-- device_type enum check
+('02e00008-0000-4000-8000-000000000008', '02d00002-0000-4000-8000-000000000002', '00400004-0000-4000-8000-000000000004', 'dqx', 'devices', 'device_type', 'pending', 'Device Type Enum Values', 'Validate device_type contains only allowed values: sensor, actuator, gateway, controller', 'property', 'conformity', 'error', 'library', 'is_in_list', '0.99', 'Detected 4 distinct device types matching expected categories. Recommend enforcing enum constraint.', NOW() - INTERVAL '1 day'),
+
+-- status enum check
+('02e00009-0000-4000-8000-000000000009', '02d00002-0000-4000-8000-000000000002', '00400004-0000-4000-8000-000000000004', 'dqx', 'devices', 'status', 'pending', 'Device Status Enum Values', 'Validate status contains only allowed values: active, inactive, maintenance, faulty, decommissioned', 'property', 'conformity', 'error', 'library', 'is_in_list', '0.99', 'Detected 5 distinct status values matching expected device lifecycle states.', NOW() - INTERVAL '1 day'),
+
+-- Table-level row count check
+('02e0000a-0000-4000-8000-000000000010', '02d00002-0000-4000-8000-000000000002', '00400004-0000-4000-8000-000000000004', 'dqx', 'devices', NULL, 'pending', 'Minimum Row Count', 'Ensure devices table has at least 1 row (not empty)', 'object', 'completeness', 'warning', 'library', 'row_count', '0.75', 'Table contains 25,000 rows. Recommend adding minimum row count check to detect empty table scenarios.', NOW() - INTERVAL '1 day')
 
 ON CONFLICT (id) DO NOTHING;
 
