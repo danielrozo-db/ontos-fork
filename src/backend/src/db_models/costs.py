@@ -8,6 +8,7 @@ from src.common.database import Base
 
 
 class CostItemDb(Base):
+    """Recurring or one-off cost items scoped to an entity (data_domain, data_product, data_contract); amount, currency, month window, cost center."""
     __tablename__ = "cost_items"
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)

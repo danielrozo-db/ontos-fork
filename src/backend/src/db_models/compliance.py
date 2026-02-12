@@ -8,6 +8,7 @@ from src.common.database import Base
 
 
 class CompliancePolicyDb(Base):
+    """Compliance rule definition: name, DSL rule, category, severity; evaluated by ComplianceManager and compliance workflows."""
     __tablename__ = 'compliance_policies'
 
     id = Column(String, primary_key=True)
@@ -26,6 +27,7 @@ class CompliancePolicyDb(Base):
 
 
 class ComplianceRunDb(Base):
+    """Single execution of a compliance policy: status, success/failure counts, score, optional error message."""
     __tablename__ = 'compliance_runs'
 
     id = Column(String, primary_key=True)
@@ -43,6 +45,7 @@ class ComplianceRunDb(Base):
 
 
 class ComplianceResultDb(Base):
+    """Per-entity result of a compliance run: object_type, object_id, passed/failed, message, optional details_json."""
     __tablename__ = 'compliance_results'
 
     id = Column(String, primary_key=True)

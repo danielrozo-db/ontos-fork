@@ -14,6 +14,7 @@ from sqlalchemy.orm import relationship # Added
 # Base = declarative_base()
 
 class DataDomain(Base):
+    """Hierarchical data domain: name, description, parent_id; used for governance grouping and team assignment (DataDomainsManager)."""
     __tablename__ = 'data_domains'
 
     # Use String for ID, default generates UUID string

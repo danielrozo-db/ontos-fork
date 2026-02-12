@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from src.common.database import Base
 
 class AuditLogDb(Base):
+    """Stores user action audit trail: feature, action, success, and optional details (used by AuditManager and audit API)."""
     __tablename__ = 'audit_logs'
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

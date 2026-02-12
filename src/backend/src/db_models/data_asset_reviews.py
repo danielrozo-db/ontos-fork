@@ -10,6 +10,7 @@ from src.models.data_asset_reviews import ReviewRequestStatus, ReviewedAssetStat
 
 # --- Main Review Request Table ---
 class DataAssetReviewRequestDb(Base):
+    """Review request for data assets: requester, reviewer, status, optional project; used by Data Asset Review workflow."""
     __tablename__ = 'data_asset_review_requests'
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -31,6 +32,7 @@ class DataAssetReviewRequestDb(Base):
 
 # --- Reviewed Asset Table ---
 class ReviewedAssetDb(Base):
+    """Single asset within a review request: asset FQN, type, status, optional comments; linked to DataAssetReviewRequestDb."""
     __tablename__ = 'reviewed_assets'
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

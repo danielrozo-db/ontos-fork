@@ -16,6 +16,7 @@ from src.common.database import Base
 DEFAULT_NAMESPACE_NAME = "default"
 
 class TagNamespaceDb(Base):
+    """Tag namespace: name, description; groups tags and has permissions (TagsManager)."""
     __tablename__ = "tag_namespaces"
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -33,6 +34,7 @@ class TagNamespaceDb(Base):
         return f"<TagNamespaceDb(id={self.id}, name='{self.name}')>"
 
 class TagDb(Base):
+    """Tag: name, description, possible_values, status, version; belongs to a namespace, optional parent for hierarchy (TagsManager)."""
     __tablename__ = "tags"
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -65,6 +67,7 @@ class TagDb(Base):
         return f"<TagDb(id={self.id}, name='{self.name}', namespace_id='{self.namespace_id}')>"
 
 class TagNamespacePermissionDb(Base):
+    """Permission for a group on a tag namespace: group_id, access_level (read_only, read_write, admin)."""
     __tablename__ = "tag_namespace_permissions"
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -85,6 +88,7 @@ class TagNamespacePermissionDb(Base):
         return f"<TagNamespacePermissionDb(id={self.id}, namespace_id='{self.namespace_id}', group_id='{self.group_id}', access_level='{self.access_level}')>"
 
 class EntityTagAssociationDb(Base):
+    """Association of a tag to an entity (data_product, data_contract, etc.); optional assigned_value from tag possible_values."""
     __tablename__ = "entity_tag_associations"
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

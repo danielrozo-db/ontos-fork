@@ -37,45 +37,16 @@ T = TypeVar('T')
 # Define the base class for SQLAlchemy models
 Base = declarative_base()
 
-# --- Explicitly import all model modules HERE to register them with Base --- #
-# This ensures Base.metadata is populated before init_db needs it.
+# --- Import all db_models so every table is registered with Base --- #
+# Model modules are imported in src.db_models.__init__.py; importing the
+# package here ensures Base.metadata is populated before init_db needs it.
 logger.debug("Importing all DB model modules to register with Base...")
 try:
-    from src.db_models import settings as settings_db
-    from src.db_models import audit_log
-    from src.db_models import data_asset_reviews
-    from src.db_models import data_products
-    from src.db_models import notifications
-    from src.db_models import data_domains
-    from src.db_models import semantic_links
-    from src.db_models import metadata as metadata_db
-    from src.db_models import semantic_models
-    from src.db_models import comments
-    from src.db_models import costs
-    from src.db_models import change_log
-    # Add missing model imports for Alembic
-    from src.db_models import data_contracts
-    from src.db_models import workflow_configurations
-    from src.db_models import workflow_installations
-    from src.db_models import workflow_job_runs
-    from src.db_models import compliance
-    from src.db_models import projects
-    from src.db_models import teams
-    from src.db_models import mdm  # MDM models for master data management
-    # from src.db_models.data_products import DataProductDb, InfoDb, InputPortDb, OutputPortDb  # Already imported via module import above
-    from src.db_models.settings import AppRoleDb
-    # from src.db_models.users import UserActivityDb, UserSearchHistoryDb # Commented out due to missing file
-    from src.db_models.audit_log import AuditLogDb
-    from src.db_models.notifications import NotificationDb
-    # from src.db_models.business_glossary import GlossaryDb, TermDb, CategoryDb, term_category_association, term_related_terms, term_asset_association # Commented out due to missing file
-    # Add new tag models
-    from src.db_models.tags import TagDb, TagNamespaceDb, TagNamespacePermissionDb, EntityTagAssociationDb
-    # Add imports for any other future model modules here
+    import src.db_models  # noqa: F401
     logger.debug("DB model modules imported successfully.")
 except ImportError as e:
     logger.critical(
         f"Failed to import a DB model module during initial registration: {e}", exc_info=True)
-    # This is likely a fatal error, consider raising or exiting
     raise
 # ------------------------------------------------------------------------- #
 

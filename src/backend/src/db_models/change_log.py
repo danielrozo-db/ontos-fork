@@ -6,6 +6,7 @@ from src.common.database import Base
 
 
 class ChangeLogDb(Base):
+    """Entity-level change history: who did what to which entity (entity_type, entity_id, action, details_json)."""
     __tablename__ = 'entity_change_log'
 
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))

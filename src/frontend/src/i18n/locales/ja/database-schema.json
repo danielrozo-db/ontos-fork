@@ -9,6 +9,8 @@
   "relationshipCount": "{{count}}個の関連",
   "relationshipCount_one": "{{count}}個の関連",
   "columns": "{{count}}個のカラム",
-  "columns_one": "{{count}}個のカラム"
+  "columns_one": "{{count}}個のカラム",
+  "tableInfo": "テーブル説明",
+  "noDescription": "このテーブルの説明はありません。"
 }
 

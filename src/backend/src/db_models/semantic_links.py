@@ -8,6 +8,7 @@ from src.common.database import Base
 
 
 class EntitySemanticLinkDb(Base):
+    """Links an entity (data_domain, data_product, data_contract) to a semantic IRI/label; used for knowledge graph and glossary linkage."""
     __tablename__ = "entity_semantic_links"
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

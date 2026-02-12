@@ -19,7 +19,12 @@ import 'reactflow/dist/style.css';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Download } from 'lucide-react';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Search, Download, Info } from 'lucide-react';
 import useBreadcrumbStore from '@/stores/breadcrumb-store';
 
 // Types for our schema data
@@ -38,6 +43,7 @@ interface Table {
   id: string;
   name: string;
   columns: Column[];
+  description?: string;
 }
 
 interface Relationship {
@@ -67,8 +73,31 @@ function TableNode({ data }: { data: Table }) {
       <Card className="min-w-[250px] max-w-[300px] shadow-lg border-border dark:border-slate-700 dark:bg-slate-800">
         {/* Only the header is draggable via drag-handle class */}
         <CardHeader className="drag-handle bg-primary text-primary-foreground py-2 px-3 cursor-move">
-          <CardTitle className="text-sm font-bold">{data.name}</CardTitle>
-          <div className="text-[10px] opacity-75 mt-0.5">{data.columns.length} columns</div>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <CardTitle className="text-sm font-bold">{data.name}</CardTitle>
+              <div className="text-[10px] opacity-75 mt-0.5">{data.columns.length} columns</div>
+            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="nodrag nopan shrink-0 rounded p-1 hover:bg-primary-foreground/20 focus:outline-none focus:ring-2 focus:ring-primary-foreground/50"
+                  aria-label={t('database-schema:tableInfo')}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Info className="h-4 w-4" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="nodrag max-w-sm text-sm" align="start">
+                {data.description ? (
+                  <p className="whitespace-pre-wrap">{data.description}</p>
+                ) : (
+                  <p className="text-muted-foreground">{t('database-schema:noDescription')}</p>
+                )}
+              </PopoverContent>
+            </Popover>
+          </div>
         </CardHeader>
         {/* Content is scrollable but not draggable */}
         <CardContent className="p-0">
