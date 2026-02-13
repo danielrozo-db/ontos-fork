@@ -7,13 +7,15 @@ import useBreadcrumbStore from '@/stores/breadcrumb-store';
 import IndexSearch from '@/components/search/index-search';
 import KGSearch from '@/components/search/kg-search';
 import ConceptsSearch from '@/components/search/concepts-search';
+import PropertiesSearch from '@/components/search/properties-search';
 import LLMSearch from '@/components/search/llm-search';
 
 // Map URL slugs to tab values
-const SLUG_TO_TAB: Record<string, 'llm' | 'index' | 'concepts' | 'kg'> = {
+const SLUG_TO_TAB: Record<string, 'llm' | 'index' | 'concepts' | 'properties' | 'kg'> = {
   'llm': 'llm',
   'index': 'index',
   'concepts': 'concepts',
+  'properties': 'properties',
   'kg': 'kg',
 };
 
@@ -49,9 +51,7 @@ export default function SearchView() {
   }, [location.pathname, navigate]);
 
   // Handle tab change - navigate to new slug, preserving only query params for that tab
-  const handleModeChange = (newMode: 'llm' | 'index' | 'concepts' | 'kg') => {
-    // Navigate to the new tab's URL without any query params
-    // Each tab manages its own params independently
+  const handleModeChange = (newMode: 'llm' | 'index' | 'concepts' | 'properties' | 'kg') => {
     navigate(`/search/${newMode}`);
   };
 
@@ -73,11 +73,21 @@ export default function SearchView() {
   const conceptsQuery = params.get('query') || '';
   const conceptsIri = params.get('iri');
 
+  // Properties Search params (used at /search/properties)
+  const propertiesQuery = params.get('query') || '';
+  const propertiesIri = params.get('iri');
+
   // Create initial concept for concepts search
   const initialConcept = conceptsIri ? {
     value: conceptsIri,
     label: conceptsIri.split('/').pop() || conceptsIri.split('#').pop() || conceptsIri,
     type: 'class' as const
+  } : null;
+
+  const initialProperty = propertiesIri ? {
+    value: propertiesIri,
+    label: propertiesIri.split('/').pop() || propertiesIri.split('#').pop() || propertiesIri,
+    type: 'property' as const
   } : null;
 
   return (
@@ -86,12 +96,13 @@ export default function SearchView() {
         <SearchIcon className="w-8 h-8" />
         {t('title')}
       </h1>
-      <Tabs value={currentTab} onValueChange={(v) => handleModeChange(v as 'llm' | 'index' | 'concepts' | 'kg')}>
+      <Tabs value={currentTab} onValueChange={(v) => handleModeChange(v as 'llm' | 'index' | 'concepts' | 'properties' | 'kg')}>
         <TabsList>
           <TabsTrigger value="llm">{t('tabs.askOntos')}</TabsTrigger>
           <TabsTrigger value="index">{t('tabs.indexSearch')}</TabsTrigger>
           <TabsTrigger value="kg">{t('tabs.knowledgeGraph')}</TabsTrigger>
           <TabsTrigger value="concepts">{t('tabs.concepts')}</TabsTrigger>
+          <TabsTrigger value="properties">{t('tabs.properties')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="llm">
@@ -116,6 +127,13 @@ export default function SearchView() {
           <ConceptsSearch
             initialQuery={conceptsQuery}
             initialSelectedConcept={initialConcept}
+          />
+        </TabsContent>
+
+        <TabsContent value="properties">
+          <PropertiesSearch
+            initialQuery={propertiesQuery}
+            initialSelectedProperty={initialProperty}
           />
         </TabsContent>
       </Tabs>

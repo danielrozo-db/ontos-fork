@@ -174,6 +174,27 @@ async def list_objects(
         logger.error(error_msg, exc_info=True)
         raise HTTPException(status_code=500, detail=error_msg)
 
+@router.get(
+    '/catalogs/{catalog_name}/schemas/{schema_name}/objects/{object_name}/columns',
+    dependencies=[Depends(PermissionChecker(CATALOG_COMMANDER_FEATURE_ID, FeatureAccessLevel.READ_ONLY))]
+)
+async def list_object_columns(
+    catalog_name: str,
+    schema_name: str,
+    object_name: str,
+    catalog_manager: CatalogCommanderManager = Depends(get_catalog_manager)
+):
+    """List columns for a table or view. Used by UC asset lookup when includeColumns is true."""
+    try:
+        logger.info(f"Fetching columns for {catalog_name}.{schema_name}.{object_name}")
+        columns = catalog_manager.list_columns(catalog_name, schema_name, object_name)
+        return columns
+    except Exception as e:
+        error_msg = f"Failed to fetch columns for {catalog_name}.{schema_name}.{object_name}: {e!s}"
+        logger.error(error_msg, exc_info=True)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+
 @router.get('/catalogs/dataset/{dataset_path:path}', dependencies=[Depends(PermissionChecker(CATALOG_COMMANDER_FEATURE_ID, FeatureAccessLevel.READ_ONLY))])
 async def get_dataset(
     dataset_path: str,

@@ -107,6 +107,7 @@ export default function App() {
               <Route path="/search/llm" element={<SearchView />} />
               <Route path="/search/index" element={<SearchView />} />
               <Route path="/search/concepts" element={<SearchView />} />
+              <Route path="/search/properties" element={<SearchView />} />
               <Route path="/search/kg" element={<SearchView />} />
               <Route path="/about" element={<About />} />
               <Route path="/user-guide" element={<UserGuide />} />

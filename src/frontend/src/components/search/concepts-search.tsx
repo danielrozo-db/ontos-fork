@@ -9,7 +9,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApi } from '@/hooks/use-api';
 import { useToast } from '@/hooks/use-toast';
-import { Shapes, Columns2, FileText, Package, Globe, X, Link2 } from 'lucide-react';
+import { Shapes, Columns2, FileText, Package, Globe, X, Link2, Table, Database, Folder, FolderOpen } from 'lucide-react';
+import UCAssetLookupDialog from '@/components/data-contracts/uc-asset-lookup-dialog';
+import { UCAssetInfo, UCAssetType } from '@/types/uc-asset';
 
 type ConceptItem = { value: string; label: string; type: 'class' };
 type Neighbor = {
@@ -61,6 +63,7 @@ export default function ConceptsSearch({
   const [selectedEntityType, setSelectedEntityType] = useState<string>('');
   const [selectedEntityId, setSelectedEntityId] = useState<string>('');
   const [availableEntities, setAvailableEntities] = useState<any[]>([]);
+  const [ucTableDialogOpen, setUCTableDialogOpen] = useState(false);
 
   // Update URL when state changes - only manages concepts-specific params
   const updateUrl = (updates: Partial<{
@@ -282,6 +285,16 @@ export default function ConceptsSearch({
             enrichedLinks.push({ ...link, entity_name: entityName });
             continue;
           }
+          case 'dataset':
+            endpoint = `/api/datasets/${link.entity_id}`;
+            break;
+          case 'uc_catalog':
+          case 'uc_schema':
+          case 'uc_table':
+          case 'uc_column':
+            entityName = link.entity_id;
+            enrichedLinks.push({ ...link, entity_name: entityName });
+            continue;
           default:
             enrichedLinks.push({ ...link, entity_name: link.entity_id });
             continue;
@@ -304,6 +317,7 @@ export default function ConceptsSearch({
 
   // Load entities for assignment
   const loadEntitiesForType = async (entityType: string) => {
+    if (['uc_catalog', 'uc_schema', 'uc_table'].includes(entityType)) return;
     try {
       let endpoint = '';
       switch (entityType) {
@@ -315,6 +329,9 @@ export default function ConceptsSearch({
           break;
         case 'data_domain':
           endpoint = '/api/data-domains';
+          break;
+        case 'dataset':
+          endpoint = '/api/datasets';
           break;
         default:
           return;
@@ -348,6 +365,23 @@ export default function ConceptsSearch({
       case 'data_domain':
         path = `/data-domains/${link.entity_id}`;
         break;
+      case 'dataset':
+        path = `/datasets/${link.entity_id}`;
+        break;
+      case 'uc_catalog':
+      case 'uc_schema':
+      case 'uc_table':
+      case 'uc_column':
+        navigate(`/catalog-commander`);
+        const ucLabel = link.entity_type === 'uc_catalog' ? t('search:concepts.linkedUCCatalog')
+          : link.entity_type === 'uc_schema' ? t('search:concepts.linkedUCSchema')
+          : link.entity_type === 'uc_column' ? t('search:concepts.linkedUCColumn')
+          : t('search:concepts.linkedUCTable');
+        toast({
+          title: ucLabel,
+          description: link.entity_name || link.entity_id
+        });
+        return;
       default:
         toast({
           title: t('common:toast.error'),
@@ -359,7 +393,54 @@ export default function ConceptsSearch({
     navigate(path);
   };
 
-  // Create semantic link
+  const getEntityTypeLabel = (entityType: string) => {
+    switch (entityType) {
+      case 'data_product': return t('search:concepts.assignDialog.dataProduct');
+      case 'data_contract': return t('search:concepts.assignDialog.dataContract');
+      case 'data_domain': return t('search:concepts.assignDialog.dataDomain');
+      case 'dataset': return t('search:concepts.assignDialog.dataset');
+      case 'uc_catalog': return t('search:concepts.assignDialog.ucCatalog');
+      case 'uc_schema': return t('search:concepts.assignDialog.ucSchema');
+      case 'uc_table': return t('search:concepts.assignDialog.ucTable');
+      default: return entityType;
+    }
+  };
+
+  const handleUCAssetSelect = (asset: UCAssetInfo) => {
+    if (!selectedConcept || !selectedEntityType) return;
+    const ucType = selectedEntityType as 'uc_catalog' | 'uc_schema' | 'uc_table';
+    if (ucType !== 'uc_catalog' && ucType !== 'uc_schema' && ucType !== 'uc_table') return;
+
+    post('/api/semantic-links/', {
+      entity_id: asset.full_name,
+      entity_type: ucType,
+      iri: selectedConcept.value
+    })
+      .then((res) => {
+        if (res.error) throw new Error(res.error);
+        toast({
+          title: t('common:toast.success'),
+          description: t('search:concepts.messages.linkedSuccess', {
+            label: selectedConcept.label,
+            entityType: getEntityTypeLabel(ucType),
+            entityId: asset.full_name
+          })
+        });
+        setAssignDialogOpen(false);
+        setUCTableDialogOpen(false);
+        setSelectedEntityType('');
+        selectConcept(selectedConcept);
+      })
+      .catch((err: any) => {
+        toast({
+          title: t('common:toast.error'),
+          description: err.message || t('search:concepts.messages.assignFailed'),
+          variant: 'destructive'
+        });
+      });
+  };
+
+  // Create semantic link (for dropdown-selected entities: data_product, data_contract, data_domain, dataset)
   const handleAssignToObject = async () => {
     if (!selectedConcept || !selectedEntityType || !selectedEntityId) {
       toast({
@@ -381,15 +462,11 @@ export default function ConceptsSearch({
         throw new Error(res.error);
       }
 
-      const entityTypeLabel = selectedEntityType === 'data_product' ? t('search:concepts.assignDialog.dataProduct') :
-                              selectedEntityType === 'data_contract' ? t('search:concepts.assignDialog.dataContract') :
-                              t('search:concepts.assignDialog.dataDomain');
-
       toast({
         title: t('common:toast.success'),
         description: t('search:concepts.messages.linkedSuccess', {
           label: selectedConcept.label,
-          entityType: entityTypeLabel,
+          entityType: getEntityTypeLabel(selectedEntityType),
           entityId: selectedEntityId
         }),
       });
@@ -398,7 +475,6 @@ export default function ConceptsSearch({
       setSelectedEntityType('');
       setSelectedEntityId('');
 
-      // Reload semantic links
       await selectConcept(selectedConcept);
     } catch (error: any) {
       toast({
@@ -570,13 +646,29 @@ export default function ConceptsSearch({
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {getCatalogObjects().map((link) => {
-                      const typeLabel = link.entity_type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+                      const typeLabel = link.entity_type === 'uc_catalog'
+                        ? t('search:concepts.linkedUCCatalog')
+                        : link.entity_type === 'uc_schema'
+                        ? t('search:concepts.linkedUCSchema')
+                        : link.entity_type === 'uc_table'
+                        ? t('search:concepts.linkedUCTable')
+                        : link.entity_type === 'uc_column'
+                        ? t('search:concepts.linkedUCColumn')
+                        : link.entity_type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
                       const Icon = link.entity_type === 'data_contract'
                         ? FileText
                         : link.entity_type === 'data_product'
                         ? Package
                         : link.entity_type === 'data_domain'
                         ? Globe
+                        : link.entity_type === 'dataset'
+                        ? Database
+                        : link.entity_type === 'uc_catalog'
+                        ? Folder
+                        : link.entity_type === 'uc_schema'
+                        ? FolderOpen
+                        : link.entity_type === 'uc_table' || link.entity_type === 'uc_column'
+                        ? Table
                         : link.entity_type === 'data_contract_schema'
                         ? Shapes
                         : link.entity_type === 'data_contract_property'
@@ -638,29 +730,42 @@ export default function ConceptsSearch({
                   <SelectItem value="data_product">{t('search:concepts.assignDialog.dataProduct')}</SelectItem>
                   <SelectItem value="data_contract">{t('search:concepts.assignDialog.dataContract')}</SelectItem>
                   <SelectItem value="data_domain">{t('search:concepts.assignDialog.dataDomain')}</SelectItem>
+                  <SelectItem value="dataset">{t('search:concepts.assignDialog.dataset')}</SelectItem>
+                  <SelectItem value="uc_catalog">{t('search:concepts.assignDialog.ucCatalog')}</SelectItem>
+                  <SelectItem value="uc_schema">{t('search:concepts.assignDialog.ucSchema')}</SelectItem>
+                  <SelectItem value="uc_table">{t('search:concepts.assignDialog.ucTable')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {selectedEntityType && (
+            {['uc_catalog', 'uc_schema', 'uc_table'].includes(selectedEntityType) && (
+              <div className="space-y-2">
+                <Button variant="outline" className="w-full" onClick={() => setUCTableDialogOpen(true)}>
+                  {selectedEntityType === 'uc_catalog' && <Folder className="h-4 w-4 mr-2" />}
+                  {selectedEntityType === 'uc_schema' && <FolderOpen className="h-4 w-4 mr-2" />}
+                  {selectedEntityType === 'uc_table' && <Table className="h-4 w-4 mr-2" />}
+                  {selectedEntityType === 'uc_catalog' && t('search:concepts.assignDialog.browseUCCatalog')}
+                  {selectedEntityType === 'uc_schema' && t('search:concepts.assignDialog.browseUCSchema')}
+                  {selectedEntityType === 'uc_table' && t('search:concepts.assignDialog.browseUCTable')}
+                </Button>
+              </div>
+            )}
+
+            {selectedEntityType && !['uc_catalog', 'uc_schema', 'uc_table'].includes(selectedEntityType) && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">
-                  {selectedEntityType === 'data_product' ? t('search:concepts.assignDialog.dataProduct') :
-                   selectedEntityType === 'data_contract' ? t('search:concepts.assignDialog.dataContract') :
-                   t('search:concepts.assignDialog.dataDomain')}
+                  {getEntityTypeLabel(selectedEntityType)}
                 </label>
                 <Select value={selectedEntityId} onValueChange={setSelectedEntityId}>
                   <SelectTrigger>
-                    <SelectValue placeholder={t('search:concepts.assignDialog.selectEntity', { 
-                      entityType: selectedEntityType === 'data_product' ? t('search:concepts.assignDialog.dataProduct') :
-                                  selectedEntityType === 'data_contract' ? t('search:concepts.assignDialog.dataContract') :
-                                  t('search:concepts.assignDialog.dataDomain')
+                    <SelectValue placeholder={t('search:concepts.assignDialog.selectEntity', {
+                      entityType: getEntityTypeLabel(selectedEntityType)
                     })} />
                   </SelectTrigger>
                   <SelectContent>
                     {availableEntities.map((entity) => (
                       <SelectItem key={entity.id} value={entity.id}>
-                        {entity.name || entity.info?.title || entity.id}
+                        {entity.name || entity.info?.title || entity.title || entity.id}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -672,16 +777,40 @@ export default function ConceptsSearch({
               <Button variant="outline" onClick={() => setAssignDialogOpen(false)}>
                 {t('common:actions.cancel')}
               </Button>
-              <Button
-                onClick={handleAssignToObject}
-                disabled={!selectedEntityType || !selectedEntityId}
-              >
-                {t('common:actions.assign')}
-              </Button>
+              {!['uc_catalog', 'uc_schema', 'uc_table'].includes(selectedEntityType) && (
+                <Button
+                  onClick={handleAssignToObject}
+                  disabled={!selectedEntityType || !selectedEntityId}
+                >
+                  {t('common:actions.assign')}
+                </Button>
+              )}
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      <UCAssetLookupDialog
+        isOpen={ucTableDialogOpen}
+        onOpenChange={setUCTableDialogOpen}
+        onSelect={handleUCAssetSelect}
+        title={
+          selectedEntityType === 'uc_catalog' ? t('search:concepts.assignDialog.ucCatalogTitle') :
+          selectedEntityType === 'uc_schema' ? t('search:concepts.assignDialog.ucSchemaTitle') :
+          t('search:concepts.assignDialog.ucTableTitle')
+        }
+        allowedTypes={
+          selectedEntityType === 'uc_table'
+            ? [UCAssetType.TABLE, UCAssetType.VIEW, UCAssetType.MATERIALIZED_VIEW, UCAssetType.STREAMING_TABLE]
+            : undefined
+        }
+        selectableTypes={
+          selectedEntityType === 'uc_catalog' ? [UCAssetType.CATALOG] :
+          selectedEntityType === 'uc_schema' ? [UCAssetType.SCHEMA] :
+          undefined
+        }
+        includeColumns={false}
+      />
     </div>
   );
 }

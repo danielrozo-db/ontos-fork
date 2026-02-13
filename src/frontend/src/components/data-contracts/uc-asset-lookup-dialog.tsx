@@ -28,7 +28,8 @@ import {
   Radio,
   ChevronDown,
   ChevronRight,
-  Loader2
+  Loader2,
+  Columns2
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { 
@@ -52,12 +53,16 @@ export interface UCAssetLookupDialogProps {
   isOpen: boolean;
   /** Callback when dialog open state changes */
   onOpenChange: (open: boolean) => void;
-  /** Callback when an asset is selected */
+  /** Callback when an asset is selected (for columns, asset includes column_name and full_name is catalog.schema.table.column) */
   onSelect: (asset: UCAssetInfo) => void;
   /** Optional list of allowed asset types. Defaults to all types. */
   allowedTypes?: UCAssetType[];
   /** Optional dialog title. Defaults to "Find UC Asset" */
   title?: string;
+  /** When true, table/view nodes load and show columns as children; selecting a column passes asset with column_name and full_name = catalog.schema.table.column */
+  includeColumns?: boolean;
+  /** When set, only these types are selectable (e.g. [UCAssetType.CATALOG] or [UCAssetType.SCHEMA] for concept linking). Omit to use default (tables, views, columns when includeColumns). */
+  selectableTypes?: UCAssetType[];
 }
 
 // ============================================================================
@@ -99,6 +104,9 @@ function getIcon(type: UCAssetType | string): React.ReactNode {
     case UCAssetType.METRIC:
     case 'metric':
       return <BarChart3 className="h-4 w-4 text-amber-500" />
+    case UCAssetType.COLUMN:
+    case 'column':
+      return <Columns2 className="h-4 w-4 text-slate-500" />
     default:
       return null
   }
@@ -129,9 +137,18 @@ function mapToAssetType(typeStr: string): UCAssetType {
       return UCAssetType.VOLUME;
     case 'metric':
       return UCAssetType.METRIC;
+    case 'column':
+      return UCAssetType.COLUMN;
     default:
       return UCAssetType.TABLE;
   }
+}
+
+function isTableOrViewType(t: UCAssetType | string): boolean {
+  return t === UCAssetType.TABLE || t === 'table' ||
+    t === UCAssetType.VIEW || t === 'view' ||
+    t === UCAssetType.MATERIALIZED_VIEW || t === 'materialized_view' ||
+    t === UCAssetType.STREAMING_TABLE || t === 'streaming_table'
 }
 
 // ============================================================================
@@ -143,8 +160,16 @@ export default function UCAssetLookupDialog({
   onOpenChange, 
   onSelect,
   allowedTypes = ALL_ASSET_TYPES,
-  title = 'Find UC Asset'
+  title = 'Find UC Asset',
+  includeColumns = false,
+  selectableTypes: selectableTypesProp
 }: UCAssetLookupDialogProps) {
+  const isNodeSelectable = useCallback((type: UCAssetType | string) => {
+    if (selectableTypesProp && selectableTypesProp.length > 0) {
+      return selectableTypesProp.includes(type as UCAssetType)
+    }
+    return isSelectableType(type as UCAssetType)
+  }, [selectableTypesProp])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -242,11 +267,35 @@ export default function UCAssetLookupDialog({
     const res = await fetch(url)
     if (!res.ok) return []
     const data = await res.json()
-    return data.map((obj: CatalogTreeItem) => ({
-      ...obj,
-      type: mapToAssetType(obj.type as string)
+    return data.map((obj: CatalogTreeItem) => {
+      const type = mapToAssetType(obj.type as string)
+      const hasChildren = includeColumns && isTableOrViewType(type)
+      return {
+        ...obj,
+        type,
+        hasChildren: hasChildren || (obj.hasChildren ?? false),
+        children: obj.children ?? []
+      }
+    })
+  }, [allowedTypes, includeColumns])
+
+  const fetchColumns = useCallback(async (
+    catalogName: string,
+    schemaName: string,
+    objectName: string
+  ): Promise<CatalogTreeItem[]> => {
+    const res = await fetch(`/api/catalogs/${catalogName}/schemas/${schemaName}/objects/${encodeURIComponent(objectName)}/columns`)
+    if (!res.ok) return []
+    const data = await res.json()
+    return (Array.isArray(data) ? data : []).map((col: { id: string; name: string; type?: string; comment?: string }) => ({
+      id: col.id,
+      name: col.name,
+      type: UCAssetType.COLUMN as const,
+      children: [],
+      hasChildren: false,
+      description: col.comment || col.type
     }))
-  }, [allowedTypes])
+  }, [])
 
   // ============================================================================
   // Tree Node Management
@@ -297,10 +346,16 @@ export default function UCAssetLookupDialog({
     } else if (node.type === UCAssetType.SCHEMA) {
       const [catalogName] = node.id.split('.')
       children = await fetchObjects(catalogName, node.name, typeFilter)
+    } else if (includeColumns && isTableOrViewType(node.type)) {
+      const parts = node.id.split('.')
+      if (parts.length >= 3) {
+        const [catalogName, schemaName, objectName] = parts
+        children = await fetchColumns(catalogName, schemaName, objectName)
+      }
     }
-    
+
     return updateNodeChildren(currentItems, nodeId, children)
-  }, [findNodeById, fetchSchemas, fetchObjects, updateNodeChildren])
+  }, [findNodeById, fetchSchemas, fetchObjects, fetchColumns, updateNodeChildren, includeColumns])
 
   const handleExpand = useCallback(async (item: CatalogTreeItem) => {
     if (loadingNodes.has(item.id)) return
@@ -333,28 +388,65 @@ export default function UCAssetLookupDialog({
   }, [])
 
   const handleSelectItem = useCallback((item: CatalogTreeItem) => {
-    // Only allow selection of leaf objects (not catalogs/schemas)
-    if (!isSelectableType(item.type as UCAssetType)) {
+    if (!isNodeSelectable(item.type as UCAssetType)) {
       return
     }
-    
+
     const parts = item.id.split('.')
-    if (parts.length !== 3) return
-    
-    const [catalog_name, schema_name, object_name] = parts
-    
-    const assetInfo: UCAssetInfo = {
-      catalog_name,
-      schema_name,
-      object_name,
-      full_name: item.id,
-      asset_type: item.type as UCAssetType,
-      description: item.description
+    const isCatalog = parts.length === 1 || item.type === UCAssetType.CATALOG || item.type === 'catalog'
+    const isSchema = parts.length === 2 || item.type === UCAssetType.SCHEMA || item.type === 'schema'
+    const isColumn = parts.length === 4 || item.type === UCAssetType.COLUMN || item.type === 'column'
+
+    if (isCatalog) {
+      const assetInfo: UCAssetInfo = {
+        catalog_name: item.name,
+        schema_name: '',
+        object_name: '',
+        full_name: item.id,
+        asset_type: UCAssetType.CATALOG,
+        description: item.description
+      }
+      onSelect(assetInfo)
+    } else if (isSchema) {
+      if (parts.length < 2) return
+      const [catalog_name, schema_name] = parts
+      const assetInfo: UCAssetInfo = {
+        catalog_name,
+        schema_name,
+        object_name: '',
+        full_name: item.id,
+        asset_type: UCAssetType.SCHEMA,
+        description: item.description
+      }
+      onSelect(assetInfo)
+    } else if (isColumn) {
+      if (parts.length < 4) return
+      const [catalog_name, schema_name, object_name, column_name] = parts
+      const assetInfo: UCAssetInfo = {
+        catalog_name,
+        schema_name,
+        object_name,
+        full_name: item.id,
+        asset_type: UCAssetType.COLUMN,
+        description: item.description,
+        column_name
+      }
+      onSelect(assetInfo)
+    } else {
+      if (parts.length !== 3) return
+      const [catalog_name, schema_name, object_name] = parts
+      const assetInfo: UCAssetInfo = {
+        catalog_name,
+        schema_name,
+        object_name,
+        full_name: item.id,
+        asset_type: item.type as UCAssetType,
+        description: item.description
+      }
+      onSelect(assetInfo)
     }
-    
-    onSelect(assetInfo)
     onOpenChange(false)
-  }, [onSelect, onOpenChange])
+  }, [onSelect, onOpenChange, isNodeSelectable])
 
   // Accept the currently highlighted selection
   const handleAcceptSelection = useCallback(() => {
@@ -371,8 +463,8 @@ export default function UCAssetLookupDialog({
     if (!highlightedId) return false
     const highlightedItem = findNodeById(items, highlightedId)
     if (!highlightedItem) return false
-    return isSelectableType(highlightedItem.type as UCAssetType)
-  }, [highlightedId, items, findNodeById])
+    return isNodeSelectable(highlightedItem.type as UCAssetType)
+  }, [highlightedId, items, findNodeById, isNodeSelectable])
 
   // Handle keyboard events on the search input
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -398,20 +490,26 @@ export default function UCAssetLookupDialog({
     if (nodeInTree?.children && nodeInTree.children.length > 0) {
       return [nodeInTree.children, currentTree]
     }
-    
+
     let children: CatalogTreeItem[] = []
-    
+
     if (node.type === UCAssetType.CATALOG) {
       children = await fetchSchemas(node.name)
     } else if (node.type === UCAssetType.SCHEMA) {
       const [catalogName] = node.id.split('.')
       children = await fetchObjects(catalogName, node.name, typeFilter)
+    } else if (includeColumns && isTableOrViewType(node.type)) {
+      const parts = node.id.split('.')
+      if (parts.length >= 3) {
+        const [catalogName, schemaName, objectName] = parts
+        children = await fetchColumns(catalogName, schemaName, objectName)
+      }
     }
-    
+
     // Return children and updated tree
     const updatedTree = updateNodeChildren(currentTree, node.id, children)
     return [children, updatedTree]
-  }, [findNodeById, fetchSchemas, fetchObjects, updateNodeChildren])
+  }, [findNodeById, fetchSchemas, fetchObjects, fetchColumns, updateNodeChildren, includeColumns])
 
   // Process search when search string changes
   useEffect(() => {
@@ -642,13 +740,13 @@ export default function UCAssetLookupDialog({
     const currentSegment = segments[level]
     
     return nodes.filter((node) => {
-      // Type filter for leaf nodes (always applied)
-      if (isSelectableType(node.type as UCAssetType)) {
-        if (!allowedTypes.includes(node.type as UCAssetType)) {
-          return false
-        }
-        if (typeFilter && node.type !== typeFilter) {
-          return false
+      const isColumn = node.type === UCAssetType.COLUMN || node.type === 'column'
+      const isCatalogOrSchema = node.type === UCAssetType.CATALOG || node.type === UCAssetType.SCHEMA || node.type === 'catalog' || node.type === 'schema'
+      // When selectable via selectableTypes (e.g. catalog/schema), skip allowedTypes filter
+      if (isNodeSelectable(node.type as UCAssetType) && !isColumn) {
+        if (!isCatalogOrSchema) {
+          if (!allowedTypes.includes(node.type as UCAssetType)) return false
+          if (typeFilter && node.type !== typeFilter) return false
         }
       }
       
@@ -671,7 +769,7 @@ export default function UCAssetLookupDialog({
       // If beyond typing level (shouldn't normally happen), show all
       return true
     })
-  }, [parsedSearch, allowedTypes])
+  }, [parsedSearch, allowedTypes, isNodeSelectable])
 
   // ============================================================================
   // Render Tree Item
@@ -686,7 +784,7 @@ export default function UCAssetLookupDialog({
     const isLoading = loadingNodes.has(node.id)
     const hasChildren = node.hasChildren || (node.children && node.children.length > 0)
     const isHighlighted = node.id === highlightedId
-    const isSelectable = isSelectableType(node.type as UCAssetType)
+    const isSelectable = isNodeSelectable(node.type as UCAssetType)
     
     // Filter and render children
     let filteredChildren: CatalogTreeItem[] = []
@@ -767,7 +865,7 @@ export default function UCAssetLookupDialog({
         )}
       </div>
     )
-  }, [parsedSearch, expanded, loadingNodes, highlightedId, filterNodes, handleExpand, handleCollapse, handleSelectItem])
+  }, [parsedSearch, expanded, loadingNodes, highlightedId, filterNodes, handleExpand, handleCollapse, handleSelectItem, isNodeSelectable])
 
   // ============================================================================
   // Get filtered root items

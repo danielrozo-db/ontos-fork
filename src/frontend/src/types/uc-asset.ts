@@ -33,6 +33,9 @@ export enum UCAssetType {
   
   // Semantic assets
   METRIC = 'metric',
+
+  // Column (child of table/view when includeColumns is true)
+  COLUMN = 'column',
 }
 
 /**
@@ -69,12 +72,22 @@ export interface UCAssetInfo {
   schema_name: string;
   /** Object name (table, view, function, etc.) */
   object_name: string;
-  /** Fully qualified name (catalog.schema.object) */
+  /** Fully qualified name (catalog.schema.object or catalog.schema.table.column when column_name is set) */
   full_name: string;
   /** Type of the asset */
   asset_type: UCAssetType;
   /** Optional description/comment */
   description?: string;
+  /** When selecting a column (includeColumns mode), the column name; full_name is then catalog.schema.table.column */
+  column_name?: string;
+}
+
+/**
+ * Information about a selected UC column (when includeColumns is true).
+ */
+export interface UCColumnInfo extends UCAssetInfo {
+  column_name: string;
+  asset_type: UCAssetType.COLUMN;
 }
 
 // ============================================================================
@@ -83,14 +96,15 @@ export interface UCAssetInfo {
 
 /**
  * Catalog tree item used in the lookup dialog.
+ * When includeColumns is true, table/view nodes may have children with type COLUMN.
  */
 export interface CatalogTreeItem {
-  /** Unique ID (FQN for nested items) */
+  /** Unique ID (FQN for nested items; for columns: catalog.schema.table.columnName) */
   id: string;
   /** Display name */
   name: string;
-  /** Item type */
-  type: UCAssetType;
+  /** Item type (UCAssetType; 'column' when includeColumns adds column nodes) */
+  type: UCAssetType | 'column';
   /** Child items (loaded lazily) */
   children: CatalogTreeItem[];
   /** Whether this item can have children */
@@ -186,6 +200,8 @@ export function getAssetTypeDisplayName(type: UCAssetType): string {
       return 'Volume';
     case UCAssetType.METRIC:
       return 'Metric';
+    case UCAssetType.COLUMN:
+      return 'Column';
     default:
       return 'Unknown';
   }
@@ -201,6 +217,6 @@ export function isContainerType(type: UCAssetType): boolean {
 /**
  * Check if an asset type is selectable (not a container).
  */
-export function isSelectableType(type: UCAssetType): boolean {
-  return SELECTABLE_ASSET_TYPES.includes(type);
+export function isSelectableType(type: UCAssetType | string): boolean {
+  return SELECTABLE_ASSET_TYPES.includes(type as UCAssetType) || type === UCAssetType.COLUMN || type === 'column';
 }
