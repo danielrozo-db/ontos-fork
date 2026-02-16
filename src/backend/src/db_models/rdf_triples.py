@@ -4,7 +4,7 @@ This table stores all RDF triples from ontologies, taxonomies, and semantic link
 making the database the source of truth for the knowledge graph.
 """
 import uuid
-from sqlalchemy import Column, String, Text, Boolean, TIMESTAMP, Index
+from sqlalchemy import Column, String, Text, Boolean, TIMESTAMP, Index, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.sql import func
 
@@ -17,9 +17,9 @@ class RdfTripleDb(Base):
     Each row represents a single RDF triple (subject, predicate, object) with
     optional context (named graph) and metadata about its source.
     
-    Uniqueness is enforced by a PostgreSQL index with NULLS NOT DISTINCT
-    to properly handle NULL values in object_language and object_datatype.
-    The index is created/managed by Alembic migration u1688q502ss5.
+    Uniqueness is enforced by a unique constraint on (subject_uri, predicate_uri,
+    object_value, object_language, object_datatype, context_name).
+    The constraint is created by Alembic migration g7244c158ee0 (or create_all).
     """
     __tablename__ = "rdf_triples"
 
@@ -46,16 +46,14 @@ class RdfTripleDb(Base):
     created_by = Column(String, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), server_default=func.now(), nullable=False)
 
-    # NOTE: The actual unique index is created via Alembic migration with:
-    #   CREATE UNIQUE INDEX uq_rdf_triple_nulls_not_distinct ON rdf_triples (...)
-    #   NULLS NOT DISTINCT
-    # This is required because PostgreSQL treats NULL != NULL for uniqueness,
-    # which would allow duplicate triples when object_language/object_datatype are NULL.
-    # SQLAlchemy's UniqueConstraint/Index don't support NULLS NOT DISTINCT yet,
-    # so we document it here for reference. The index name used in ON CONFLICT
-    # operations in the repository is 'uq_rdf_triple_nulls_not_distinct'.
+    # Unique constraint required for ON CONFLICT DO NOTHING in rdf_triples_repository.
     __table_args__ = (
-        # Composite index for SPO lookups (created by Alembic)
+        UniqueConstraint(
+            'subject_uri', 'predicate_uri', 'object_value',
+            'object_language', 'object_datatype', 'context_name',
+            name='uq_rdf_triple',
+        ),
+        # Composite index for SPO lookups
         Index('ix_rdf_triples_spo', 'subject_uri', 'predicate_uri', 'object_value'),
     )
 

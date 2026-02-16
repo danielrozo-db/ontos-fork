@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useApi } from '@/hooks/use-api';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -9,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Upload, ChevronDown, RefreshCw, Trash2, Loader2, Library, Eye, Copy, Check } from 'lucide-react';
+import { Upload, ChevronDown, RefreshCw, Trash2, Loader2, Library, Eye, Copy, Check, Network } from 'lucide-react';
 import type { SemanticModel } from '@/types/ontology';
 import {
   AlertDialog,
@@ -35,6 +36,7 @@ import OntologyLibraryDialog from '@/components/settings/ontology-library-dialog
 const SYSTEM_CONTEXTS = ['urn:meta:sources', 'urn:semantic-links'];
 
 export default function SemanticModelsSettings() {
+  const { t } = useTranslation('semantic-models');
   const { get, post, delete: deleteApi } = useApi();
   const { toast } = useToast();
   const [items, setItems] = useState<SemanticModel[]>([]);
@@ -48,6 +50,7 @@ export default function SemanticModelsSettings() {
   const [viewContent, setViewContent] = useState<string>('');
   const [viewLoading, setViewLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isRefreshingGraph, setIsRefreshingGraph] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   
   // Filter out system contexts from display
@@ -72,6 +75,23 @@ export default function SemanticModelsSettings() {
   };
 
   useEffect(() => { fetchItems(); }, []);
+
+  const onRefreshGraph = async () => {
+    setIsRefreshingGraph(true);
+    try {
+      const res = await post<{ message: string }>('/api/semantic-models/refresh-graph', {});
+      if (res.error) {
+        toast({ title: 'Error', description: res.error, variant: 'destructive' });
+      } else {
+        toast({ title: 'Success', description: res.data?.message ?? 'Knowledge graph refreshed successfully' });
+        await fetchItems();
+      }
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message ?? 'Failed to refresh knowledge graph', variant: 'destructive' });
+    } finally {
+      setIsRefreshingGraph(false);
+    }
+  };
 
   const onUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -366,7 +386,19 @@ export default function SemanticModelsSettings() {
               <><Upload className="h-4 w-4 mr-2" /> Upload</>
             )}
           </Button>
-          <Button variant="ghost" onClick={fetchItems}>
+          <Button
+            variant="outline"
+            onClick={onRefreshGraph}
+            disabled={isRefreshingGraph || uploadingId === 'uploading'}
+            title={t('rebuildGraphTooltip')}
+          >
+            {isRefreshingGraph ? (
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t('rebuildingGraph')}</>
+            ) : (
+              <><Network className="h-4 w-4 mr-2" /> {t('rebuildGraph')}</>
+            )}
+          </Button>
+          <Button variant="ghost" onClick={fetchItems} title="Refresh list">
             <RefreshCw className="h-4 w-4" />
           </Button>
         </div>

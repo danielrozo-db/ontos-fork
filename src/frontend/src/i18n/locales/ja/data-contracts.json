@@ -175,6 +175,16 @@
     "preview": "プレビュー",
     "validate": "検証",
     "save": "保存"
+  },
+  "schemaEditor": {
+    "unsavedChanges": "未保存の変更",
+    "editingColumn": "列の編集",
+    "addingNewColumn": "新しい列を追加",
+    "applyWithUpdateOrSave": "「列を更新」で適用するか、「変更を保存」でスキーマに含めます。",
+    "updateColumn": "列を更新",
+    "addColumn": "列を追加",
+    "addSchema": "スキーマを追加",
+    "cancel": "キャンセル"
   }
 }
 

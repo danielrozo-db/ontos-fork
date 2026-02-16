@@ -1,4 +1,7 @@
 {
+  "rebuildGraph": "グラフを再構築",
+  "rebuildingGraph": "再構築中…",
+  "rebuildGraphTooltip": "オントロジー、暗黙ソース、アプリオブジェクトを再読み込みしてすべてをクエリ可能にします。",
   "title": "ビジネス用語集",
   "subtitle": "ビジネス用語集とセマンティック定義の管理",
   "newModel": "新規用語集",

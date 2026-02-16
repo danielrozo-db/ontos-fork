@@ -9,6 +9,8 @@
   "relationshipCount": "{{count}} relationships",
   "relationshipCount_one": "{{count}} relationship",
   "columns": "{{count}} columns",
-  "columns_one": "{{count}} column"
+  "columns_one": "{{count}} column",
+  "tableInfo": "Table documentation",
+  "noDescription": "No description available for this table."
 }
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, forwardRef, useImperativeHandle } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Plus, Trash2, Edit, Info } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { useTranslation } from 'react-i18next'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { ColumnProperty, QualityRule } from '@/types/data-contract'
 import BusinessConceptsDisplay from '@/components/business-concepts/business-concepts-display'
@@ -72,14 +73,73 @@ const TabIndicator = ({ prop }: { prop: ColumnProperty }) => {
   )
 }
 
+// Normalize a column property for stable comparison (dirty check).
+// Compare semantics by URL set only (authoritativeDefinitions vs semanticConcepts are equivalent).
+// Normalize optional fields so empty string and undefined are treated the same.
+function normalizePropertyForCompare(prop: ColumnProperty): string {
+  const semanticsUrls = [
+    ...(prop.authoritativeDefinitions || []).map(d => d.url || ''),
+    ...((prop as any).semanticConcepts || []).map((c: { iri: string }) => c.iri || ''),
+  ].filter(Boolean).sort()
+  const tags = ((prop as any).tags || []).slice().sort()
+  const o: Record<string, unknown> = {
+    name: (prop.name || '').trim(),
+    logicalType: prop.logicalType || (prop as any).logical_type || 'string',
+    description: (prop.description || '').trim() || undefined,
+    physicalType: (prop.physicalType || (prop as any).physical_type || '').trim() || undefined,
+    physicalName: (prop.physicalName || '').trim() || undefined,
+    required: !!prop.required,
+    unique: !!prop.unique,
+    primaryKey: !!prop.primaryKey,
+    primaryKeyPosition: prop.primaryKeyPosition !== undefined && prop.primaryKeyPosition !== -1 ? prop.primaryKeyPosition : undefined,
+    partitioned: !!prop.partitioned,
+    partitionKeyPosition: prop.partitionKeyPosition !== undefined && prop.partitionKeyPosition !== -1 ? prop.partitionKeyPosition : undefined,
+    minLength: prop.minLength,
+    maxLength: prop.maxLength,
+    pattern: (prop.pattern || '').trim() || undefined,
+    minimum: prop.minimum,
+    maximum: prop.maximum,
+    multipleOf: prop.multipleOf,
+    precision: prop.precision,
+    format: (prop.format || '').trim() || undefined,
+    timezone: (prop.timezone || '').trim() || undefined,
+    customFormat: (prop.customFormat || '').trim() || undefined,
+    itemType: (prop.itemType || '').trim() || undefined,
+    minItems: prop.minItems,
+    maxItems: prop.maxItems,
+    classification: (prop.classification || '').trim() || undefined,
+    examples: (prop.examples || '').trim() || undefined,
+    businessName: (prop.businessName || '').trim() || undefined,
+    encryptedName: (prop.encryptedName || '').trim() || undefined,
+    criticalDataElement: !!prop.criticalDataElement,
+    transformLogic: (prop.transformLogic || '').trim() || undefined,
+    transformSourceObjects: (prop.transformSourceObjects || '').trim() || undefined,
+    transformDescription: (prop.transformDescription || '').trim() || undefined,
+    semanticsUrls,
+    tags,
+    qualityCount: ((prop as any).quality || []).length,
+    customPropsKeys: Object.keys((prop as any).customProperties || {}).sort(),
+  }
+  return JSON.stringify(o)
+}
+
 interface SchemaPropertyEditorProps {
   properties: ColumnProperty[]
   onChange: (properties: ColumnProperty[]) => void
   readOnly?: boolean
 }
 
-export default function SchemaPropertyEditor({ properties, onChange, readOnly = false }: SchemaPropertyEditorProps) {
+export interface SchemaPropertyEditorHandle {
+  getPropertiesForSubmit: () => ColumnProperty[]
+  isColumnEditDirty: () => boolean
+}
+
+function SchemaPropertyEditorInner(
+  { properties, onChange, readOnly = false }: SchemaPropertyEditorProps,
+  ref: React.Ref<SchemaPropertyEditorHandle>
+) {
   const { toast } = useToast()
+  const { t } = useTranslation('data-contracts')
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
 
   // Core fields
@@ -236,69 +296,86 @@ export default function SchemaPropertyEditor({ properties, onChange, readOnly = 
     setCustomProps((prop as any).customProperties || {})
   }
 
+  // Build a ColumnProperty from current form state (shared by handleAddOrUpdate and getPropertiesForSubmit)
+  const buildPropertyFromFormState = (): ColumnProperty => ({
+    name: name.trim(),
+    logicalType,
+    description: description.trim() || undefined,
+    physicalType: physicalType.trim() || undefined,
+    physicalName: physicalName.trim() || undefined,
+    required: required || undefined,
+    unique: unique || undefined,
+    primaryKey: primaryKey || undefined,
+    primaryKeyPosition: primaryKey && primaryKeyPosition ? parseInt(primaryKeyPosition) : undefined,
+    partitioned: partitioned || undefined,
+    partitionKeyPosition: partitioned && partitionKeyPosition ? parseInt(partitionKeyPosition) : undefined,
+    minLength: minLength ? parseInt(minLength) : undefined,
+    maxLength: maxLength ? parseInt(maxLength) : undefined,
+    pattern: pattern.trim() || undefined,
+    minimum: minimum ? Number(minimum) : undefined,
+    maximum: maximum ? Number(maximum) : undefined,
+    multipleOf: multipleOf ? Number(multipleOf) : undefined,
+    precision: precision ? parseInt(precision) : undefined,
+    format: dateFormat.trim() || undefined,
+    timezone: timezone.trim() || undefined,
+    customFormat: customFormat.trim() || undefined,
+    itemType: itemType.trim() || undefined,
+    minItems: minItems ? parseInt(minItems) : undefined,
+    maxItems: maxItems ? parseInt(maxItems) : undefined,
+    classification: classification || undefined,
+    examples: examples.trim() || undefined,
+    businessName: businessName.trim() || undefined,
+    encryptedName: encryptedName.trim() || undefined,
+    criticalDataElement: criticalDataElement || undefined,
+    transformLogic: transformLogic.trim() || undefined,
+    transformSourceObjects: transformSourceObjects.trim() || undefined,
+    transformDescription: transformDescription.trim() || undefined,
+    authoritativeDefinitions: authoritativeDefinitions.length > 0 ? authoritativeDefinitions : undefined,
+    // @ts-ignore
+    semanticConcepts: semanticConcepts && semanticConcepts.length > 0 ? semanticConcepts : undefined,
+    // @ts-ignore
+    quality: qualityChecks.length > 0 ? qualityChecks : undefined,
+    // @ts-ignore
+    tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
+    // @ts-ignore
+    customProperties: Object.keys(customProps).length > 0 ? customProps : undefined,
+  })
+
+  useImperativeHandle(ref, () => ({
+    getPropertiesForSubmit(): ColumnProperty[] {
+      if (editingIndex === null) return properties
+      const merged = buildPropertyFromFormState()
+      const updated = [...properties]
+      updated[editingIndex] = merged
+      return updated
+    },
+    isColumnEditDirty(): boolean {
+      if (editingIndex === null) return false
+      const current = buildPropertyFromFormState()
+      const existing = properties[editingIndex]
+      return normalizePropertyForCompare(current) !== normalizePropertyForCompare(existing)
+    },
+  }), [editingIndex, properties, name, logicalType, description, physicalType, physicalName, required, unique, primaryKey, primaryKeyPosition, partitioned, partitionKeyPosition, minLength, maxLength, pattern, minimum, maximum, multipleOf, precision, dateFormat, timezone, customFormat, itemType, minItems, maxItems, classification, examples, businessName, encryptedName, criticalDataElement, transformLogic, transformSourceObjects, transformDescription, authoritativeDefinitions, semanticConcepts, qualityChecks, tags, customProps])
+
+  const isDirty = editingIndex !== null && (() => {
+    const current = buildPropertyFromFormState()
+    const existing = properties[editingIndex]
+    return normalizePropertyForCompare(current) !== normalizePropertyForCompare(existing)
+  })()
+
   const handleAddOrUpdate = () => {
     if (!name.trim()) {
       toast({ title: 'Validation Error', description: 'Column name is required', variant: 'destructive' })
       return
     }
 
-    const newProperty: ColumnProperty = {
-      name: name.trim(),
-      logicalType,
-      description: description.trim() || undefined,
-      physicalType: physicalType.trim() || undefined,
-      physicalName: physicalName.trim() || undefined,
-      required: required || undefined,
-      unique: unique || undefined,
-      primaryKey: primaryKey || undefined,
-      primaryKeyPosition: primaryKey && primaryKeyPosition ? parseInt(primaryKeyPosition) : undefined,
-      partitioned: partitioned || undefined,
-      partitionKeyPosition: partitioned && partitionKeyPosition ? parseInt(partitionKeyPosition) : undefined,
-      // String constraints
-      minLength: minLength ? parseInt(minLength) : undefined,
-      maxLength: maxLength ? parseInt(maxLength) : undefined,
-      pattern: pattern.trim() || undefined,
-      // Number/Integer constraints
-      minimum: minimum ? Number(minimum) : undefined,
-      maximum: maximum ? Number(maximum) : undefined,
-      multipleOf: multipleOf ? Number(multipleOf) : undefined,
-      precision: precision ? parseInt(precision) : undefined,
-      // Date constraints
-      format: dateFormat.trim() || undefined,
-      timezone: timezone.trim() || undefined,
-      customFormat: customFormat.trim() || undefined,
-      // Array constraints
-      itemType: itemType.trim() || undefined,
-      minItems: minItems ? parseInt(minItems) : undefined,
-      maxItems: maxItems ? parseInt(maxItems) : undefined,
-      classification: classification || undefined,
-      examples: examples.trim() || undefined,
-      businessName: businessName.trim() || undefined,
-      encryptedName: encryptedName.trim() || undefined,
-      criticalDataElement: criticalDataElement || undefined,
-      transformLogic: transformLogic.trim() || undefined,
-      transformSourceObjects: transformSourceObjects.trim() || undefined,
-      transformDescription: transformDescription.trim() || undefined,
-      authoritativeDefinitions: authoritativeDefinitions.length > 0 ? authoritativeDefinitions : undefined,
-      // Keep semanticConcepts locally for UI use; parent may optionally consume it
-      // @ts-ignore
-      semanticConcepts: semanticConcepts && semanticConcepts.length > 0 ? semanticConcepts : undefined,
-      // Quality checks, tags, and custom properties
-      // @ts-ignore
-      quality: qualityChecks.length > 0 ? qualityChecks : undefined,
-      // @ts-ignore
-      tags: tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
-      // @ts-ignore
-      customProperties: Object.keys(customProps).length > 0 ? customProps : undefined,
-    }
+    const newProperty = buildPropertyFromFormState()
 
     if (editingIndex !== null) {
-      // Update existing
       const updated = [...properties]
       updated[editingIndex] = newProperty
       onChange(updated)
     } else {
-      // Add new
       onChange([...properties, newProperty])
     }
 
@@ -351,14 +428,22 @@ export default function SchemaPropertyEditor({ properties, onChange, readOnly = 
         <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
           {/* Title showing which column is being edited */}
           {editingIndex !== null ? (
-            <div className="flex items-center gap-2 pb-2 border-b mb-2">
-              <Edit className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold">Editing Column: <span className="font-mono text-primary">{name || properties[editingIndex]?.name}</span></h3>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 pb-2 border-b mb-2">
+                <Edit className="h-5 w-5 text-primary" />
+                <h3 className="text-lg font-semibold">{t('schemaEditor.editingColumn')}: <span className="font-mono text-primary">{name || properties[editingIndex]?.name}</span></h3>
+                {isDirty && (
+                  <Badge variant="secondary" className="text-xs font-normal">{t('schemaEditor.unsavedChanges')}</Badge>
+                )}
+              </div>
+              {isDirty && (
+                <p className="text-xs text-muted-foreground">{t('schemaEditor.applyWithUpdateOrSave')}</p>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-2 pb-2 border-b mb-2">
               <Plus className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-semibold">Adding New Column</h3>
+              <h3 className="text-lg font-semibold">{t('schemaEditor.addingNewColumn')}</h3>
             </div>
           )}
           
@@ -861,22 +946,28 @@ export default function SchemaPropertyEditor({ properties, onChange, readOnly = 
           </Tabs>
 
           <div className="flex gap-2 pt-2">
-            <Button type="button" size="sm" onClick={handleAddOrUpdate} className="h-8">
+            <Button
+              type="button"
+              size="sm"
+              variant={editingIndex !== null && isDirty ? 'default' : 'outline'}
+              onClick={handleAddOrUpdate}
+              className="h-8"
+            >
               {editingIndex !== null ? (
                 <>
                   <Edit className="h-3.5 w-3.5 mr-1.5" />
-                  Update Column
+                  {t('schemaEditor.updateColumn')}
                 </>
               ) : (
                 <>
                   <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  Add Column
+                  {t('schemaEditor.addColumn')}
                 </>
               )}
             </Button>
             {editingIndex !== null && (
               <Button type="button" size="sm" variant="outline" onClick={resetForm} className="h-8">
-                Cancel
+                {t('schemaEditor.cancel')}
               </Button>
             )}
           </div>
@@ -1021,3 +1112,5 @@ export default function SchemaPropertyEditor({ properties, onChange, readOnly = 
     </div>
   )
 }
+
+export default forwardRef(SchemaPropertyEditorInner)

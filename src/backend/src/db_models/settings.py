@@ -10,6 +10,7 @@ from src.common.database import Base
 NO_ROLE_SENTINEL = '__NO_ROLE__'
 
 class AppRoleDb(Base):
+    """App role: name, assigned groups, feature permissions, home sections, approval privileges; used for RBAC (SettingsManager, AuthorizationManager)."""
     __tablename__ = 'app_roles'
 
     # Use UUID for primary key, store as string

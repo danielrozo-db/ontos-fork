@@ -19,6 +19,7 @@ class CommentType(enum.Enum):
 
 
 class CommentDb(Base):
+    """Comments and star ratings on entities (data_domain, data_product, data_contract, etc.) with optional audience and project scope."""
     __tablename__ = "comments"
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

@@ -6,6 +6,7 @@ from src.common.database import Base
 
 
 class SemanticModelDb(Base):
+    """Business glossary / semantic model: RDFS or SKOS content stored as text; used by SemanticModelsManager for ontology and taxonomy storage."""
     __tablename__ = "semantic_models"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

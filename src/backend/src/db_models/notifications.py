@@ -8,6 +8,7 @@ from src.common.database import Base
 from src.models.notifications import NotificationType # Import the Pydantic enum
 
 class NotificationDb(Base):
+    """In-app notifications: type, title, message, recipient (email or role), read flag; used for job progress, review requests, and alerts (NotificationsManager)."""
     __tablename__ = 'notifications'
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))

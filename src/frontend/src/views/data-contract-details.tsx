@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
@@ -259,7 +259,7 @@ export default function DataContractDetails() {
   const [propertyAuthDefs, setPropertyAuthDefs] = useState<Record<string, AuthoritativeDefinition[]>>({})
   const [editingPropertyAuthDef, setEditingPropertyAuthDef] = useState<{ schemaId: string; propertyId: string; index: number } | null>(null)
   const [isPropertyAuthDefFormOpen, setIsPropertyAuthDefFormOpen] = useState(false)
-  const [activePropertyForAuthDef, setActivePropertyForAuthDef] = useState<{ schemaId: string; propertyId: string } | null>(null)
+  const [_activePropertyForAuthDef, _setActivePropertyForAuthDef] = useState<{ schemaId: string; propertyId: string } | null>(null)
 
   // Dialog states for CRUD operations
   const [isDatasetLookupOpen, setIsDatasetLookupOpen] = useState(false)
@@ -822,6 +822,29 @@ export default function DataContractDetails() {
     setEditingSchemaIndex(null)
   }
 
+  // Enrich schema with property-level semantic links from propertyLinks so the Edit Schema dialog loads them
+  const schemaFormInitial = useMemo(() => {
+    if (editingSchemaIndex === null || !contract?.schema?.[editingSchemaIndex]) return undefined
+    const baseSchema = contract.schema[editingSchemaIndex]
+    const SEMANTIC_ASSIGNMENT_TYPE = 'http://databricks.com/ontology/uc/semanticAssignment'
+    const enrichedProperties = (baseSchema.properties || []).map((prop: any) => {
+      const propertyKey = `${baseSchema.name}#${prop.name}`
+      const links: EntitySemanticLink[] = propertyLinks[propertyKey] || []
+      const authoritativeDefinitions = links.length > 0
+        ? links.map(l => ({ url: l.iri, type: SEMANTIC_ASSIGNMENT_TYPE }))
+        : (prop.authoritativeDefinitions || [])
+      const semanticConcepts = links.length > 0
+        ? links.map(l => ({ iri: l.iri, label: l.label }))
+        : ((prop as any).semanticConcepts || (prop.authoritativeDefinitions || []).map((d: { url: string }) => ({ iri: d.url })))
+      return {
+        ...prop,
+        authoritativeDefinitions: authoritativeDefinitions.length > 0 ? authoritativeDefinitions : undefined,
+        semanticConcepts: semanticConcepts.length > 0 ? semanticConcepts : undefined,
+      }
+    })
+    return { ...baseSchema, properties: enrichedProperties }
+  }, [contract, editingSchemaIndex, propertyLinks])
+
   const handleDeleteSchema = async (index: number) => {
     if (!contract) return
     if (!confirm('Delete this schema?')) return
@@ -1063,8 +1086,8 @@ export default function DataContractDetails() {
   }
 
   const handleAddPropertyAuthDef = async (definition: { url: string; type: string }) => {
-    if (!contractId || !activePropertyForAuthDef) return
-    const { schemaId, propertyId } = activePropertyForAuthDef
+    if (!contractId || !_activePropertyForAuthDef) return
+    const { schemaId, propertyId } = _activePropertyForAuthDef
     try {
       const res = await fetch(`/api/data-contracts/${contractId}/schemas/${encodeURIComponent(schemaId)}/properties/${encodeURIComponent(propertyId)}/authoritative-definitions`, {
         method: 'POST',
@@ -1102,33 +1125,35 @@ export default function DataContractDetails() {
     }
   }
 
-  const handleDeletePropertyAuthDef = async (schemaId: string, propertyId: string, index: number) => {
-    if (!contractId) return
-    if (!confirm('Delete this property authoritative definition?')) return
-    const defs = propertyAuthDefs[propertyId] || []
-    const defId = defs[index]?.id
-    if (!defId) return
-    try {
-      const res = await fetch(`/api/data-contracts/${contractId}/schemas/${encodeURIComponent(schemaId)}/properties/${encodeURIComponent(propertyId)}/authoritative-definitions/${defId}`, {
-        method: 'DELETE'
-      })
-      if (!res.ok) throw new Error('Failed to delete property authoritative definition')
-      await fetchPropertyAuthDefs(schemaId, propertyId)
-      toast({ title: 'Deleted', description: 'Property authoritative definition deleted successfully.' })
-    } catch (e) {
-      toast({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to delete', variant: 'destructive' })
-    }
-  }
+  // Available for future use - commented out to prevent unused variable errors
+  // const handleDeletePropertyAuthDef = async (schemaId: string, propertyId: string, index: number) => {
+  //   if (!contractId) return
+  //   if (!confirm('Delete this property authoritative definition?')) return
+  //   const defs = propertyAuthDefs[propertyId] || []
+  //   const defId = defs[index]?.id
+  //   if (!defId) return
+  //   try {
+  //     const res = await fetch(`/api/data-contracts/${contractId}/schemas/${encodeURIComponent(schemaId)}/properties/${encodeURIComponent(propertyId)}/authoritative-definitions/${defId}`, {
+  //       method: 'DELETE'
+  //     })
+  //     if (!res.ok) throw new Error('Failed to delete property authoritative definition')
+  //     await fetchPropertyAuthDefs(schemaId, propertyId)
+  //     toast({ title: 'Deleted', description: 'Property authoritative definition deleted successfully.' })
+  //   } catch (e) {
+  //     toast({ title: 'Error', description: e instanceof Error ? e.message : 'Failed to delete', variant: 'destructive' })
+  //   }
+  // }
 
-  const handleManagePropertyAuthDefs = (schemaId: string, propertyId: string, propertyName: string) => {
-    // Fetch property auth defs if not already loaded
-    if (!propertyAuthDefs[propertyId]) {
-      fetchPropertyAuthDefs(schemaId, propertyId)
-    }
-    setActivePropertyForAuthDef({ schemaId, propertyId })
-    setEditingPropertyAuthDef(null)
-    setIsPropertyAuthDefFormOpen(true)
-  }
+  // Available for future use - commented out to prevent unused variable errors
+  // const handleManagePropertyAuthDefs = (schemaId: string, propertyName: string, propertyId: string) => {
+  //   // Fetch property auth defs if not already loaded
+  //   if (!propertyAuthDefs[propertyId]) {
+  //     fetchPropertyAuthDefs(schemaId, propertyId)
+  //   }
+  //   setActivePropertyForAuthDef({ schemaId, propertyId })
+  //   setEditingPropertyAuthDef(null)
+  //   setIsPropertyAuthDefFormOpen(true)
+  // }
 
   // Helper to update contract (read-modify-write pattern)
   const updateContract = async (updates: Partial<any>, showToast: boolean = true, forceUpdate: boolean = false) => {
@@ -1251,7 +1276,7 @@ export default function DataContractDetails() {
   }
 
   // Handler for inferring schema from a Dataset Instance
-  const handleInferFromDatasetInstance = async (instance: { physical_path: string }, dataset: { name: string }) => {
+  const handleInferFromDatasetInstance = async (instance: { physical_path: string }, _dataset: { name: string }) => {
     // Reuse the same logic as handleInferFromDataset using the instance's physical_path
     await handleInferFromDataset({ full_name: instance.physical_path })
     setIsDatasetInstanceLookupOpen(false)
@@ -1854,11 +1879,11 @@ export default function DataContractDetails() {
                   <div className="flex gap-2">
                     {contract.schema[0].physicalName && (
                       <a
-                        href={`/catalog-explorer?table=${encodeURIComponent(contract.schema[0].physicalName)}`}
+                        href={`/catalog-commander?table=${encodeURIComponent(contract.schema[0].physicalName)}`}
                         className="flex items-center gap-1.5 text-sm text-primary hover:underline"
                         target="_blank"
                         rel="noopener noreferrer"
-                        title={`Open ${contract.schema[0].physicalName} in Catalog Explorer`}
+                        title={`Open ${contract.schema[0].physicalName} in Catalog Commander`}
                       >
                         <Database className="h-4 w-4" />
                         {contract.schema[0].physicalName}
@@ -1995,11 +2020,11 @@ export default function DataContractDetails() {
                     <div className="flex gap-2">
                       {contract.schema[selectedSchemaIndex]?.physicalName && (
                         <a
-                          href={`/catalog-explorer?table=${encodeURIComponent(contract.schema[selectedSchemaIndex].physicalName)}`}
+                          href={`/catalog-commander?table=${encodeURIComponent(contract.schema[selectedSchemaIndex].physicalName)}`}
                           className="flex items-center gap-1.5 text-sm text-primary hover:underline"
                           target="_blank"
                           rel="noopener noreferrer"
-                          title={`Open ${contract.schema[selectedSchemaIndex].physicalName} in Catalog Explorer`}
+                          title={`Open ${contract.schema[selectedSchemaIndex].physicalName} in Catalog Commander`}
                         >
                           <Database className="h-4 w-4" />
                           {contract.schema[selectedSchemaIndex].physicalName}
@@ -2142,11 +2167,11 @@ export default function DataContractDetails() {
                     <div className="flex gap-2">
                       {contract.schema[selectedSchemaIndex]?.physicalName && (
                         <a
-                          href={`/catalog-explorer?table=${encodeURIComponent(contract.schema[selectedSchemaIndex].physicalName)}`}
+                          href={`/catalog-commander?table=${encodeURIComponent(contract.schema[selectedSchemaIndex].physicalName)}`}
                           className="flex items-center gap-1.5 text-sm text-primary hover:underline"
                           target="_blank"
                           rel="noopener noreferrer"
-                          title={`Open ${contract.schema[selectedSchemaIndex].physicalName} in Catalog Explorer`}
+                          title={`Open ${contract.schema[selectedSchemaIndex].physicalName} in Catalog Commander`}
                         >
                           <Database className="h-4 w-4" />
                           {contract.schema[selectedSchemaIndex].physicalName}
@@ -2876,7 +2901,7 @@ export default function DataContractDetails() {
       <SchemaFormDialog
         isOpen={isSchemaFormOpen}
         onOpenChange={setIsSchemaFormOpen}
-        initial={editingSchemaIndex !== null ? contract.schema?.[editingSchemaIndex] : undefined}
+        initial={schemaFormInitial}
         onSubmit={editingSchemaIndex !== null ? handleUpdateSchema : handleAddSchema}
       />
 
@@ -3006,7 +3031,7 @@ export default function DataContractDetails() {
       <AuthoritativeDefinitionFormDialog
         isOpen={isPropertyAuthDefFormOpen}
         onOpenChange={setIsPropertyAuthDefFormOpen}
-        initial={editingPropertyAuthDef !== null && activePropertyForAuthDef ? propertyAuthDefs[editingPropertyAuthDef.propertyId]?.[editingPropertyAuthDef.index] : undefined}
+        initial={editingPropertyAuthDef !== null && _activePropertyForAuthDef ? propertyAuthDefs[editingPropertyAuthDef.propertyId]?.[editingPropertyAuthDef.index] : undefined}
         onSubmit={editingPropertyAuthDef !== null ? handleUpdatePropertyAuthDef : handleAddPropertyAuthDef}
         level="property"
       />

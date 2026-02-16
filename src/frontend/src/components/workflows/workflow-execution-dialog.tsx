@@ -14,7 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
   Play,
-  Code,
+  // Code - unused
   CheckCircle,
   XCircle,
   Zap,
@@ -27,7 +27,7 @@ import {
 import type {
   WorkflowExecution,
   ProcessWorkflow,
-  WorkflowStep,
+  // WorkflowStep, // Available for future graph-based visualization
   ExecutionStatus,
 } from '@/types/process-workflow';
 import { 
@@ -72,50 +72,11 @@ function getStepExecutionState(
   return 'pending';
 }
 
-// Custom node component for execution view
-interface ExecutionStepNodeProps {
-  data: {
-    step: WorkflowStep;
-    state: StepExecutionState;
-  };
-}
-
-function ExecutionStepNode({ data }: { data: ExecutionStepNodeProps['data'] }) {
-  const { step, state } = data;
-  const Icon = getStepIcon(step.step_type);
-  const color = getStepColor(step.step_type);
-  
-  const stateStyles: Record<StepExecutionState, string> = {
-    pending: 'opacity-50',
-    running: 'ring-2 ring-blue-500 animate-pulse',
-    succeeded: 'ring-2 ring-emerald-500 bg-emerald-50 dark:bg-emerald-950/20',
-    failed: 'ring-2 ring-red-500 bg-red-50 dark:bg-red-950/20',
-    skipped: 'opacity-30',
-    current: 'ring-4 ring-amber-500 bg-amber-50 dark:bg-amber-950/30 animate-pulse',
-  };
-  
-  const stateIcons: Record<StepExecutionState, React.ReactNode> = {
-    pending: <Clock className="h-3 w-3 text-muted-foreground" />,
-    running: <Play className="h-3 w-3 text-blue-500" />,
-    succeeded: <CheckCircle className="h-3 w-3 text-emerald-500" />,
-    failed: <XCircle className="h-3 w-3 text-red-500" />,
-    skipped: <Clock className="h-3 w-3 text-muted-foreground" />,
-    current: <Pause className="h-3 w-3 text-amber-500" />,
-  };
-  
-  return (
-    <div className={`px-4 py-3 rounded-lg border-2 bg-card min-w-[160px] ${stateStyles[state]} border-${color}-500`}>
-      <div className="flex items-center gap-2 mb-1">
-        <Icon className={`h-4 w-4 text-${color}-500`} />
-        <span className="font-medium text-sm truncate">{step.name}</span>
-        {stateIcons[state]}
-      </div>
-      <div className="text-xs text-muted-foreground capitalize">
-        {step.step_type.replace('_', ' ')}
-      </div>
-    </div>
-  );
-}
+// Custom node component for execution view (kept for future graph-based visualization)
+// interface ExecutionStepNodeProps {
+//   data: { step: WorkflowStep; state: StepExecutionState; };
+// }
+// function ExecutionStepNode({ data }: { data: ExecutionStepNodeProps['data'] }) { ... }
 
 // Simple vertical flow layout
 function SimpleWorkflowFlow({
@@ -135,10 +96,8 @@ function SimpleWorkflowFlow({
     );
   }
   
-  // Build execution path - which steps were actually executed
-  const executedStepIds = new Set(
-    execution.step_executions?.map(se => se.step_id) || []
-  );
+  // Build execution path - which steps were actually executed (for future use)
+  // const executedStepIds = new Set(execution.step_executions?.map(se => se.step_id) || []);
   
   return (
     <div className="space-y-4 p-4">
@@ -221,7 +180,7 @@ export function WorkflowExecutionDialog({
   open,
   onOpenChange,
 }: WorkflowExecutionDialogProps) {
-  const { t } = useTranslation(['common']);
+  const { t: _t } = useTranslation(['common']);
   const { get } = useApi();
   const [workflow, setWorkflow] = useState<ProcessWorkflow | null>(null);
   const [loading, setLoading] = useState(false);
@@ -253,6 +212,7 @@ export function WorkflowExecutionDialog({
     paused: { variant: 'outline', className: 'border-amber-500 text-amber-600' },
     succeeded: { variant: 'default', className: 'bg-emerald-500' },
     failed: { variant: 'destructive', className: '' },
+    cancelled: { variant: 'outline', className: 'border-gray-500 text-gray-600' },
   };
   
   const statusConfig = statusBadges[execution.status] || statusBadges.pending;

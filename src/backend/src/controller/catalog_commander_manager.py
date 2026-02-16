@@ -561,6 +561,47 @@ class CatalogCommanderManager:
                 'properties': getattr(tbl, 'properties', {}),
             }
 
+    def list_columns(self, catalog_name: str, schema_name: str, object_name: str) -> List[Dict[str, Any]]:
+        """List columns for a table or view in Unity Catalog.
+
+        Args:
+            catalog_name: Name of the catalog
+            schema_name: Name of the schema
+            object_name: Name of the table or view
+
+        Returns:
+            List of column info dicts with name, type, comment (optional)
+        """
+        try:
+            tbl = None
+            try:
+                get_method = getattr(self.client.tables, 'get', None)
+                if callable(get_method):
+                    tbl = get_method(catalog_name=catalog_name, schema_name=schema_name, name=object_name)
+                else:
+                    raise AttributeError('tables.get not available')
+            except Exception:
+                path = f"/api/2.1/unity-catalog/tables/{quote(f'{catalog_name}.{schema_name}.{object_name}', safe='')}"
+                tbl = self.client.api_client.do('GET', path)
+
+            schema = self._extract_schema(tbl)
+            # Return a simple list for the columns API: id = catalog.schema.table.columnName
+            result = []
+            for col in schema:
+                col_name = col.get('name')
+                if col_name:
+                    result.append({
+                        'id': f"{catalog_name}.{schema_name}.{object_name}.{col_name}",
+                        'name': col_name,
+                        'type': col.get('type') or col.get('physicalType') or 'string',
+                        'comment': col.get('comment'),
+                    })
+            logger.debug(f"Retrieved {len(result)} columns for {catalog_name}.{schema_name}.{object_name}")
+            return result
+        except Exception as e:
+            logger.error(f"Error listing columns for {catalog_name}.{schema_name}.{object_name}: {e!s}", exc_info=True)
+            raise
+
     def _extract_schema(self, tbl: Any) -> List[Dict[str, Any]]:
         """Extract column schema information from a table object or dict."""
         schema: List[Dict[str, Any]] = []

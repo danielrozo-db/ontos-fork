@@ -28,24 +28,73 @@ class SemanticLinksManager:
                     {"entity_id": entity_id}
                 ).fetchone()
                 return result[0] if result else None
-            
+
             elif entity_type == "data_product":
                 result = self._db.execute(
                     text("SELECT title FROM data_product_info WHERE data_product_id = :entity_id"),
                     {"entity_id": entity_id}
                 ).fetchone()
                 return result[0] if result else None
-                
+
             elif entity_type == "data_contract":
                 result = self._db.execute(
                     text("SELECT name FROM data_contracts WHERE id = :entity_id"),
                     {"entity_id": entity_id}
                 ).fetchone()
                 return result[0] if result else None
-                
+
+            elif entity_type == "dataset":
+                result = self._db.execute(
+                    text("SELECT name FROM datasets WHERE id = :entity_id"),
+                    {"entity_id": entity_id}
+                ).fetchone()
+                return result[0] if result else None
+
+            elif entity_type == "uc_catalog":
+                # entity_id is catalog name; use as display name
+                return entity_id
+
+            elif entity_type == "uc_schema":
+                # entity_id is catalog.schema; use as display name
+                return entity_id
+
+            elif entity_type == "uc_table":
+                # entity_id is catalog.schema.table; use as display name
+                return entity_id
+
+            elif entity_type == "uc_column":
+                # entity_id is catalog.schema.table.column; use as display name
+                return entity_id
+
+            elif entity_type == "data_contract_schema":
+                # entity_id is contractId#schemaName
+                parts = entity_id.split("#", 1)
+                if len(parts) >= 2:
+                    contract_id, schema_name = parts[0], parts[1]
+                    result = self._db.execute(
+                        text("SELECT name FROM data_contracts WHERE id = :cid"),
+                        {"cid": contract_id}
+                    ).fetchone()
+                    contract_name = result[0] if result else contract_id
+                    return f"{contract_name}#{schema_name}"
+                return entity_id
+
+            elif entity_type == "data_contract_property":
+                # entity_id is contractId#schemaName#propertyName
+                parts = entity_id.split("#", 2)
+                if len(parts) >= 3:
+                    contract_id, schema_name, property_name = parts[0], parts[1], parts[2]
+                    result = self._db.execute(
+                        text("SELECT name FROM data_contracts WHERE id = :cid"),
+                        {"cid": contract_id}
+                    ).fetchone()
+                    contract_name = result[0] if result else contract_id
+                    return f"{contract_name}#{schema_name}.{property_name}"
+                return entity_id
+
         except Exception as e:
             logger.warning(f"Failed to resolve entity name for {entity_type}:{entity_id}: {e}")
-        
+
         return None
 
     def _to_api(self, db_obj: EntitySemanticLinkDb) -> EntitySemanticLink:

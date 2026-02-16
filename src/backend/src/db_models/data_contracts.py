@@ -16,6 +16,7 @@ from src.common.database import Base
 
 
 class DataContractDb(Base):
+    """ODCS-style data contract: version, status, schema objects, servers, roles, SLA; used by DataContractsManager and linked to datasets/output ports."""
     __tablename__ = "data_contracts"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
@@ -76,6 +77,7 @@ class DataContractDb(Base):
 
 
 class DataContractTagDb(Base):
+    """Tag name on a data contract (unique per contract_id, name)."""
     __tablename__ = "data_contract_tags"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     contract_id = Column(String, ForeignKey("data_contracts.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -85,6 +87,7 @@ class DataContractTagDb(Base):
 
 
 class DataContractServerDb(Base):
+    """Server/environment entry for a contract: type, environment; used by dataset instances and deployment targets."""
     __tablename__ = "data_contract_servers"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     contract_id = Column(String, ForeignKey("data_contracts.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -97,6 +100,7 @@ class DataContractServerDb(Base):
 
 
 class DataContractServerPropertyDb(Base):
+    """Key/value properties for a contract server (e.g. connection details)."""
     __tablename__ = "data_contract_server_properties"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     server_id = Column(String, ForeignKey("data_contract_servers.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -106,6 +110,7 @@ class DataContractServerPropertyDb(Base):
 
 
 class DataContractRoleDb(Base):
+    """Access role definition on a contract: role name, access, approvers; used for contract-level access control."""
     __tablename__ = "data_contract_roles"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     contract_id = Column(String, ForeignKey("data_contracts.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -119,6 +124,7 @@ class DataContractRoleDb(Base):
 
 
 class DataContractRolePropertyDb(Base):
+    """Custom key/value properties for a contract role."""
     __tablename__ = "data_contract_role_properties"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     role_id = Column(String, ForeignKey("data_contract_roles.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -128,6 +134,7 @@ class DataContractRolePropertyDb(Base):
 
 
 class DataContractTeamDb(Base):
+    """Team member on a contract: username, role, date_in/out; contract-level team assignment."""
     __tablename__ = "data_contract_team"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     contract_id = Column(String, ForeignKey("data_contracts.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -141,6 +148,7 @@ class DataContractTeamDb(Base):
 
 
 class DataContractSupportDb(Base):
+    """Support channel for a contract: channel, url, tool, scope (e.g. slack, email)."""
     __tablename__ = "data_contract_support"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     contract_id = Column(String, ForeignKey("data_contracts.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -154,6 +162,7 @@ class DataContractSupportDb(Base):
 
 
 class DataContractPricingDb(Base):
+    """Pricing info for a contract: amount, currency, unit (ODCS pricing)."""
     __tablename__ = "data_contract_pricing"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     contract_id = Column(String, ForeignKey("data_contracts.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -174,6 +183,7 @@ class DataContractAuthoritativeDefinitionDb(Base):
 
 
 class DataContractCustomPropertyDb(Base):
+    """Custom key/value property on a data contract."""
     __tablename__ = "data_contract_custom_properties"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     contract_id = Column(String, ForeignKey("data_contracts.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -183,6 +193,7 @@ class DataContractCustomPropertyDb(Base):
 
 
 class DataContractSlaPropertyDb(Base):
+    """SLA property on a contract: property, value, unit, element, driver (ODCS SLA)."""
     __tablename__ = "data_contract_sla_properties"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     contract_id = Column(String, ForeignKey("data_contracts.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -196,6 +207,7 @@ class DataContractSlaPropertyDb(Base):
 
 
 class SchemaObjectDb(Base):
+    """Schema object (table/view) in a contract: name, logical/physical type, granularity; has properties and quality checks."""
     __tablename__ = "data_contract_schema_objects"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     contract_id = Column(String, ForeignKey("data_contracts.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -218,6 +230,7 @@ class SchemaObjectDb(Base):
 
 
 class SchemaPropertyDb(Base):
+    """Column/property of a schema object: name, types, required, unique, PK, partition, transform, examples; hierarchical via parent_property_id."""
     __tablename__ = "data_contract_schema_properties"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     object_id = Column(String, ForeignKey("data_contract_schema_objects.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -363,6 +376,7 @@ class SuggestedQualityCheckDb(Base):
 
 
 class DataContractCommentDb(Base):
+    """Comment on a data contract: author, message, created_at; used in contract discussion/feedback."""
     __tablename__ = "data_contract_comments"
     id = Column(String, primary_key=True, default=lambda: str(uuid4()))
     contract_id = Column(String, ForeignKey("data_contracts.id", ondelete="CASCADE"), nullable=False, index=True)

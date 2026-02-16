@@ -6,7 +6,8 @@
     "indexSearch": "Index Search",
     "conceptGraph": "Concept Graph",
     "knowledgeGraph": "Knowledge Graph",
-    "concepts": "Concepts"
+    "concepts": "Concepts",
+    "properties": "Properties"
   },
   "noResults": "No results found",
   "noResultsHint": "Try adjusting your search terms or filters",
@@ -74,6 +75,10 @@
     "noRelatedProperties": "No related properties found.",
     "linkedCatalogObjects": "Linked Catalog Objects",
     "noCatalogObjects": "No catalog objects assigned.",
+    "linkedUCTable": "UC Table",
+    "linkedUCColumn": "UC Column",
+    "linkedUCCatalog": "UC Catalog",
+    "linkedUCSchema": "UC Schema",
     "assignToConcept": "Assign to Concept",
     "assignDialog": {
       "title": "Assign Object to Concept",
@@ -82,6 +87,16 @@
       "dataProduct": "Data Product",
       "dataContract": "Data Contract",
       "dataDomain": "Data Domain",
+      "dataset": "Dataset",
+      "ucCatalog": "UC Catalog",
+      "ucSchema": "UC Schema",
+      "ucTable": "UC Table",
+      "browseUCCatalog": "Browse UC Catalog...",
+      "browseUCSchema": "Browse UC Schema...",
+      "browseUCTable": "Browse UC Table...",
+      "ucCatalogTitle": "Select UC Catalog",
+      "ucSchemaTitle": "Select UC Schema",
+      "ucTableTitle": "Select UC Table",
       "selectEntity": "Select {{entityType}}..."
     },
     "messages": {
@@ -89,6 +104,36 @@
       "assignError": "Please select both an entity type and specific entity.",
       "assignFailed": "Failed to assign concept to object.",
       "navigationError": "Cannot navigate to {{entityType}}"
+    }
+  },
+  "properties": {
+    "searchAndSelect": "Search and select a property:",
+    "searchPlaceholder": "Type to search by name, label, or IRI...",
+    "clear": "Clear",
+    "domainRange": "Domain / Range",
+    "linkedCatalogObjects": "Linked Catalog Objects",
+    "noCatalogObjects": "No catalog objects assigned.",
+    "assignToProperty": "Assign to Property",
+    "assignDialog": {
+      "title": "Assign Object to Property",
+      "targetType": "Target Type",
+      "selectTargetType": "Select target type...",
+      "dataContractProperty": "Data Contract Property",
+      "ucTable": "UC Table",
+      "ucColumn": "UC Column",
+      "contract": "Contract",
+      "selectContract": "Select contract...",
+      "schema": "Schema",
+      "selectSchema": "Select schema...",
+      "property": "Property",
+      "selectProperty": "Select property...",
+      "browseUCColumn": "Browse UC table and select column...",
+      "ucColumnTitle": "Select UC Column"
+    },
+    "messages": {
+      "selectPropertyTarget": "Please select a contract, schema, and property.",
+      "linkedSuccess": "Property linked successfully.",
+      "assignFailed": "Failed to assign property to object."
     }
   },
   "llm": {

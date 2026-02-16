@@ -1,5 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { TreeView } from '@/components/ui/tree-view';
 import {
   Folder,
@@ -16,7 +17,7 @@ import {
   Loader2,
   MessageSquare,
   PanelRightClose,
-  PanelRightOpen,
+  // PanelRightOpen - unused
   Copy,
   GitCompare,
   RefreshCw,
@@ -30,7 +31,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+// Tabs imports commented out - not currently used
+// import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { usePermissions } from '@/stores/permissions-store';
@@ -90,6 +92,8 @@ type RightPanelMode = 'hidden' | 'ask' | 'dual-tree' | 'info' | 'comments';
 
 const CatalogCommander: React.FC = () => {
   const { t } = useTranslation(['catalog-commander', 'common']);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const deepLinkProcessedRef = useRef(false);
   const [searchInput, setSearchInput] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<CatalogItem[]>([]);
@@ -300,6 +304,77 @@ const CatalogCommander: React.FC = () => {
     const forceRefresh = event.shiftKey;
     fetchCatalogs(forceRefresh);
   };
+
+  // Navigate to a specific table via deep-link (e.g., ?table=catalog.schema.table)
+  const navigateToTable = useCallback(async (tablePath: string) => {
+    const parts = tablePath.split('.');
+    if (parts.length < 3) {
+      console.warn('Invalid table path for deep-link:', tablePath);
+      return;
+    }
+
+    const catalogName = parts[0];
+    const schemaName = parts[1];
+    const tableName = parts.slice(2).join('.'); // Handle table names with dots
+    const schemaId = `${catalogName}.${schemaName}`;
+    const tableId = tablePath;
+
+    try {
+      // Step 1: Expand catalog to fetch schemas
+      const schemas = await fetchChildren(catalogName, 'catalog');
+      setSourceItems(prev => updateNodeChildren(prev, catalogName, schemas));
+      setExpandedNodes(prev => new Set(prev).add(catalogName));
+
+      // Step 2: Expand schema to fetch tables
+      const tables = await fetchChildren(schemaId, 'schema');
+      setSourceItems(prev => updateNodeChildren(prev, schemaId, tables));
+      setExpandedNodes(prev => new Set(prev).add(schemaId));
+
+      // Step 3: Find and select the table
+      const targetTable = tables.find(t => t.id === tableId || t.name === tableName);
+      if (targetTable) {
+        setSelectedItems([targetTable]);
+        setSelectedObjectInfo({ id: targetTable.id });
+        setRightPanelMode('info');
+        
+        // Scroll to the selected table after a brief delay for DOM to update
+        setTimeout(() => {
+          const element = document.querySelector(`[data-node-id="${targetTable.id}"]`);
+          element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      } else {
+        console.warn('Table not found:', tableId);
+        toast({
+          title: t('common:error'),
+          description: `Table "${tableName}" not found in ${schemaId}`,
+          variant: 'destructive',
+        });
+      }
+
+      // Clear the table param from URL after navigation
+      setSearchParams(prev => {
+        const newParams = new URLSearchParams(prev);
+        newParams.delete('table');
+        return newParams;
+      }, { replace: true });
+    } catch (err) {
+      console.error('Error navigating to table:', err);
+      toast({
+        title: t('common:error'),
+        description: `Failed to navigate to ${tablePath}`,
+        variant: 'destructive',
+      });
+    }
+  }, [fetchChildren, updateNodeChildren, setSearchParams, toast, t]);
+
+  // Handle deep-link navigation after catalogs are loaded
+  useEffect(() => {
+    const tableParam = searchParams.get('table');
+    if (tableParam && !isLoading && sourceItems.length > 0 && !deepLinkProcessedRef.current) {
+      deepLinkProcessedRef.current = true;
+      navigateToTable(tableParam);
+    }
+  }, [searchParams, isLoading, sourceItems, navigateToTable]);
 
   // Handle Ask Ontos chat with catalog context
   const handleAskSend = async () => {

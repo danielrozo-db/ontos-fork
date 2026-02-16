@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
-import SchemaPropertyEditor from './schema-property-editor'
+import { useTranslation } from 'react-i18next'
+import SchemaPropertyEditor, { type SchemaPropertyEditorHandle } from './schema-property-editor'
 import BusinessConceptsDisplay from '@/components/business-concepts/business-concepts-display'
 import type { SchemaObject, ColumnProperty } from '@/types/data-contract'
 
@@ -21,7 +22,9 @@ const PHYSICAL_TYPES = ['table', 'view', 'materialized_view', 'external_table', 
 
 export default function SchemaFormDialog({ isOpen, onOpenChange, onSubmit, initial }: SchemaFormProps) {
   const { toast } = useToast()
+  const { t } = useTranslation(['data-contracts', 'common'])
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const propertyEditorRef = useRef<SchemaPropertyEditorHandle | null>(null)
 
   // Schema-level fields
   const [name, setName] = useState('')
@@ -83,7 +86,8 @@ export default function SchemaFormDialog({ isOpen, onOpenChange, onSubmit, initi
       return
     }
 
-    if (properties.length === 0) {
+    const propsToUse = propertyEditorRef.current?.getPropertiesForSubmit?.() ?? properties
+    if (propsToUse.length === 0) {
       toast({ title: 'Validation Error', description: 'At least one column is required', variant: 'destructive' })
       return
     }
@@ -97,7 +101,7 @@ export default function SchemaFormDialog({ isOpen, onOpenChange, onSubmit, initi
         businessName: businessName.trim() || undefined,
         physicalType: physicalType || undefined,
         dataGranularityDescription: dataGranularityDescription.trim() || undefined,
-        properties,
+        properties: propsToUse,
         authoritativeDefinitions: schemaSemanticConcepts.length > 0 ? schemaSemanticConcepts.map(c => ({ url: c.iri, type: 'http://databricks.com/ontology/uc/semanticAssignment' })) : undefined,
         // @ts-ignore retain local concepts for further editing flows
         semanticConcepts: schemaSemanticConcepts.length > 0 ? schemaSemanticConcepts : undefined,
@@ -273,6 +277,7 @@ export default function SchemaFormDialog({ isOpen, onOpenChange, onSubmit, initi
             </h3>
 
             <SchemaPropertyEditor
+              ref={propertyEditorRef}
               properties={properties}
               onChange={setProperties}
             />
@@ -281,10 +286,10 @@ export default function SchemaFormDialog({ isOpen, onOpenChange, onSubmit, initi
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
-            Cancel
+            {t('data-contracts:schemaEditor.cancel')}
           </Button>
           <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : initial ? 'Save Changes' : 'Add Schema'}
+            {isSubmitting ? t('common:actions.saving') : initial ? t('common:actions.saveChanges') : t('data-contracts:schemaEditor.addSchema')}
           </Button>
         </DialogFooter>
       </DialogContent>

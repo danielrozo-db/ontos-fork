@@ -6,7 +6,8 @@
     "indexSearch": "Index-Suche",
     "conceptGraph": "Konzeptgraph",
     "knowledgeGraph": "Wissensgraph",
-    "concepts": "Konzepte"
+    "concepts": "Konzepte",
+    "properties": "Eigenschaften"
   },
   "noResults": "Keine Ergebnisse gefunden",
   "noResultsHint": "Versuchen Sie, Ihre Suchbegriffe oder Filter anzupassen",
@@ -74,6 +75,10 @@
     "noRelatedProperties": "Keine verwandten Eigenschaften gefunden.",
     "linkedCatalogObjects": "Verknüpfte Katalog-Objekte",
     "noCatalogObjects": "Keine Katalog-Objekte zugewiesen.",
+    "linkedUCTable": "UC-Tabelle",
+    "linkedUCColumn": "UC-Spalte",
+    "linkedUCCatalog": "UC-Katalog",
+    "linkedUCSchema": "UC-Schema",
     "assignToConcept": "Konzept zuweisen",
     "assignDialog": {
       "title": "Objekt einem Konzept zuweisen",
@@ -82,6 +87,16 @@
       "dataProduct": "Datenprodukt",
       "dataContract": "Datenvertrag",
       "dataDomain": "Datendomäne",
+      "dataset": "Datensatz",
+      "ucCatalog": "UC-Katalog",
+      "ucSchema": "UC-Schema",
+      "ucTable": "UC-Tabelle",
+      "browseUCCatalog": "UC-Katalog durchsuchen...",
+      "browseUCSchema": "UC-Schema durchsuchen...",
+      "browseUCTable": "UC-Tabelle durchsuchen...",
+      "ucCatalogTitle": "UC-Katalog auswählen",
+      "ucSchemaTitle": "UC-Schema auswählen",
+      "ucTableTitle": "UC-Tabelle auswählen",
       "selectEntity": "{{entityType}} auswählen..."
     },
     "messages": {
@@ -89,6 +104,36 @@
       "assignError": "Bitte wählen Sie sowohl einen Entitätstyp als auch eine spezifische Entität.",
       "assignFailed": "Konzept konnte nicht zugewiesen werden.",
       "navigationError": "Navigation zu {{entityType}} nicht möglich"
+    }
+  },
+  "properties": {
+    "searchAndSelect": "Suchen und wählen Sie eine Eigenschaft:",
+    "searchPlaceholder": "Tippen Sie, um nach Name, Label oder IRI zu suchen...",
+    "clear": "Löschen",
+    "domainRange": "Domain / Range",
+    "linkedCatalogObjects": "Verknüpfte Katalog-Objekte",
+    "noCatalogObjects": "Keine Katalog-Objekte zugewiesen.",
+    "assignToProperty": "Eigenschaft zuweisen",
+    "assignDialog": {
+      "title": "Objekt einer Eigenschaft zuweisen",
+      "targetType": "Zieltyp",
+      "selectTargetType": "Zieltyp auswählen...",
+      "dataContractProperty": "Datenvertrag-Eigenschaft",
+      "ucTable": "UC-Tabelle",
+      "ucColumn": "UC-Spalte",
+      "contract": "Vertrag",
+      "selectContract": "Vertrag auswählen...",
+      "schema": "Schema",
+      "selectSchema": "Schema auswählen...",
+      "property": "Eigenschaft",
+      "selectProperty": "Eigenschaft auswählen...",
+      "browseUCColumn": "UC-Tabelle durchsuchen und Spalte wählen...",
+      "ucColumnTitle": "UC-Spalte auswählen"
+    },
+    "messages": {
+      "selectPropertyTarget": "Bitte wählen Sie Vertrag, Schema und Eigenschaft.",
+      "linkedSuccess": "Eigenschaft erfolgreich verknüpft.",
+      "assignFailed": "Eigenschaft konnte nicht zugewiesen werden."
     }
   },
   "llm": {

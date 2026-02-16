@@ -537,6 +537,7 @@ class SemanticModelsManager:
                     
             except Exception as e:
                 logger.error(f"Failed to sync taxonomy {f.name}: {e}")
+                self._db.rollback()
 
     def _load_triples_from_db_to_graph(self) -> None:
         """Load all triples from the database into the in-memory graph.

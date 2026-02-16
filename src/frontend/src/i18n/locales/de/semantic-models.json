@@ -1,4 +1,7 @@
 {
+  "rebuildGraph": "Graph neu aufbauen",
+  "rebuildingGraph": "Wird neu aufgebaut...",
+  "rebuildGraphTooltip": "Ontologien, implizite Quellen und App-Objekte neu laden, damit alles abfragbar ist.",
   "title": "Business Glossar",
   "subtitle": "Verwalten Sie Geschäftsglossare und semantische Definitionen",
   "newModel": "Neues Glossar",

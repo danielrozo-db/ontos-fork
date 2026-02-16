@@ -231,11 +231,12 @@ export const TreeView = React.forwardRef<TreeViewHandle, TreeViewProps>(
       // Item is expanded if: in internal expanded set, OR parent says expanded AND not explicitly collapsed
       const isExpanded = expandedItems.has(item.id) || 
         (item.expanded && !collapsedItems.has(item.id));
-      const isSelected = selectedItemId === item.id;
+      const isSelected = selectedItemId === item.id || item.selected;
 
       return (
         <div key={item.id} className="space-y-1">
           <div
+            data-node-id={item.id}
             className={cn(
               "flex items-center justify-between p-2 hover:bg-muted rounded-md cursor-pointer",
               isSelected && "bg-muted"

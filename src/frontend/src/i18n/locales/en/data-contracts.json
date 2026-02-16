@@ -175,6 +175,16 @@
     "preview": "Preview",
     "validate": "Validate",
     "save": "Save"
+  },
+  "schemaEditor": {
+    "unsavedChanges": "Unsaved changes",
+    "editingColumn": "Editing Column",
+    "addingNewColumn": "Adding New Column",
+    "applyWithUpdateOrSave": "Apply with Update Column, or Save Changes to include them in the schema.",
+    "updateColumn": "Update Column",
+    "addColumn": "Add Column",
+    "addSchema": "Add Schema",
+    "cancel": "Cancel"
   }
 }
 

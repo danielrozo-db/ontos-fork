@@ -8,6 +8,13 @@ node_modules.bak/
 
 # local artifacts
 coverage/
+coverage.xml
+**/coverage.xml
+.coverage
+**/.coverage
+htmlcov/
+**/htmlcov/
+static/
 
 # misc
 .DS_Store

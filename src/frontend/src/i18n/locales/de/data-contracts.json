@@ -175,6 +175,16 @@
     "preview": "Vorschau",
     "validate": "Validieren",
     "save": "Speichern"
+  },
+  "schemaEditor": {
+    "unsavedChanges": "Nicht gespeicherte Änderungen",
+    "editingColumn": "Spalte bearbeiten",
+    "addingNewColumn": "Neue Spalte hinzufügen",
+    "applyWithUpdateOrSave": "Mit „Spalte aktualisieren“ übernehmen oder „Änderungen speichern“, um sie ins Schema aufzunehmen.",
+    "updateColumn": "Spalte aktualisieren",
+    "addColumn": "Spalte hinzufügen",
+    "addSchema": "Schema hinzufügen",
+    "cancel": "Abbrechen"
   }
 }
 

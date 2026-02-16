@@ -100,6 +100,21 @@ async def get_semantic_models(
         logger.error("Error retrieving semantic models", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to retrieve semantic models")
 
+
+@router.post('/semantic-models/refresh-graph')
+async def refresh_knowledge_graph(
+    manager: SemanticModelsManager = Depends(get_semantic_models_manager),
+    _: bool = Depends(PermissionChecker('semantic-models', FeatureAccessLevel.READ_WRITE))
+) -> dict:
+    """Force refresh the knowledge graph so all loaded ontologies, implicit sources, and app objects are present and queryable."""
+    try:
+        manager.rebuild_graph_from_enabled()
+        return {"message": "Knowledge graph refreshed successfully"}
+    except Exception as e:
+        logger.error("Error refreshing knowledge graph", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to refresh knowledge graph")
+
+
 @router.post('/semantic-models/upload')
 async def upload_semantic_model(
     request: Request,

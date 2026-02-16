@@ -7,7 +7,7 @@ from src.common.database import Base
 
 
 class TeamDb(Base):
-    """SQLAlchemy model for Teams"""
+    """Team: name, title, description, optional domain_id; used for ownership and membership (TeamsManager, role resolution)."""
     __tablename__ = 'teams'
 
     # Core Fields
@@ -38,7 +38,7 @@ class TeamDb(Base):
 
 
 class TeamMemberDb(Base):
-    """SQLAlchemy model for Team Members"""
+    """Team member: member_type (user/group), member_identifier, optional app_role_override; links users/groups to teams."""
     __tablename__ = 'team_members'
 
     # Core Fields

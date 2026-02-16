@@ -21,7 +21,7 @@ import { DataTable } from "@/components/ui/data-table"; // For table preview
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { RelativeDate } from '@/components/common/relative-date';
-import { PrismAsyncLight as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { PrismAsyncLight as SyntaxHighlighterBase } from 'react-syntax-highlighter';
 import sql from 'react-syntax-highlighter/dist/esm/languages/prism/sql';
 import python from 'react-syntax-highlighter/dist/esm/languages/prism/python';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -29,9 +29,12 @@ import ReactMarkdown from 'react-markdown';
 import LLMConsentDialog, { hasLLMConsent } from '@/components/common/llm-consent-dialog';
 import MdmMatchReview from '@/components/mdm/mdm-match-review';
 
-// Register languages
-SyntaxHighlighter.registerLanguage('sql', sql);
-SyntaxHighlighter.registerLanguage('python', python);
+// Register languages (using base import which has the static method)
+SyntaxHighlighterBase.registerLanguage('sql', sql);
+SyntaxHighlighterBase.registerLanguage('python', python);
+
+// Type workaround for react-syntax-highlighter compatibility with React 18
+const SyntaxHighlighter = SyntaxHighlighterBase as React.ComponentType<any>;
 
 interface AssetReviewEditorProps {
     requestId: string;

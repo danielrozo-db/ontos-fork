@@ -1,4 +1,7 @@
 {
+  "rebuildGraph": "Rebuild Graph",
+  "rebuildingGraph": "Rebuilding...",
+  "rebuildGraphTooltip": "Reload ontologies, implicit sources, and app objects so everything is queryable.",
   "title": "Business Glossary",
   "subtitle": "Manage business glossaries and semantic definitions",
   "newModel": "New Glossary",

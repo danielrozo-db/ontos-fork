@@ -6,6 +6,7 @@ from src.common.database import Base
 
 
 class WorkflowInstallationDb(Base):
+    """Installed Databricks workflow: workflow_id, name, job_id, status; which background workflows are enabled (SettingsManager, job runner)."""
     __tablename__ = 'workflow_installations'
 
     # Use UUID for primary key

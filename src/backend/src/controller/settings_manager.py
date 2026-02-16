@@ -969,12 +969,31 @@ class SettingsManager:
         """Extract database schema from SQLAlchemy models for ERD visualization.
 
         Returns:
-            Dict with 'tables' and 'relationships' keys for schema visualization
+            Dict with 'tables' and 'relationships' keys for schema visualization.
+            Each table may include a 'description' from the model's docstring or __erd_doc__.
         """
         from src.common.database import Base
 
         tables = []
         relationships = []
+
+        # Build table name -> mapped class for docstrings (ORM models only; association tables have no mapper)
+        table_name_to_class: Dict[str, type] = {}
+        for mapper in Base.registry.mappers:
+            for t in mapper.tables:
+                if t.name not in table_name_to_class:
+                    table_name_to_class[t.name] = mapper.class_
+
+        def _table_description(table_name: str) -> Optional[str]:
+            cls = table_name_to_class.get(table_name)
+            if not cls:
+                return None
+            doc = getattr(cls, "__erd_doc__", None)
+            if doc is not None and isinstance(doc, str):
+                return doc.strip() or None
+            if cls.__doc__:
+                return cls.__doc__.strip() or None
+            return None
 
         logger.info(f"Introspecting database schema. Found {len(Base.metadata.tables)} tables.")
 
@@ -1001,11 +1020,15 @@ class SettingsManager:
                     'foreign_key': fk_info
                 })
 
-            tables.append({
+            table_entry: Dict[str, Any] = {
                 'id': table_name,
                 'name': table_name,
                 'columns': columns
-            })
+            }
+            description = _table_description(table_name)
+            if description:
+                table_entry['description'] = description
+            tables.append(table_entry)
 
             # Extract foreign key relationships for edges
             for fk_constraint in table.foreign_key_constraints:

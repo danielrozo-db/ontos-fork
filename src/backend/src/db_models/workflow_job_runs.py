@@ -6,6 +6,7 @@ from src.common.database import Base
 
 
 class WorkflowJobRunDb(Base):
+    """Single run of an installed workflow: run_id, life_cycle_state, result_state, timing; used for job run history and failure notifications."""
     __tablename__ = 'workflow_job_runs'
 
     # Primary key

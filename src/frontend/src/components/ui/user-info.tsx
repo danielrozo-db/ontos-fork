@@ -54,15 +54,14 @@ const getHighestAccessLevelName = (userPermissions: Record<string, FeatureAccess
     }
 };
 
-// Map calculated level names to expected canonical role names
-// Adjust these names if your actual default roles are named differently
-const CANONICAL_ROLE_NAMES: Record<string, string | null> = {
-    'Admin Access': 'Admin',
-    'Read/Write Access': 'Read Write', // Or 'Editor'?
-    'Read-Only Access': 'Read Only',  // Or 'Viewer'?
-    'No Access': null, // No specific role name for no access
-    'Unknown Access': null, // No specific role name for unknown
-};
+// Map calculated level names to expected canonical role names (available for future use)
+// const CANONICAL_ROLE_NAMES: Record<string, string | null> = {
+//     'Admin Access': 'Admin',
+//     'Read/Write Access': 'Read Write',
+//     'Read-Only Access': 'Read Only',
+//     'No Access': null,
+//     'Unknown Access': null,
+// };
 
 export default function UserInfo() {
   const { t } = useTranslation('common');
@@ -163,11 +162,12 @@ export default function UserInfo() {
 
   let displayRoleName = 'Loading...';
   let highestActualLevelName = 'Loading...'; // Store the display name for the actual level
-  let highestActualCanonicalRoleName: string | null = null; // Store the canonical name
+  // Canonical name available for future role display features
+  // let highestActualCanonicalRoleName: string | null = null;
 
   if (!permissionsLoading) {
       highestActualLevelName = getHighestAccessLevelName(permissions);
-      highestActualCanonicalRoleName = CANONICAL_ROLE_NAMES[highestActualLevelName]; // Get canonical name
+      // highestActualCanonicalRoleName = CANONICAL_ROLE_NAMES[highestActualLevelName];
 
       if (appliedRoleId) {
           const appliedRole = availableRoles.find(role => role.id === appliedRoleId);

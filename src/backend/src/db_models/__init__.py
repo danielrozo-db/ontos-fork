@@ -1,48 +1,36 @@
-# Makes api/db_models a package
+# Makes api/db_models a package.
+# Import all model modules so that every table is registered with Base.metadata
+# (used by database.py, Alembic, and schema introspection).
 
-from .data_products import DataProductDb
-from .settings import AppRoleDb
-from .audit_log import AuditLogDb
-from .data_asset_reviews import DataAssetReviewRequestDb, ReviewedAssetDb
-from .data_domains import DataDomain
-from .tags import TagDb, TagNamespaceDb, TagNamespacePermissionDb, EntityTagAssociationDb
-from .teams import TeamDb, TeamMemberDb
-from .projects import ProjectDb, project_team_association
-from .genie_spaces import GenieSpaceDb
-from .llm_sessions import LLMSessionDb, LLMMessageDb
-from .data_quality_checks import DataQualityCheckRunDb, DataQualityCheckResultDb
-from .data_contract_validations import DataContractValidationRunDb, DataContractValidationResultDb
-from .datasets import DatasetDb, DatasetSubscriptionDb, DatasetCustomPropertyDb, DatasetInstanceDb
-from .process_workflows import ProcessWorkflowDb, WorkflowStepDb, WorkflowExecutionDb, WorkflowStepExecutionDb
+from . import app_settings
+from . import access_grants
+from . import audit_log
+from . import change_log
+from . import comments
+from . import compliance
+from . import costs
+from . import data_asset_reviews
+from . import data_contract_validations
+from . import data_contracts
+from . import data_domains
+from . import data_products
+from . import data_quality_checks
+from . import datasets
+from . import genie_spaces
+from . import llm_sessions
+from . import mcp_tokens
+from . import mdm
+from . import metadata as metadata_db
+from . import notifications
+from . import process_workflows
+from . import projects
+from . import rdf_triples
+from . import semantic_links
+from . import semantic_models
+from . import settings
+from . import tags
+from . import teams
+from . import workflow_configurations
+from . import workflow_installations
+from . import workflow_job_runs
 
-__all__ = [
-    "DataProductDb",
-    "AppRoleDb",
-    "AuditLogDb",
-    "DataAssetReviewRequestDb",
-    "ReviewedAssetDb",
-    "DataDomain",
-    "TagDb",
-    "TagNamespaceDb",
-    "TagNamespacePermissionDb",
-    "EntityTagAssociationDb",
-    "TeamDb",
-    "TeamMemberDb",
-    "ProjectDb",
-    "project_team_association",
-    "GenieSpaceDb",
-    "LLMSessionDb",
-    "LLMMessageDb",
-    "DataQualityCheckRunDb",
-    "DataQualityCheckResultDb",
-    "DataContractValidationRunDb",
-    "DataContractValidationResultDb",
-    "DatasetDb",
-    "DatasetSubscriptionDb",
-    "DatasetCustomPropertyDb",
-    "DatasetInstanceDb",
-    "ProcessWorkflowDb",
-    "WorkflowStepDb",
-    "WorkflowExecutionDb",
-    "WorkflowStepExecutionDb",
-] 

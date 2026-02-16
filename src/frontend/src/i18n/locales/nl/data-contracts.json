@@ -175,6 +175,16 @@
     "preview": "Voorbeeld",
     "validate": "Valideren",
     "save": "Opslaan"
+  },
+  "schemaEditor": {
+    "unsavedChanges": "Niet-opgeslagen wijzigingen",
+    "editingColumn": "Kolom bewerken",
+    "addingNewColumn": "Nieuwe kolom toevoegen",
+    "applyWithUpdateOrSave": "Toepassen met Kolom bijwerken, of Wijzigingen opslaan om ze in het schema op te nemen.",
+    "updateColumn": "Kolom bijwerken",
+    "addColumn": "Kolom toevoegen",
+    "addSchema": "Schema toevoegen",
+    "cancel": "Annuleren"
   }
 }
 

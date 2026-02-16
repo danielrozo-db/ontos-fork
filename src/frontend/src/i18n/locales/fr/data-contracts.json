@@ -175,6 +175,16 @@
     "preview": "Aperçu",
     "validate": "Valider",
     "save": "Enregistrer"
+  },
+  "schemaEditor": {
+    "unsavedChanges": "Modifications non enregistrées",
+    "editingColumn": "Modification de la colonne",
+    "addingNewColumn": "Ajouter une nouvelle colonne",
+    "applyWithUpdateOrSave": "Appliquer avec Mettre à jour la colonne, ou Enregistrer les modifications pour les inclure dans le schéma.",
+    "updateColumn": "Mettre à jour la colonne",
+    "addColumn": "Ajouter une colonne",
+    "addSchema": "Ajouter un schéma",
+    "cancel": "Annuler"
   }
 }
 

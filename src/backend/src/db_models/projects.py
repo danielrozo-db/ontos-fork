@@ -17,7 +17,7 @@ project_team_association = Table(
 
 
 class ProjectDb(Base):
-    """SQLAlchemy model for Projects"""
+    """Project: name, title, description, type (PERSONAL/TEAM), owner_team; used for scoping products/contracts and team assignment (ProjectsManager)."""
     __tablename__ = 'projects'
 
     # Core Fields

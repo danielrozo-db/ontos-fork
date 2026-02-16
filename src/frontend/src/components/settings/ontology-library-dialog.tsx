@@ -21,7 +21,6 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import {
   ChevronRight,
@@ -29,10 +28,7 @@ import {
   Loader2,
   Library,
   ExternalLink,
-  AlertTriangle,
   Search,
-  RefreshCw,
-  Info,
 } from 'lucide-react';
 import {
   VerticalSummary,

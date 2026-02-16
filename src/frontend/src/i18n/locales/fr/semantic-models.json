@@ -1,4 +1,7 @@
 {
+  "rebuildGraph": "Reconstruire le graphe",
+  "rebuildingGraph": "Reconstruction…",
+  "rebuildGraphTooltip": "Recharger les ontologies, les sources implicites et les objets applicatifs pour tout interroger.",
   "title": "Glossaire Métier",
   "subtitle": "Gérez les glossaires métier et les définitions sémantiques",
   "newModel": "Nouveau Glossaire",
