@@ -25,16 +25,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Check, XCircle, ChevronRight, FileText, Eye } from 'lucide-react';
+import { Loader2, Check, XCircle, ChevronRight, FileText, Eye, ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useApi } from '@/hooks/use-api';
 import { useToast } from '@/hooks/use-toast';
 import { useUserStore } from '@/stores/user-store';
 
-/** Lightweight markdown to HTML — handles headers, bold, lists, paragraphs. */
+/** Lightweight markdown to HTML — handles headers, bold, lists, paragraphs, and inline links. */
 function simpleMarkdown(text: string): string {
   return text
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')  // escape HTML
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
     .replace(/^### (.+)$/gm, '<h3>$1</h3>')
     .replace(/^## (.+)$/gm, '<h2>$1</h2>')
     .replace(/^# (.+)$/gm, '<h1>$1</h1>')
@@ -46,6 +47,32 @@ function simpleMarkdown(text: string): string {
     .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br/>')
     .replace(/^/, '<p>').replace(/$/, '</p>');
+}
+
+interface ReferenceDoc { label: string; url: string; }
+
+function ReferenceDocuments({ refs }: { refs?: ReferenceDoc[] }) {
+  if (!refs || refs.length === 0) return null;
+  return (
+    <div className="mt-4 border-t pt-3">
+      <p className="text-xs font-medium text-muted-foreground mb-2">Reference documents</p>
+      <ul className="space-y-1">
+        {refs.map((ref, i) => (
+          <li key={i}>
+            <a
+              href={ref.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-primary hover:underline flex items-center gap-1"
+            >
+              <ExternalLink className="h-3 w-3 flex-shrink-0" />
+              {ref.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 interface ApprovalWorkflowRef {
@@ -651,6 +678,11 @@ export default function ApprovalWizardDialog({
       if (currentStep.step_type === 'user_action' && submissionPayload && typeof submissionPayload === 'object') {
         collectedFieldsRef.current = { ...collectedFieldsRef.current, ...submissionPayload };
       }
+      // Thread on_behalf_of step result through so wizard_data carries it into
+      // entity_data for ${context.on_behalf_of.*} template resolution.
+      if (currentStep.step_type === 'on_behalf_of' && submissionPayload && typeof submissionPayload === 'object') {
+        collectedFieldsRef.current = { ...collectedFieldsRef.current, on_behalf_of: submissionPayload };
+      }
       const res = await post<{ complete?: boolean; agreement_id?: string; pdf_storage_path?: string; pdf_url?: string; current_step?: WizardStep; step_results?: unknown[] }>(
         `/api/approvals/sessions/${sessionId}/steps`,
         { step_id: currentStep.step_id, payload: submissionPayload },
@@ -764,6 +796,8 @@ export default function ApprovalWizardDialog({
   const actionLabel = completionAction
     ? completionAction.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
     : 'proceed';
+
+  const refs = currentStep?.config?.references as ReferenceDoc[] | undefined;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleDialogOpenChange}>
@@ -901,7 +935,10 @@ export default function ApprovalWizardDialog({
               <div className="space-y-1">
                 <Label className="text-base">{(currentStep.config.title as string)}</Label>
                 {(currentStep.config?.description as string) && (
-                  <p className="text-sm text-muted-foreground">{(currentStep.config.description as string)}</p>
+                  <p
+                    className="text-sm text-muted-foreground"
+                    dangerouslySetInnerHTML={{ __html: simpleMarkdown((currentStep.config.description as string)) }}
+                  />
                 )}
               </div>
             )}
@@ -947,6 +984,7 @@ export default function ApprovalWizardDialog({
                     )}
                   </div>
                 ))}
+                <ReferenceDocuments refs={refs} />
               </div>
             )}
 
@@ -990,6 +1028,7 @@ export default function ApprovalWizardDialog({
                     </Label>
                   </div>
                 )}
+                <ReferenceDocuments refs={refs} />
               </div>
             )}
 
@@ -1007,11 +1046,12 @@ export default function ApprovalWizardDialog({
                       disabled={loading}
                     />
                     <Label htmlFor={`checklist-${item.id}`} className="text-sm cursor-pointer leading-tight">
-                      {item.label}
+                      <span dangerouslySetInnerHTML={{ __html: simpleMarkdown(item.label || '') }} />
                       {item.required !== false && <span className="text-destructive ml-1">*</span>}
                     </Label>
                   </div>
                 ))}
+                <ReferenceDocuments refs={refs} />
               </div>
             )}
 

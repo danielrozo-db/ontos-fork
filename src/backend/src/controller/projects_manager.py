@@ -491,7 +491,7 @@ class ProjectsManager:
                     f"Please contact an administrator to grant access if appropriate."
                 )
 
-                notification = await notifications_manager.create_notification(
+                notification = await notifications_manager.create_user_notification(
                     db=db,
                     user_id=member_email,
                     title=notification_title,

@@ -64,6 +64,111 @@ def get_data_products_manager(
     return manager
 
 
+def _caller_can_read_product(request, db, current_user, manager, product) -> bool:
+    """Whether ``current_user`` may read ``product`` directly.
+
+    Published products (active/deprecated) are readable by any caller with
+    data-products READ_ONLY — that's the catalog/marketplace contract.
+    Unpublished products (draft/proposed/under_review/approved/...) are only
+    readable by data-products admins (incl. via an in-app role override) and
+    by owners (draft_owner / owning team / project member). This stops a
+    consumer from reading an unpublished product by its id (ONT-NEG-011).
+    Fails closed on error.
+    """
+    try:
+        from types import SimpleNamespace
+        from src.common.version_visibility import is_visible_consumer
+
+        # Normalize status (may be an enum on the API model) for the
+        # consumer-visibility check (active/deprecated are readable by all).
+        raw_status = getattr(product, "status", None)
+        status_str = raw_status.value if hasattr(raw_status, "value") else str(raw_status or "")
+        if is_visible_consumer(SimpleNamespace(status=status_str)):
+            return True
+
+        product_id = str(getattr(product, "id", "") or "")
+        auth_manager = getattr(request.app.state, "authorization_manager", None)
+        settings_manager = getattr(request.app.state, "settings_manager", None)
+        caller_email = current_user.email if current_user else None
+        user_groups = current_user.groups if current_user else []
+
+        if auth_manager and current_user:
+            applied_role_id = (
+                settings_manager.get_applied_role_override_for_user(caller_email)
+                if settings_manager else None
+            )
+            if applied_role_id and settings_manager:
+                eff = settings_manager.get_feature_permissions_for_role_id(applied_role_id)
+            else:
+                eff = auth_manager.get_user_effective_permissions(user_groups or [], None)
+            if auth_manager.has_permission(eff, DATA_PRODUCTS_FEATURE_ID, FeatureAccessLevel.ADMIN):
+                return True
+
+        # Non-admin: grant only if the caller genuinely OWNS *this* product.
+        #
+        # ONT-NEG-011 follow-up (PR #535 was ineffective): the prior fix
+        # resolved the caller's scope via ``projects_manager.get_user_projects``
+        # and then checked membership of ``manager.list_products(...)``. But
+        # ``get_user_projects`` treats *any* group whose name merely contains
+        # the substring "admin" (e.g. the ubiquitous workspace ``admins``
+        # group) as a global admin and returns EVERY project. A Data Consumer
+        # in such a group therefore got ``caller_project_ids`` = all projects,
+        # which matched the draft's ``project_id`` in ``list_products`` and
+        # leaked the draft. We must NOT trust that broad, substring-admin
+        # scope. Instead resolve the three ownership facts against THIS product
+        # only, using membership-based checks (no substring-admin shortcut):
+        #   * draft_owner_id == caller (creator ownership)
+        #   * owner_team_id in caller's real team memberships
+        #   * project_id where the caller is a genuine project member
+        from src.controller.teams_manager import teams_manager
+        from src.controller.projects_manager import projects_manager
+
+        if not caller_email:
+            return False
+
+        owner_email = getattr(product, "draft_owner_id", None)
+        if owner_email and str(owner_email).lower() == str(caller_email).lower():
+            return True
+
+        product_team_id = getattr(product, "owner_team_id", None)
+        if product_team_id:
+            try:
+                user_teams = teams_manager.get_teams_for_user(db, caller_email, user_groups)
+                if any(str(getattr(t, "id", None)) == str(product_team_id) for t in user_teams):
+                    return True
+            except Exception:
+                logger.exception(
+                    "Team-membership resolution failed for %s in product read gate",
+                    caller_email,
+                )
+
+        product_project_id = getattr(product, "project_id", None)
+        if product_project_id:
+            try:
+                from src.common.config import get_settings
+                # ``is_user_project_member`` uses configured admin groups
+                # (is_user_admin), not a substring match, and verifies real
+                # team membership of the project — so it does not over-grant.
+                if projects_manager.is_user_project_member(
+                    db=db,
+                    user_identifier=caller_email,
+                    user_groups=user_groups or [],
+                    project_id=str(product_project_id),
+                    settings=get_settings(),
+                ):
+                    return True
+            except Exception:
+                logger.exception(
+                    "Project-membership resolution failed for %s in product read gate",
+                    caller_email,
+                )
+
+        return False
+    except Exception:
+        logger.exception("Product read gate failed for %s; denying", product_id)
+        return False
+
+
 # --- Lifecycle transitions (minimal) ---
 
 @router.post('/data-products/{product_id}/move-to-sandbox')
@@ -386,6 +491,15 @@ async def request_certify_product(
         if not product_db:
             raise HTTPException(status_code=404, detail="Data product not found")
 
+        # A product with no deliverables (output ports) has nothing to certify;
+        # block the request rather than accepting an empty product into the
+        # certification workflow (ONT-CUJ-019 / ONT-NEG-008).
+        if not (product_db.output_ports or []):
+            raise HTTPException(
+                status_code=409,
+                detail="At least one deliverable is required before requesting certification",
+            )
+
         username = current_user.username if current_user else None
         change_log_manager.log_change_with_details(
             db,
@@ -395,6 +509,15 @@ async def request_certify_product(
             username=username,
             details={"certification_level": certification_level, "message": message},
         )
+
+        # Advance the lifecycle so the product surfaces in the review/approvals
+        # queue. A pre-review product (draft/sandbox) moves to 'proposed' on a
+        # successful certification request; products already in-flight keep their
+        # current status. Without this the documented draft -> proposed
+        # transition never happened (ONT-CUJ-019).
+        current_status = (product_db.status or 'draft').lower()
+        if current_status in ('draft', 'sandbox'):
+            manager.submit_for_review(product_id, username)
 
         get_trigger_registry(db).on_request_certify(
             EntityType.DATA_PRODUCT,
@@ -2148,6 +2271,33 @@ async def update_data_product(
                 f"continuing without team-ownership branch"
             )
 
+        # Resolve the caller's *feature-level* data-products permission so a
+        # data-products Admin (including via an in-app role override) can edit
+        # any product, not just ones they own. Mirrors the resolution used by
+        # the DP-assets route. Best-effort: on failure we fall back to the
+        # ownership cascade (project / team / draft-owner) only.
+        is_feature_admin = False
+        try:
+            auth_manager = getattr(request.app.state, "authorization_manager", None)
+            settings_manager = getattr(request.app.state, "settings_manager", None)
+            if auth_manager and current_user:
+                applied_role_id = (
+                    settings_manager.get_applied_role_override_for_user(current_user.email)
+                    if settings_manager else None
+                )
+                if applied_role_id and settings_manager:
+                    eff = settings_manager.get_feature_permissions_for_role_id(applied_role_id)
+                else:
+                    eff = auth_manager.get_user_effective_permissions(user_groups, None)
+                is_feature_admin = auth_manager.has_permission(
+                    eff, DATA_PRODUCTS_FEATURE_ID, FeatureAccessLevel.ADMIN
+                )
+        except Exception:
+            logger.exception(
+                "Failed to resolve data-products admin level for product update; "
+                "falling back to ownership cascade"
+            )
+
         updated_product_response = manager.update_product_with_auth(
             product_id=product_id,
             product_data_dict=product_dict,
@@ -2156,6 +2306,7 @@ async def update_data_product(
             db=db,
             background_tasks=background_tasks,
             caller_team_ids=caller_team_ids,
+            is_feature_admin=is_feature_admin,
         )
 
         if not updated_product_response:
@@ -2297,6 +2448,9 @@ async def delete_data_product(
 @router.get('/data-products/{product_id}', response_model=Any)
 async def get_data_product(
     product_id: str,
+    request: Request,
+    db: DBSessionDep,
+    current_user: CurrentUserDep,
     manager: DataProductsManager = Depends(get_data_products_manager),
     _: bool = Depends(PermissionChecker(DATA_PRODUCTS_FEATURE_ID, FeatureAccessLevel.READ_ONLY))
 ) -> Any: # Return Any to allow returning a dict
@@ -2304,6 +2458,17 @@ async def get_data_product(
         product = manager.get_product(product_id)
         if not product:
             raise HTTPException(status_code=404, detail="Data product not found")
+
+        # Gate direct reads by the same ownership scope the listing uses. The
+        # marketplace listing already hides unpublished products, but a direct
+        # GET by id must not let a consumer read a draft/proposed product they
+        # don't own (ONT-NEG-011). data-products admins see everything; other
+        # callers only see products in their accessible set (published
+        # products, plus drafts they own / their team or project owns). A miss
+        # returns 404 (not 403) so the existence of the draft isn't disclosed.
+        if not _caller_can_read_product(request, db, current_user, manager, product):
+            raise HTTPException(status_code=404, detail="Data product not found")
+
         return product.model_dump(by_alias=False, exclude={'created_at', 'updated_at'}, exclude_none=True, exclude_unset=True)
     except ValueError as e:
         logger.error("Validation error fetching product %s: %s", product_id, e)

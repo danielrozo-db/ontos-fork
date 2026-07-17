@@ -281,6 +281,10 @@ def _resolve_role_to_users(
                     return [(r.name, r.id)]
         return [(role_name, role.id if role else None)]
 
+    # Strip "user:" prefix emitted by the PrincipalPicker (e.g. "user:foo@bar.com").
+    if role_spec.startswith('user:'):
+        role_spec = role_spec[len('user:'):]
+
     if '@' in role_spec:
         # Pre-comma-split single email -- treat as a direct recipient.
         return [(role_spec, None)]
@@ -434,6 +438,23 @@ def _extract_approval_facets(context: "StepContext") -> Dict[str, Any]:
         request_id = entity.get("request_id") or context.entity_id
         if request_id:
             facets["request_id"] = str(request_id)
+
+    # --- Universal extras (all trigger types) ---
+
+    on_behalf_of = entity.get("on_behalf_of")
+    if isinstance(on_behalf_of, dict) and on_behalf_of.get("type") and on_behalf_of.get("value"):
+        facets["on_behalf_of"] = {
+            "type": str(on_behalf_of["type"]),
+            "value": str(on_behalf_of["value"]),
+        }
+
+    step_results = entity.get("step_results") or entity.get("required_fields_answers")
+    if isinstance(step_results, dict) and step_results:
+        facets["step_results"] = step_results
+
+    # Full entity_data for the frontend's generic key→value detail section.
+    if entity:
+        facets["full_payload"] = dict(entity)
 
     return facets
 

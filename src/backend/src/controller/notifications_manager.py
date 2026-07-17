@@ -232,7 +232,7 @@ class NotificationsManager:
         
         return False
 
-    async def create_notification(
+    async def create_user_notification(
         self,
         db: Session,
         user_id: Optional[str] = None, # Add user_id (recipient or broadcast)
@@ -245,7 +245,14 @@ class NotificationsManager:
         action_payload: Optional[Dict] = None,
         can_delete: bool = True
     ) -> Notification:
-        """Creates and saves a new notification using keyword arguments."""
+        """Creates and saves a new notification using keyword arguments.
+
+        NOTE: renamed from create_notification. The object-based
+        create_notification(notification, db) defined later in this class
+        shadowed this method, so every kwargs-style call raised
+        TypeError (unexpected keyword argument 'user_id') and the
+        notification was silently lost.
+        """
         try:
             now = datetime.utcnow()
             notification_id = str(uuid.uuid4())
