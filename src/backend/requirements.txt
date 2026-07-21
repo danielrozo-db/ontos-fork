@@ -1370,17 +1370,17 @@ matplotlib==3.10.8 \
     --hash=sha256:f9b587c9c7274c1613a30afabf65a272114cd6cdbe67b3406f818c79d7ab2e2a \
     --hash=sha256:fb061f596dad3a0f52b60dc6a5dec4a0c300dec41e058a7efe09256188d170b7
     # via mlflow
-mlflow==3.11.1 \
-    --hash=sha256:84e54c4be91b5b2a19039a2673fe688b1d7307ceddacc08af51f8df05b19ee56 \
-    --hash=sha256:8f6bf1238ac04f97664c229dd480380c5c254a78bdb3c0e433e3a0397508b1af
+mlflow==3.14.0 \
+    --hash=sha256:5a1f818fa003035c724162096ce3ded7bc7bc47a1cae595df6173961983f4718 \
+    --hash=sha256:dbf77f7cdb5b5c0ec59b4671c61730b1b914b4dff7a2892e267a547cb5454f56
     # via -r src/backend/requirements.in
-mlflow-skinny==3.11.1 \
-    --hash=sha256:82ffd5f6980320b4ac19f741e7a754faa1d01707e632b002ea68e04fd25a0535 \
-    --hash=sha256:86ce63491349f6713afc8a4ef0bf77a8314d0e79e03753cb150d6c860a0b0475
+mlflow-skinny==3.14.0 \
+    --hash=sha256:a4880e086365871ef9d78e727a34ea5fb1ce615689579998d48e8c65ee1665a9 \
+    --hash=sha256:e50f4506422c7737157ae6643c165122af7898345f2e828fa93c4f10128653cf
     # via mlflow
-mlflow-tracing==3.11.1 \
-    --hash=sha256:cb63cee16385d081467ec5bee4807fe1af59ddfdf04be4c79e7a7813b1002193 \
-    --hash=sha256:fa82df64dacf8293b714ae666440fe7c1902c6470c024df389bb91e9de3106d9
+mlflow-tracing==3.14.0 \
+    --hash=sha256:854488dd18068f15e2a56f1cc7b8868c611d09ea39068d0a691a3f07e0048cae \
+    --hash=sha256:c2f701e001d35964f23fbbdfdda36c818a76c157b912ae83781199fd714be09a
     # via mlflow
 multidict==6.7.1 \
     --hash=sha256:026d264228bcd637d4e060844e39cdc60f86c479e463d49075dedc21b18fbbe0 \
@@ -2709,7 +2709,9 @@ sqlparse==0.5.5 \
 starlette==0.48.0 \
     --hash=sha256:0764ca97b097582558ecb498132ed0c7d942f233f365b86ba37770e026510659 \
     --hash=sha256:7e8cee469a8ab2352911528110ce9088fdc6a37d9876926e73da7ce4aa4c7a46
-    # via fastapi
+    # via
+    #   fastapi
+    #   mlflow-skinny
 threadpoolctl==3.6.0 \
     --hash=sha256:43a0b8fd5a2928500110039e43a5eed8480b918967083ea48dc3ab9f13c4a7fb \
     --hash=sha256:8ab8b4aa3491d812b623328249fab5302a68d2d71745c8a4c719a2fcaba9f44e
