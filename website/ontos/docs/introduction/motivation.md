@@ -3,7 +3,7 @@ sidebar_position: 1
 ---
 # Motivation
 
-**Ontos**  is a comprehensive data governance and metadata management platform built for Databricks Unity Catalog and delivered as a native Databricks App. It empowers data teams to implement data mesh principles by providing tools to organize, govern, and deliver high-quality data products, Data Contracts, and Business Glossaries, adhering to industry standards like ODCS and ODPS.
+**Ontos** is a comprehensive data governance and metadata management platform built for Databricks Unity Catalog and delivered as a native Databricks App. It empowers data teams to implement data mesh principles by providing tools to organize, govern, and deliver high-quality data products, Data Contracts, and Business Glossaries, adhering to industry standards like ODCS and ODPS.
 
 :::info
 Refer to the [BITOL Open Data Contract Standard (ODCS)](https://github.com/bitol-io/open-data-contract-standard) and the [BITOL Open Data Product Standard (ODPS)](https://github.com/bitol-io/open-data-product-standard) for data product to learn more about the standards supported by Ontos. 
