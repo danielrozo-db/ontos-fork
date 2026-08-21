@@ -538,9 +538,9 @@ databricks-sql-connector==4.2.6 \
     # via
     #   -r src/backend/requirements.in
     #   databricks-sqlalchemy
-databricks-sqlalchemy==2.0.9 \
-    --hash=sha256:9975830df92541485c0560998ee90f1ac0f76d9d3de4940582e951c09b49b9ed \
-    --hash=sha256:b2569084942591b91eff749ca3f5cdb101845245d36a665d70fc8ad12005dab9
+databricks-sqlalchemy==2.0.10 \
+    --hash=sha256:47ad32cc8660bf11fbe1ad8065f976264f7d2399e517144518e77fd6f5ba90b4 \
+    --hash=sha256:75e75b1309a6cd9b8442060523f1241254766d90c130b6fc9575a0e2dd692e39
     # via -r src/backend/requirements.in
 defusedxml==0.7.1 \
     --hash=sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69 \
